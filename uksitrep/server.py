@@ -27,22 +27,39 @@ LOOKUPS = web.AppKey("lookups", dict)
 @web.middleware
 async def auth_middleware(request: web.Request, handler):
     token = request.app[CFG].access_token
-    if token and request.path not in PUBLIC_PATHS and not request.path.startswith("/icons/"):
-        given = request.query.get("token") or request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    path = request.path
+    if path.startswith("/k/"):  # /k/<token>/... form: survives clients that drop query strings
+        path = "/" + path.split("/", 3)[3] if path.count("/") >= 3 else "/"
+    if token and path not in PUBLIC_PATHS and not path.startswith("/icons/"):
+        given = (request.match_info.get("tok") or request.query.get("token")
+                 or request.headers.get("Authorization", "").removeprefix("Bearer ").strip())
         if not given or not hmac.compare_digest(given, token):
             why = "no token in the request" if not given else f"token does not match ({len(given)} chars, starts {given[:4]})"
             _LOGGER.warning(
-                "401 %s: %s (from %s, UA %s)", request.path, why,
-                request.headers.get("X-Forwarded-For", request.remote), request.headers.get("User-Agent", "?")[:80],
+                "401 %s: %s (from %s, referer %s, dest %s, UA %s)", path, why,
+                request.headers.get("X-Forwarded-For", request.remote), request.headers.get("Referer", "-"),
+                request.headers.get("Sec-Fetch-Dest", "-"), request.headers.get("User-Agent", "?")[:80],
             )
             # no-store: a cached 401 would otherwise outlive a fixed URL or a container restart
-            return web.Response(status=401, text=f"Unauthorised: add ?token=... to the URL\n\n({why})",
+            return web.Response(status=401, text=f"Unauthorised: open /?token=... or /k/<token>/\n\n({why})",
                                 headers={"Cache-Control": "no-store"})
     resp = await handler(request)
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")
     # send our origin (not full URL) so tile servers like OSM see a valid Referer
     resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     return resp
+
+
+async def icon_file(request: web.Request) -> web.StreamResponse:
+    f = ICONS / request.match_info["name"]
+    if f.parent != ICONS or not f.is_file():
+        raise web.HTTPNotFound()
+    return web.FileResponse(f, headers={"Cache-Control": "max-age=604800"})
+
+
+async def token_root(request: web.Request) -> web.Response:
+    # the page uses relative URLs, so it must be served from /k/<token>/ with the slash
+    raise web.HTTPFound(f"/k/{request.match_info['tok']}/")
 
 
 async def index(request: web.Request) -> web.FileResponse:
@@ -120,15 +137,18 @@ async def _cleanup(app: web.Application) -> None:
 def make_app(cfg: Config) -> web.Application:
     app = web.Application(middlewares=[auth_middleware])
     app[CFG] = cfg
-    app.router.add_get("/", index)
-    app.router.add_get("/index.html", index)
     app.router.add_get("/healthz", healthz)
     app.router.add_get("/favicon.ico", favicon)
     app.router.add_get("/apple-touch-icon.png", favicon)
     app.router.add_get("/apple-touch-icon-precomposed.png", favicon)
-    app.router.add_static("/icons/", ICONS, append_version=False)
-    app.router.add_get("/api/{feed}", feed)
-    app.router.add_get("/{name:aircraft_types|icao_countries}.json", lookup)
+    app.router.add_get("/k/{tok}", token_root)
+    # every page route twice: /... with ?token=, and /k/<token>/... for clients that drop query strings
+    for pre in ("", "/k/{tok}"):
+        app.router.add_get(pre + "/", index)
+        app.router.add_get(pre + "/index.html", index)
+        app.router.add_get(pre + "/icons/{name}", icon_file)
+        app.router.add_get(pre + "/api/{feed}", feed)
+        app.router.add_get(pre + "/{name:aircraft_types|icao_countries}.json", lookup)
     app.on_startup.append(_startup)
     app.on_cleanup.append(_cleanup)
     return app

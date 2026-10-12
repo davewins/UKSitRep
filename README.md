@@ -41,7 +41,7 @@ Without Docker (Python 3.11+): `pip install -r requirements.txt && DATA_DIR=./da
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `ACCESS_TOKEN` | *(none — open)* | Require `?token=…` (or `Authorization: Bearer …`) on every request |
+| `ACCESS_TOKEN` | *(none — open)* | Require the token on every request: `/?token=…`, `/k/<token>/` (path form, for apps that drop query strings, e.g. the HA iOS app), or `Authorization: Bearer …` |
 | `AISSTREAM_API_KEY` | — | Live ships ([aisstream.io](https://aisstream.io), free). Connects only while someone is viewing |
 | `NATIONAL_HIGHWAYS_KEY`, `NATIONAL_HIGHWAYS_KEY_SECONDARY` | — | Road closures and incidents ([developer portal](https://developer.data.nationalhighways.co.uk)) |
 | `BBC_LOCAL_REGIONS` | — | Extra BBC England local feeds, e.g. `gloucestershire,devon` |
@@ -58,7 +58,7 @@ Add a dashboard in panel view containing a Webpage (iframe) card:
 
 ```yaml
 type: iframe
-url: http://<host>:8080/?token=<ACCESS_TOKEN>
+url: https://<host>/k/<ACCESS_TOKEN>/
 ```
 
 Add `&kiosk` to the URL to hide the layer panel on a wall display.
