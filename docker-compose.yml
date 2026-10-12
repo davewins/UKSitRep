@@ -1,6 +1,6 @@
 services:
   uksitrep:
-    image: ghcr.io/OWNER/uksitrep:latest   # or: build: .
+    image: ghcr.io/davewins/uksitrep:latest   # or: build: .
     container_name: uksitrep
     restart: unless-stopped
     ports:
