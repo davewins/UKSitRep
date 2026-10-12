@@ -1,0 +1,97 @@
+"""aiohttp web server: serves the map page and the /api/<feed> JSON endpoints."""
+
+from __future__ import annotations
+
+import asyncio
+import hmac
+import logging
+from pathlib import Path
+
+import aiohttp
+from aiohttp import web
+
+from . import __version__, lookups
+from .config import Config
+from .feeds import Situation
+
+_LOGGER = logging.getLogger("uksitrep")
+STATIC = Path(__file__).parent / "static"
+CFG = web.AppKey("cfg", Config)
+SIT = web.AppKey("situation", Situation)
+LOOKUPS = web.AppKey("lookups", dict)
+
+
+@web.middleware
+async def auth_middleware(request: web.Request, handler):
+    token = request.app[CFG].access_token
+    if token and request.path != "/healthz":
+        given = request.query.get("token") or request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        if not given or not hmac.compare_digest(given, token):
+            return web.Response(status=401, text="Unauthorised: add ?token=... to the URL")
+    resp = await handler(request)
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("Referrer-Policy", "no-referrer")
+    return resp
+
+
+async def index(request: web.Request) -> web.FileResponse:
+    return web.FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
+
+
+async def feed(request: web.Request) -> web.Response:
+    sit = request.app[SIT]
+    name = request.match_info["feed"]
+    if name == "vessels":
+        return web.json_response(await sit.vessels(request.query.get("all") == "1"))
+    handler = sit.handlers.get(name)
+    if not handler:
+        return web.json_response({"error": "unknown feed"}, status=404)
+    return web.json_response(await handler())
+
+
+async def lookup(request: web.Request) -> web.Response:
+    key = request.match_info["name"]
+    return web.json_response(request.app[LOOKUPS].get(key, {}), headers={"Cache-Control": "max-age=86400"})
+
+
+async def healthz(request: web.Request) -> web.Response:
+    return web.json_response({"ok": True, "version": __version__})
+
+
+async def _startup(app: web.Application) -> None:
+    cfg = app[CFG]
+    cfg.data_dir.mkdir(parents=True, exist_ok=True)
+    session = aiohttp.ClientSession(headers={"User-Agent": f"UKSitRep/{__version__}"})
+    app["session"] = session
+    sit = Situation(cfg, session)
+    app[SIT] = sit
+    types, countries = await lookups.load(session, cfg.data_dir)
+    app[LOOKUPS] = {"aircraft_types": types, "icao_countries": countries}
+    if cfg.enable_background_adsb:
+        sit.spawn(sit.adsb_loop())
+    _LOGGER.info(
+        "UK SitRep %s on %s:%d (AIS %s, National Highways %s, WorldCam %s, DSFRS %s, auth %s)",
+        __version__, cfg.host, cfg.port, "on" if cfg.ais_key else "off", "on" if cfg.nh_keys else "off",
+        "on" if cfg.enable_worldcam else "off", "on" if cfg.dsfrs_stations else "off",
+        "token" if cfg.access_token else "OPEN",
+    )
+
+
+async def _cleanup(app: web.Application) -> None:
+    for task in list(app[SIT].tasks):
+        task.cancel()
+    await asyncio.gather(*app[SIT].tasks, return_exceptions=True)
+    await app["session"].close()
+
+
+def make_app(cfg: Config) -> web.Application:
+    app = web.Application(middlewares=[auth_middleware])
+    app[CFG] = cfg
+    app.router.add_get("/", index)
+    app.router.add_get("/index.html", index)
+    app.router.add_get("/healthz", healthz)
+    app.router.add_get("/api/{feed}", feed)
+    app.router.add_get("/{name:aircraft_types|icao_countries}.json", lookup)
+    app.on_startup.append(_startup)
+    app.on_cleanup.append(_cleanup)
+    return app

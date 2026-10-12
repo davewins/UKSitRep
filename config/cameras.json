@@ -1,0 +1,185 @@
+{
+  "_comment": "Hand-curated webcams added to the webcam layer. Positions are approximate. 'local': true draws them with the blue icon; 'image' is a live snapshot URL (optional).",
+  "cameras": [
+    {
+      "name": "Pontoon Terrace Cam, Dartmouth",
+      "lat": 50.3518,
+      "lon": -3.5791,
+      "url": "https://free.coastcams.com/dartmouth/pontoon-terrace-cam-dartmouth-webcam-sponsored-by-wesley-offshore/",
+      "source": "Coast Cams",
+      "local": true
+    },
+    {
+      "name": "Embankment Bistro Cam, Dartmouth",
+      "lat": 50.3505,
+      "lon": -3.5778,
+      "url": "https://free.coastcams.com/dartmouth/embankment-bistro-cam-dartmouth/",
+      "source": "Coast Cams",
+      "local": true
+    },
+    {
+      "name": "Brunel Holiday Park Cam, Dawlish Warren",
+      "lat": 50.6,
+      "lon": -3.443,
+      "url": "https://free.coastcams.com/dawlish-warren/brunel-holiday-park-cam-sponsored-by-discover-dawlish-warren/",
+      "source": "Coast Cams",
+      "local": true
+    },
+    {
+      "name": "Mount Pleasant Cam, Dawlish Warren",
+      "lat": 50.6045,
+      "lon": -3.447,
+      "url": "https://free.coastcams.com/dawlish-warren/mount-pleasant-cam/",
+      "source": "Coast Cams",
+      "local": true
+    },
+    {
+      "name": "Black Swan Cam, Dawlish",
+      "lat": 50.581,
+      "lon": -3.466,
+      "url": "https://free.coastcams.com/dawlish/black-swan-cam/",
+      "source": "Coast Cams",
+      "local": true
+    },
+    {
+      "name": "Blenheim Cam, Dawlish",
+      "lat": 50.5825,
+      "lon": -3.4625,
+      "url": "https://free.coastcams.com/dawlish/blenheim-cam/",
+      "source": "Coast Cams",
+      "local": true
+    },
+    {
+      "name": "Blenheim Cam 2, Dawlish",
+      "lat": 50.5829,
+      "lon": -3.4616,
+      "url": "https://free.coastcams.com/dawlish/blenheim-cam-2/",
+      "source": "Coast Cams",
+      "local": true
+    },
+    {
+      "name": "Sea Breeze Cam, Dawlish",
+      "lat": 50.5795,
+      "lon": -3.465,
+      "url": "https://free.coastcams.com/dawlish/sea-breeze-cam-sponsored-by-cofton-holidays-dawlish/",
+      "source": "Coast Cams",
+      "local": true
+    },
+    {
+      "name": "San Remo Cam, Dawlish",
+      "lat": 50.5785,
+      "lon": -3.4672,
+      "url": "https://free.coastcams.com/dawlish/san-remo-cam/",
+      "source": "Coast Cams",
+      "local": true
+    },
+    {
+      "name": "Salty Cottage Cam, Teignmouth",
+      "lat": 50.544,
+      "lon": -3.496,
+      "url": "https://free.coastcams.com/teignmouth/salty-cottage-cam/",
+      "source": "Coast Cams",
+      "local": true
+    },
+    {
+      "name": "Tinside Lido Cam, Plymouth",
+      "lat": 50.364,
+      "lon": -4.1405,
+      "url": "https://free.coastcams.com/plymouth/tinside-lido-cam-plymouth-webcam/",
+      "source": "Coast Cams",
+      "local": true
+    },
+    {
+      "name": "The Waterfront Cam, Plymouth",
+      "lat": 50.3632,
+      "lon": -4.137,
+      "url": "https://free.coastcams.com/plymouth/the-waterfront-cam-sponsored-by-your-devon-escape/",
+      "source": "Coast Cams",
+      "local": true
+    },
+    {
+      "name": "RNLI Plymouth Cam",
+      "lat": 50.366,
+      "lon": -4.134,
+      "url": "https://free.coastcams.com/rnli-plymouth-cam/",
+      "source": "Coast Cams",
+      "local": true
+    },
+    {
+      "name": "Portsmouth Sailing Club Cam",
+      "lat": 50.789,
+      "lon": -1.106,
+      "url": "https://free.coastcams.com/hampshire/portsmouth-sailing-club-cam/",
+      "source": "Coast Cams",
+      "local": true
+    },
+    {
+      "name": "NCI Teignmouth — seafront & pier towards the Ness",
+      "lat": 50.5484,
+      "lon": -3.4912,
+      "url": "https://www.teignmouth-nci.org.uk/dual-live-streams",
+      "source": "NCI Coastwatch",
+      "local": true,
+      "image": "https://ipcamlive.com/player/snapshot.php?alias=6630f862817b1",
+      "video": "https://g0.ipcamlive.com/player/player.php?alias=6630f862817b1&autoplay=1&mute=1"
+    },
+    {
+      "name": "NCI Teignmouth — beach towards Holcombe & Dawlish",
+      "lat": 50.5487,
+      "lon": -3.4904,
+      "url": "https://www.teignmouth-nci.org.uk/dual-live-streams",
+      "source": "NCI Coastwatch",
+      "local": true,
+      "image": "https://ipcamlive.com/player/snapshot.php?alias=6669691debdef",
+      "video": "https://g0.ipcamlive.com/player/player.php?alias=6669691debdef&autoplay=1&mute=1"
+    },
+    {
+      "name": "Torquay Harbour",
+      "lat": 50.4592,
+      "lon": -3.5262,
+      "url": "https://www.camsecure.uk/httpswebcam/torquaywatersports/torquaywatersports.html",
+      "source": "English Riviera webcams",
+      "local": true
+    },
+    {
+      "name": "Livermead Sands, Torquay",
+      "lat": 50.4535,
+      "lon": -3.5455,
+      "url": "https://www.camsecure.co.uk/torquay_sea_view.html",
+      "source": "English Riviera webcams",
+      "local": true
+    },
+    {
+      "name": "Brixham Inner Harbour",
+      "lat": 50.3955,
+      "lon": -3.5135,
+      "url": "https://www.camsecure.co/httpswebcam/sampford/sampford.html",
+      "source": "English Riviera webcams",
+      "local": true
+    },
+    {
+      "name": "Brixham Harbour (Sea Tang)",
+      "lat": 50.3985,
+      "lon": -3.519,
+      "url": "https://www.seatang-guesthouse.com/live-brixham-webcam/",
+      "source": "English Riviera webcams",
+      "local": true
+    },
+    {
+      "name": "Meadfoot Beach, Torquay (Osborne Apartments)",
+      "lat": 50.45746,
+      "lon": -3.50919,
+      "url": "https://osborneapartments.co.uk/meadfoot-webcam/",
+      "source": "English Riviera webcams",
+      "local": true
+    },
+    {
+      "name": "Brixham Breakwater Beach",
+      "lat": 50.4005,
+      "lon": -3.5045,
+      "url": "https://www.camsecure.co.uk/brixham_breakwater.html",
+      "source": "English Riviera webcams",
+      "local": true
+    }
+  ]
+}

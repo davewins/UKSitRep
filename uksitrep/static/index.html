@@ -1,0 +1,1041 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0f14">
+<title>UK SitRep</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #0b0f14; --panel: rgba(13,18,25,.92); --line: #1f2a37; --text: #d6dde6; --muted: #7d8a99;
+    --civil: #8aa4c8; --military: #4ade80; --police: #3b82f6; --hems: #facc15; --sar: #fb923c;
+    --emerg: #ef4444; --rnli: #f97316; --gov: #a78bfa; --red: #ef4444; --amber: #f59e0b; --yellow: #facc15;
+    --ok: #22c55e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 13px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  #map { position: absolute; inset: 40px 0 30px 0; background: var(--bg); }
+  .leaflet-container { background: var(--bg); }
+  /* top bar */
+  #top { position: absolute; top: 0; left: 0; right: 0; height: 40px; display: flex; align-items: center;
+    gap: 12px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); z-index: 1000; }
+  #top h1 { font-size: 15px; margin: 0; letter-spacing: .08em; white-space: nowrap; }
+  #clock { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+  #chips { display: flex; gap: 6px; overflow: hidden; flex: 1; }
+  .chip { padding: 2px 7px; border-radius: 10px; background: #18212c; color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .chip.ok::before { content: "●"; color: var(--ok); margin-right: 4px; }
+  .chip.err::before { content: "●"; color: var(--red); margin-right: 4px; }
+  .chip.stale::before { content: "●"; color: var(--amber); margin-right: 4px; }
+  #top button { background: #18212c; color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+    padding: 4px 9px; cursor: pointer; font: inherit; }
+  /* side panels */
+  .panel { position: absolute; top: 48px; bottom: 38px; width: 270px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; z-index: 900; overflow-y: auto; padding: 8px 10px; }
+  #left { left: 8px; } #right { right: 8px; width: 310px; }
+  body.kiosk #left { display: none; }
+  body.hide-panels .panel { display: none; }
+  .panel h2 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+    margin: 12px 0 6px; border-bottom: 1px solid var(--line); padding-bottom: 3px; }
+  .panel h2:first-child { margin-top: 2px; }
+  label.t { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
+  label.t .sw { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+  label.t .n { margin-left: auto; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  select { background: #18212c; color: var(--text); border: 1px solid var(--line); border-radius: 4px; font: inherit; }
+  .row { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+  .muted { color: var(--muted); }
+  .alert { border-left: 3px solid var(--red); padding: 4px 7px; margin: 4px 0; background: rgba(239,68,68,.08); cursor: pointer; }
+  .alert.amber { border-color: var(--amber); background: rgba(245,158,11,.08); }
+  .alert.yellow { border-color: var(--yellow); background: rgba(250,204,21,.06); }
+  .alert.info { border-color: var(--police); background: rgba(59,130,246,.07); }
+  .alert small { color: var(--muted); display: block; }
+  .bar { height: 8px; border-radius: 2px; background: #1b2633; overflow: hidden; }
+  .bar > i { display: block; height: 100%; }
+  .news { padding: 4px 0; border-bottom: 1px dashed var(--line); cursor: pointer; }
+  .news .sev { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+  /* ticker */
+  #ticker { position: absolute; bottom: 0; left: 0; right: 0; height: 30px; background: var(--panel);
+    border-top: 1px solid var(--line); overflow: hidden; z-index: 1000; display: flex; align-items: center; }
+  #ticker .lbl { background: #b91c1c; color: #fff; font-weight: 700; padding: 0 10px; height: 100%;
+    display: flex; align-items: center; letter-spacing: .08em; flex: none; z-index: 1; }
+  #ticker .track { white-space: nowrap; animation: scroll linear infinite; padding-left: 100%; }
+  #ticker .track a { margin-right: 48px; color: var(--text); text-decoration: none; }
+  #ticker .track a:hover { color: #fff; text-decoration: underline; }
+  #ticker:hover .track, #ticker:active .track { animation-play-state: paused; }
+  .news a { color: var(--text); text-decoration: none; }
+  .news a:hover { color: #fff; text-decoration: underline; }
+  .news .pin { cursor: pointer; color: #7dd3fc; }
+  @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+  /* map icons */
+  .ac, .vs { background: none; border: none; }
+  .ac svg, .vs svg { overflow: visible; }
+  .pulse svg { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .leaflet-tooltip.lbl { background: rgba(10,14,20,.75); color: var(--text); border: none; box-shadow: none;
+    padding: 0 4px; font-size: 10.5px; line-height: 1.3; border-radius: 3px; }
+  .leaflet-tooltip.lbl::before { display: none; }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #111821; color: var(--text); }
+  .leaflet-popup-content { margin: 10px 12px; font-size: 12.5px; }
+  .leaflet-popup-content b { color: #fff; }
+  .leaflet-popup-content a { color: #7dd3fc; }
+  .wx { background: none; border: none; color: #cbd5e1; font-size: 11px; white-space: nowrap; text-shadow: 0 0 3px #000; }
+  .base { background: none; border: none; }
+  .cam-pop img { display: block; width: 280px; max-width: 70vw; border-radius: 4px; margin: 6px 0; background: #000; min-height: 60px; }
+  .sea { background: none; border: none; text-align: center; }
+  .wind, .tmp { background: none; border: none; }
+  .tmp { font-size: 11px; font-weight: 700; text-shadow: 0 0 3px #000, 0 0 3px #000; text-align: center; }
+  .radar-ctl { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px;
+    display: flex; gap: 6px; align-items: center; color: var(--text); font-size: 11px; }
+  .radar-ctl button { background: #18212c; color: var(--text); border: 1px solid var(--line); border-radius: 4px; cursor: pointer; padding: 2px 7px; }
+  .sea .lbl2 { font-size: 10px; color: #e2e8f0; text-shadow: 0 0 3px #000, 0 0 3px #000; white-space: nowrap; line-height: 1.1; }
+  #btnLayers, #btnInfo, .sheet-close { display: none; }
+  /* ---------- phone layout: panels become bottom sheets ---------- */
+  @media (max-width: 760px) {
+    :root { --sat: 0px; --sab: 0px; --top: calc(44px + var(--sat)); --bot: calc(26px + var(--sab)); }
+    body.standalone { --sat: env(safe-area-inset-top); --sab: env(safe-area-inset-bottom); }
+    html, body { height: 100dvh; }
+    #top { height: var(--top); padding: var(--sat) 8px 0; gap: 6px; }
+    #top h1 { font-size: 13px; letter-spacing: .04em; }
+    #top h1 .full { display: none; }
+    #chips, #btnFs, #btnPanels { display: none; }
+    #btnLayers, #btnInfo { display: inline-block; padding: 6px 10px; }
+    #btnInfo.alerting { border-color: var(--red); color: #fca5a5; }
+    #clock { font-size: 11px; margin-right: auto; }
+    #map { top: var(--top); bottom: var(--bot); }
+    #ticker { height: var(--bot); padding-bottom: var(--sab); font-size: 12px; }
+    #ticker .lbl { padding: 0 7px; font-size: 11px; }
+    /* sheets drop down from under the top bar so they are always on screen,
+       even when the page is embedded in a taller-than-screen iframe */
+    #left, #right { left: 0; right: 0; top: var(--top); bottom: auto; width: auto !important;
+      max-height: min(70dvh, 70vh); border-radius: 0 0 14px 14px; border-top: none; padding: 0 14px 4px;
+      transform: translateY(calc(-100% - var(--top) - 10px)); transition: transform .25s ease; display: block !important;
+      box-shadow: 0 8px 30px rgba(0,0,0,.6); overscroll-behavior: contain; z-index: 990; }
+    #left.open, #right.open { transform: none; }
+    body.kiosk #left { display: block !important; }
+    .sheet-close { display: block; position: sticky; bottom: 0; margin: 8px -14px 0; padding: 8px 0 10px;
+      text-align: center; background: var(--panel); color: var(--muted); cursor: pointer; z-index: 2;
+      border-top: 1px solid var(--line); }
+    .sheet-close::after { content: ""; display: block; width: 40px; height: 4px; border-radius: 2px; background: #3b4756; margin: 6px auto 0; }
+    #btnInfo.active, #btnLayers.active { background: #26364a; }
+    label.t { padding: 7px 0; font-size: 14px; }
+    label.t input { width: 18px; height: 18px; }
+    .row { padding: 5px 0; font-size: 14px; }
+    select { font-size: 16px; padding: 3px; }
+    .alert, .news { font-size: 14px; }
+    .leaflet-control-zoom { display: none; }
+    .leaflet-control-attribution { font-size: 9px; max-width: 70vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  }
+</style>
+</head>
+<body>
+<div id="top">
+  <h1>🇬🇧 UK<span class="full"> SITREP</span></h1>
+  <div id="clock"></div>
+  <div id="chips"></div>
+  <button id="btnLayers">Layers</button>
+  <button id="btnInfo">Info</button>
+  <button id="btnPanels" title="Show/hide panels (P)">Panels</button>
+  <button id="btnFs" title="Full screen (F)">⛶</button>
+</div>
+<div id="map"></div>
+<div id="left" class="panel"></div>
+<div id="right" class="panel">
+  <h2>Alerts</h2><div id="alerts"><div class="muted">Loading…</div></div>
+  <h2>Emergency services</h2><div id="emerg" class="muted">—</div>
+  <h2>Military watch</h2><div id="milwatch" class="muted">—</div>
+  <h2>Electricity grid</h2><div id="grid" class="muted">—</div>
+  <h2>Space weather</h2><div id="space" class="muted">—</div>
+  <h2>Meteors</h2><div id="meteors" class="muted">—</div>
+  <h2>Latest incidents</h2><div id="newslist" class="muted">—</div>
+  <div class="sheet-close" data-close>Close</div>
+</div>
+<div id="ticker"><div class="lbl">BBC</div><div class="track" id="tickerTrack"></div></div>
+
+<script>
+"use strict";
+const API = "api/";
+const params = new URLSearchParams(location.search);
+// optional access token (ACCESS_TOKEN on the server) is passed on every request
+const TOKEN = params.get("token");
+const withToken = (url) => TOKEN ? url + (url.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(TOKEN) : url;
+if (params.has("kiosk")) document.body.classList.add("kiosk");
+// iPhone notch padding is only wanted when the page is opened directly, not inside HA's iframe
+try { if (window.self === window.top) document.body.classList.add("standalone"); } catch (e) {}
+
+/* ------------------------------------------------------------ settings */
+const DEFAULTS = {
+  layers: { ac_civil: true, ac_military: true, ac_police: true, ac_hems: true, ac_sar: true,
+    ac_trails: true, mil_dest: true, airfields: true, army: true,
+    vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
+    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, webcams: true, quakes: true, meteors: true, news: true },
+  basemap: "dark", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
+};
+let S;
+try { S = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem("ukSit") || "{}"));
+      S.layers = Object.assign({}, DEFAULTS.layers, S.layers || {}); }
+catch (e) { S = structuredClone(DEFAULTS); }
+const save = () => { try { localStorage.setItem("ukSit", JSON.stringify(S)); } catch (e) {} };
+
+/* ------------------------------------------------------------ map */
+const phone = matchMedia("(max-width: 760px)");
+const HOME = () => [[54.6, -3.2], phone.matches ? 5 : 6];
+const map = L.map("map", { zoomControl: false, preferCanvas: true, worldCopyJump: false, tap: true })
+  .setView(HOME()[0], params.get("z") ? +params.get("z") : HOME()[1]);
+L.control.zoom({ position: "bottomleft" }).addTo(map);
+// All keyless tile sources
+const DATA_ATTR = " | ADS-B: adsb.lol | AIS: aisstream.io | National Highways | UKMON | Met Office, EA, BGS, NOAA, Elexon, BBC";
+const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/";
+const BASEMAPS = {
+  dark: ["Dark (CARTO)", "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", "&copy; OpenStreetMap &copy; CARTO", "abcd", 19],
+  darkgrey: ["Dark grey (Esri)", ESRI + "Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", "Tiles &copy; Esri", "", 16],
+  voyager: ["Street (CARTO Voyager)", "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", "&copy; OpenStreetMap &copy; CARTO", "abcd", 19],
+  osm: ["OpenStreetMap", "https://tile.openstreetmap.org/{z}/{x}/{y}.png", "&copy; OpenStreetMap contributors", "", 19],
+  satellite: ["Satellite (Esri)", ESRI + "World_Imagery/MapServer/tile/{z}/{y}/{x}", "Imagery &copy; Esri, Maxar, Earthstar Geographics", "", 18],
+};
+let baseLayer = null;
+function setBasemap(key) {
+  const b = BASEMAPS[key] || BASEMAPS.dark;
+  if (baseLayer) baseLayer.remove();
+  baseLayer = L.tileLayer(b[1], { maxZoom: b[4], subdomains: b[3] || "abc", attribution: b[2] + DATA_ATTR }).addTo(map);
+  baseLayer.bringToBack();
+}
+setBasemap(S.basemap);
+
+const G = {};  // layer groups
+for (const k of Object.keys(DEFAULTS.layers)) G[k] = L.layerGroup();
+const syncLayers = () => {
+  for (const [k, g] of Object.entries(G)) S.layers[k] ? g.addTo(map) : g.remove();
+  if (typeof radarCtl !== "undefined") S.layers.radar ? radarCtl.addTo(map) : radarCtl.remove();
+};
+
+/* ------------------------------------------------------------ helpers */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const ago = (iso) => {
+  if (!iso) return "";
+  const m = Math.round((Date.now() - new Date(iso)) / 60000);
+  return m < 1 ? "just now" : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
+};
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const R = 6371;
+const rad = (d) => d * Math.PI / 180;
+function distKm(a, b, c, d) {
+  const x = Math.sin(rad(c - a) / 2) ** 2 + Math.cos(rad(a)) * Math.cos(rad(c)) * Math.sin(rad(d - b) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+function bearing(a, b, c, d) {
+  const y = Math.sin(rad(d - b)) * Math.cos(rad(c));
+  const x = Math.cos(rad(a)) * Math.sin(rad(c)) - Math.sin(rad(a)) * Math.cos(rad(c)) * Math.cos(rad(d - b));
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+const angDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+
+const status = {};
+function setStatus(feed, ok, note) { status[feed] = { ok, t: Date.now(), note }; renderChips(); }
+function renderChips() {
+  const names = { aircraft: "ADS-B", vessels: "AIS", weather_warnings: "Met Office", floods: "EA floods",
+    city_weather: "Open-Meteo", grid: "Grid", roads: "Nat. Highways", power_cuts: "Power cuts", space: "Space wx", quakes: "BGS quakes", news: "BBC", meteors: "UKMON", sea: "Sea state", wind_grid: "Wind grid", radar: "Radar", rnli: "RNLI", fire: "DSFRS", webcams: "Webcams" };
+  $("chips").innerHTML = Object.entries(status).map(([k, v]) => {
+    const cls = !v.ok ? "err" : "ok";
+    return `<span class="chip ${cls}" title="${esc(v.note || "")} · ${new Date(v.t).toLocaleTimeString()}">${names[k] || k}</span>`;
+  }).join("");
+}
+async function getFeed(feed, qs = "") {
+  try {
+    const r = await fetch(withToken(API + feed + qs), { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    setStatus(feed, !d.error, d.error);
+    return d;
+  } catch (e) { setStatus(feed, false, String(e)); return null; }
+}
+
+/* ------------------------------------------------------------ static: bases */
+const AIRFIELDS = [
+  ["RAF Brize Norton", 51.750, -1.584, "RAF"], ["RAF Fairford", 51.682, -1.790, "USAF"],
+  ["RAF Lakenheath", 52.409, 0.561, "USAF"], ["RAF Mildenhall", 52.362, 0.486, "USAF"],
+  ["RAF Marham", 52.648, 0.551, "RAF"], ["RAF Coningsby", 53.093, -0.166, "RAF"],
+  ["RAF Waddington", 53.166, -0.524, "RAF"], ["RAF Cranwell", 53.030, -0.483, "RAF"],
+  ["RAF Wittering", 52.613, -0.476, "RAF"], ["RAF Lossiemouth", 57.705, -3.339, "RAF"],
+  ["RAF Valley", 53.248, -4.535, "RAF"], ["RAF Leeming", 54.292, -1.535, "RAF"],
+  ["RAF Shawbury", 52.798, -2.668, "RAF"], ["RAF Odiham", 51.234, -0.943, "RAF"],
+  ["RAF Benson", 51.616, -1.096, "RAF"], ["RAF Northolt", 51.553, -0.418, "RAF"],
+  ["MoD Boscombe Down", 51.152, -1.747, "MoD"], ["RNAS Yeovilton", 51.009, -2.639, "RN"],
+  ["RNAS Culdrose", 50.086, -5.256, "RN"],
+];
+const ARMY = [
+  ["Catterick Garrison", 54.376, -1.705], ["Tidworth", 51.237, -1.663], ["Bulford", 51.190, -1.739],
+  ["Larkhill", 51.198, -1.808], ["Aldershot Garrison", 51.248, -0.763], ["Warminster", 51.205, -2.163],
+  ["Colchester Garrison", 51.873, 0.889], ["AAC Middle Wallop", 51.140, -1.570], ["Wattisham Flying Station", 52.127, 0.956],
+  ["Leuchars Station", 56.373, -2.868], ["Kinloss Barracks", 57.650, -3.560], ["Dalton Barracks", 51.633, -1.315],
+  ["Brecon (Infantry Battle School)", 51.946, -3.392], ["Sennybridge Training Area", 51.980, -3.580],
+  ["Otterburn Training Area", 55.250, -2.170], ["Thiepval Barracks", 54.515, -6.050], ["Redford Barracks", 55.905, -3.244],
+];
+function drawBases() {
+  for (const [n, la, lo, op] of AIRFIELDS) {
+    L.marker([la, lo], { icon: L.divIcon({ className: "base", iconSize: [12, 12],
+      html: `<svg width="12" height="12"><rect x="1" y="1" width="10" height="10" fill="none" stroke="${op === "USAF" ? "#60a5fa" : "#93c5fd"}" stroke-width="2"/><circle cx="6" cy="6" r="2" fill="#93c5fd"/></svg>` }) })
+      .bindTooltip(n, { className: "lbl", direction: "right", offset: [6, 0] })
+      .bindPopup(`<b>${esc(n)}</b><br>${op} airfield`).addTo(G.airfields);
+  }
+  for (const [n, la, lo] of ARMY) {
+    L.marker([la, lo], { icon: L.divIcon({ className: "base", iconSize: [12, 12],
+      html: `<svg width="12" height="12"><polygon points="6,1 11,11 1,11" fill="none" stroke="#86efac" stroke-width="2"/></svg>` }) })
+      .bindTooltip(n, { className: "lbl", direction: "right", offset: [6, 0] })
+      .bindPopup(`<b>${esc(n)}</b><br>Army`).addTo(G.army);
+  }
+}
+
+/* ------------------------------------------------------------ aircraft */
+const AC_COL = { civil: "--civil", military: "--military", police: "--police", hems: "--hems", sar: "--sar" };
+const AC_NAME = { civil: "Civil", military: "Military", police: "Police", hems: "Air ambulance", sar: "Coastguard/SAR" };
+const acMarkers = new Map();   // hex -> {m, trail, dest, key}
+let lastAircraft = [];
+// Lookup tables (from tar1090): ICAO type code -> [description, class e.g. "L2J"/"H2T"],
+// and ICAO 24-bit address blocks -> country of registration.
+let AC_TYPES = {}, ICAO_COUNTRIES = [];
+Promise.all([fetch(withToken("aircraft_types.json")).then(r => r.json()), fetch(withToken("icao_countries.json")).then(r => r.json())])
+  .then(([t, c]) => { AC_TYPES = t; ICAO_COUNTRIES = c; acMarkers.forEach(e => { e.m.remove(); e.trail && e.trail.remove(); e.dest && e.dest.remove(); }); acMarkers.clear(); renderAircraft(lastAircraft); })
+  .catch(e => console.warn("lookup tables failed", e));
+function acCountry(hex) {
+  const n = parseInt(hex, 16);
+  if (isNaN(n)) return null;
+  // some blocks are nested (e.g. Bermuda inside the UK block) so take the smallest match
+  let best = null;
+  for (const r of ICAO_COUNTRIES) {
+    if (r[0] > n) break;
+    if (n <= r[1] && (!best || r[1] - r[0] < best[1] - best[0])) best = r;
+  }
+  return best ? { name: best[2], cc: best[3] } : null;
+}
+const flagImg = (c) => c && c.cc ? `<img src="https://flagcdn.com/20x15/${c.cc}.png" width="16" height="12" alt="${esc(c.name)}" title="${esc(c.name)}" style="vertical-align:-1px;border-radius:1px">` : "";
+const acTypeName = (a) => (AC_TYPES[a.type] || [])[0] || null;
+const isHeli = (a) => a.cat === "A7" || ((AC_TYPES[a.type] || [])[1] || "").startsWith("H")
+  || /^(EC|AS|H1|H6|A1|A13|A16|S92|AW|B06|B407|B429|EH10|MD9|NH90|H47|H64|MERL|PUMA|WILD|LYNX)/.test(a.type || "");
+
+function acIcon(a, col) {
+  const pulse = a.emergency ? " pulse" : "";
+  const c = a.emergency ? css("--emerg") : col;
+  const rot = a.track ?? 0;
+  const shape = isHeli(a)
+    ? `<circle cx="0" cy="0" r="4.5" fill="${c}" stroke="#000" stroke-width=".8"/><line x1="-8" y1="0" x2="8" y2="0" stroke="${c}" stroke-width="1.6"/><line x1="0" y1="-8" x2="0" y2="8" stroke="${c}" stroke-width="1.6"/>`
+    : `<path d="M0,-9 L2,-3 L9,1 L9,3 L2,1 L1.5,6 L4,8 L4,9.5 L0,8.5 L-4,9.5 L-4,8 L-1.5,6 L-2,1 L-9,3 L-9,1 L-2,-3 Z" fill="${c}" stroke="#000" stroke-width=".7"/>`;
+  const size = a.cls === "civil" && !a.emergency ? 0.85 : 1.15;
+  return L.divIcon({ className: "ac" + pulse, iconSize: [22, 22], iconAnchor: [11, 11],
+    html: `<svg width="22" height="22" viewBox="-11 -11 22 22"><g transform="rotate(${rot}) scale(${size})">${shape}</g></svg>` });
+}
+function acLabel(a) {
+  const alt = a.alt === "ground" ? "GND" : (a.alt != null ? `FL${String(Math.round(a.alt / 100)).padStart(3, "0")}` : "");
+  const flag = a.cls === "military" ? flagImg(acCountry(a.hex)) + " " : "";
+  return `${flag}${esc(a.flight || a.reg || a.hex)} ${alt}${a.emergency ? " ⚠ " + esc(a.emergency) : ""}`;
+}
+function acPopup(a) {
+  const country = acCountry(a.hex), typeName = acTypeName(a);
+  return `${flagImg(country)} <b>${esc(a.flight || "—")}</b> ${a.reg ? "· " + esc(a.reg) : ""}<br>
+    <b style="font-weight:600">${esc(typeName || a.type || "Unknown type")}</b>${typeName && a.type ? ` <span class="muted">(${esc(a.type)})</span>` : ""}<br>
+    <span class="muted">${AC_NAME[a.cls]}${country ? " · " + esc(country.name) : ""}</span>${a.emergency ? ` <b style="color:var(--emerg)">SQUAWK ${esc(a.squawk)} ${esc(a.emergency)}</b>` : ""}<br>
+    Alt ${a.alt ?? "?"} ft · ${a.gs != null ? Math.round(a.gs) + " kt" : "?"} · hdg ${a.track != null ? Math.round(a.track) + "°" : "?"}
+    ${a.vrate ? ` · ${a.vrate > 0 ? "▲" : "▼"}${Math.abs(a.vrate)} fpm` : ""}<br>
+    Squawk ${esc(a.squawk || "—")} · hex ${esc(a.hex)}<br>
+    <a href="https://globe.adsb.lol/?icao=${esc(a.hex)}" target="_blank" rel="noopener">Track on adsb.lol ↗</a>`;
+}
+
+/* Military destination prediction: score airfields roughly ahead of the aircraft. */
+function predictDest(a) {
+  if (a.track == null || !a.gs || a.gs < 60 || a.alt === "ground") return null;
+  let best = null;
+  for (const [n, la, lo] of AIRFIELDS) {
+    const d = distKm(a.lat, a.lon, la, lo);
+    if (d > 400 || d < 3) continue;
+    const off = angDiff(a.track, bearing(a.lat, a.lon, la, lo));
+    if (off > 25) continue;
+    const desc = (a.vrate ?? 0) < -300;
+    const score = off / 25 * 0.5 + d / 400 * 0.3 + (desc ? 0 : 0.2);
+    if (!best || score < best.score) best = { name: n, lat: la, lon: lo, d, off, desc, score };
+  }
+  if (!best) return null;
+  const alt = typeof a.alt === "number" ? a.alt : 99999;
+  best.conf = (best.desc && best.off < 10 && best.d < 150 && alt < 15000) ? "high"
+    : (best.off < 15 && best.d < 250) ? "medium" : "low";
+  best.eta = Math.round(best.d / (a.gs * 1.852) * 60);
+  return best;
+}
+const CONF_COL = { high: "#22c55e", medium: "#f59e0b", low: "#94a3b8" };
+
+function renderAircraft(list) {
+  lastAircraft = list;
+  const seen = new Set();
+  const zoom = map.getZoom();
+  for (const a of list) {
+    const layerOn = S.layers["ac_" + a.cls] || a.emergency;
+    if (!layerOn) continue;
+    if (S.minAltFt && typeof a.alt === "number" && a.alt < S.minAltFt && a.cls === "civil" && !a.emergency) continue;
+    seen.add(a.hex);
+    const col = css(AC_COL[a.cls]);
+    const key = `${a.cls}|${Math.round((a.track ?? 0) / 5)}|${a.emergency}|${isHeli(a)}`;
+    let e = acMarkers.get(a.hex);
+    if (!e) {
+      const m = L.marker([a.lat, a.lon], { icon: acIcon(a, col), zIndexOffset: a.cls === "civil" ? 0 : 500 });
+      m.bindPopup(() => acPopup(e.a));
+      e = { m, key, a };
+      acMarkers.set(a.hex, e);
+      m.addTo(map);
+    } else {
+      e.m.setLatLng([a.lat, a.lon]);
+      if (e.key !== key) { e.m.setIcon(acIcon(a, col)); e.key = key; }
+    }
+    e.a = a;
+    // labels
+    const wantLabel = S.labels === "all" || (S.labels === "special" && (a.cls !== "civil" || a.emergency || zoom >= 9));
+    if (wantLabel) {
+      if (!e.m.getTooltip()) e.m.bindTooltip(acLabel(a), { permanent: true, className: "lbl", direction: "right", offset: [9, 0] });
+      else e.m.setTooltipContent(acLabel(a));
+    } else if (e.m.getTooltip()) e.m.unbindTooltip();
+    // trails
+    const wantTrail = S.layers.ac_trails && a.trail && a.trail.length > 1 && (a.cls !== "civil" || a.emergency || zoom >= 8);
+    if (wantTrail) {
+      const pts = a.trail.map(p => [p[0], p[1]]);
+      if (!e.trail) e.trail = L.polyline(pts, { color: a.emergency ? css("--emerg") : col, weight: a.cls === "civil" ? 1 : 2, opacity: .55, interactive: false }).addTo(map);
+      else e.trail.setLatLngs(pts);
+    } else if (e.trail) { e.trail.remove(); e.trail = null; }
+    // destination prediction
+    const dest = (S.layers.mil_dest && a.cls === "military") ? predictDest(a) : null;
+    a.dest = dest;
+    if (dest) {
+      const ll = [[a.lat, a.lon], [dest.lat, dest.lon]];
+      if (!e.dest) e.dest = L.polyline(ll, { color: CONF_COL[dest.conf], weight: 1.5, dashArray: "4 6", opacity: .9 }).addTo(map);
+      else e.dest.setLatLngs(ll).setStyle({ color: CONF_COL[dest.conf] });
+      e.dest.bindTooltip(`${esc(a.flight || a.hex)} → ${esc(dest.name)} (${dest.conf}, ~${dest.eta} min)`);
+    } else if (e.dest) { e.dest.remove(); e.dest = null; }
+  }
+  for (const [hex, e] of acMarkers) {
+    if (seen.has(hex)) continue;
+    e.m.remove(); e.trail && e.trail.remove(); e.dest && e.dest.remove();
+    acMarkers.delete(hex);
+  }
+  counts.aircraft = list.reduce((o, a) => (o[a.cls] = (o[a.cls] || 0) + 1, o), {});
+  renderMilWatch(list.filter(a => a.cls === "military"));
+  renderAlerts();
+  renderCounts();
+}
+function renderMilWatch(mil) {
+  if (!mil.length) { $("milwatch").innerHTML = '<span class="muted">No military aircraft visible</span>'; return; }
+  mil.sort((a, b) => (b.dest ? 1 : 0) - (a.dest ? 1 : 0));
+  $("milwatch").innerHTML = mil.slice(0, 14).map(a => `
+    <div class="row" style="cursor:pointer" data-ll="${a.lat},${a.lon}">
+      <span>${flagImg(acCountry(a.hex))} <b>${esc(a.flight || a.reg || a.hex)}</b> <span class="muted" title="${esc(acTypeName(a) || "")}">${esc(a.type || "")}</span></span>
+      <span class="muted">${a.dest ? `<span style="color:${CONF_COL[a.dest.conf]}">→ ${esc(a.dest.name.replace(/^(RAF|RNAS|MoD) /, ""))}</span>` : (typeof a.alt === "number" ? "FL" + Math.round(a.alt / 100) : esc(a.alt || ""))}</span>
+    </div>`).join("") + (mil.length > 14 ? `<div class="muted">+${mil.length - 14} more</div>` : "");
+}
+
+/* ------------------------------------------------------------ vessels */
+const VS_COL = { military: "#4ade80", rnli: "#f97316", sar: "#fb923c", police: "#3b82f6", medical: "#facc15",
+  government: "#a78bfa", distress: "#ef4444", sar_aircraft: "#fb923c", civil: "#5eead4" };
+const VS_NAME = { military: "Military", rnli: "RNLI lifeboat", sar: "Coastguard / SAR", police: "Police / law enforcement",
+  medical: "Medical", government: "Government / public service", distress: "AIS distress beacon (SART/MOB/EPIRB)",
+  sar_aircraft: "SAR aircraft (AIS)", civil: "Vessel" };
+let lastVessels = [];
+function renderVessels(d) {
+  G.vs_civil.clearLayers(); G.vs_special.clearLayers();
+  if (!d) return;
+  if (d.error === "no_key") { setStatus("vessels", false, "Add aisstream_api_key to enable AIS"); return; }
+  lastVessels = d.vessels || [];
+  for (const v of lastVessels) {
+    const col = VS_COL[v.cls] || VS_COL.civil;
+    const popup = `<b>${esc(v.name || "MMSI " + v.mmsi)}</b><br><span class="muted">${VS_NAME[v.cls]}</span><br>
+      ${v.sog != null ? v.sog + " kn" : ""} ${v.cog != null ? "· COG " + Math.round(v.cog) + "°" : ""}<br>
+      MMSI ${v.mmsi}${v.callsign ? " · " + esc(v.callsign) : ""}${v.dest ? "<br>→ " + esc(v.dest) : ""}<br>
+      <a href="https://www.marinetraffic.com/en/ais/details/ships/mmsi:${v.mmsi}" target="_blank" rel="noopener">MarineTraffic ↗</a>`;
+    if (v.cls === "civil") {
+      L.circleMarker([v.lat, v.lon], { radius: 2.5, color: col, weight: 0, fillOpacity: .7 }).bindPopup(popup).addTo(G.vs_civil);
+    } else {
+      const rot = v.hdg ?? v.cog ?? 0;
+      const m = L.marker([v.lat, v.lon], { zIndexOffset: 400, icon: L.divIcon({ className: "vs" + (v.cls === "distress" ? " pulse" : ""), iconSize: [18, 18], iconAnchor: [9, 9],
+        html: `<svg width="18" height="18" viewBox="-9 -9 18 18"><g transform="rotate(${rot})"><path d="M0,-8 L5,6 L0,3 L-5,6 Z" fill="${col}" stroke="#000" stroke-width=".8"/></g></svg>` }) })
+        .bindPopup(popup);
+      if (S.labels !== "off") m.bindTooltip(esc(v.name || v.mmsi), { permanent: true, className: "lbl", direction: "right", offset: [8, 0] });
+      m.addTo(G.vs_special);
+    }
+  }
+  counts.vessels = { total: d.count, special: lastVessels.filter(v => v.cls !== "civil").length };
+  setStatus("vessels", !String(d.status || "").startsWith("error"), `${d.status} · ${d.count} vessels`);
+  renderAlerts(); renderCounts();
+}
+
+/* ------------------------------------------------------------ weather */
+let lastWarnings = [], lastFloods = [];
+const WARN_COL = { red: "#ef4444", amber: "#f59e0b", yellow: "#facc15" };
+function renderWarnings(d) {
+  G.warnings.clearLayers();
+  lastWarnings = d?.warnings || [];
+  const byRegion = {};
+  for (const w of lastWarnings) (byRegion[w.code] ||= []).push(w);
+  for (const ws of Object.values(byRegion)) {
+    const top = ws.find(w => w.level === "red") || ws.find(w => w.level === "amber") || ws[0];
+    L.circle([top.lat, top.lon], { radius: 75000, color: WARN_COL[top.level], weight: 2, fillOpacity: .15, dashArray: "6 4" })
+      .bindPopup(`<b>${esc(top.region)}</b><br>` + ws.map(w => `<p><b style="color:${WARN_COL[w.level]}">${esc(w.title)}</b><br>${esc(w.description)}<br><a href="${esc(w.link)}" target="_blank" rel="noopener">Met Office ↗</a></p>`).join(""))
+      .addTo(G.warnings);
+  }
+  renderAlerts();
+}
+const FLOOD_COL = { 1: "#dc2626", 2: "#f97316", 3: "#facc15" };
+function renderFloods(d) {
+  G.floods.clearLayers();
+  lastFloods = d?.floods || [];
+  for (const f of lastFloods) {
+    L.circleMarker([f.lat, f.lon], { radius: f.level === 1 ? 9 : f.level === 2 ? 7 : 5, color: "#000", weight: 1, fillColor: FLOOD_COL[f.level] || "#facc15", fillOpacity: .9 })
+      .bindPopup(`<b>${esc(f.severity)}</b><br>${esc(f.area)}<br><span class="muted">${esc(f.county || "")} · ${esc(f.river || "")} · ${ago(f.changed)}</span><p>${esc(f.message).replace(/\n/g, "<br>")}</p>
+        <a href="https://check-for-flooding.service.gov.uk/target-area/${esc(f.id)}" target="_blank" rel="noopener">GOV.UK ↗</a>`)
+      .addTo(G.floods);
+  }
+  counts.floods = lastFloods.length; renderCounts(); renderAlerts();
+}
+const WMO = (c) => c == null ? "" : c === 0 ? "☀️" : c <= 2 ? "🌤️" : c === 3 ? "☁️" : c <= 48 ? "🌫️" : c <= 57 ? "🌦️" : c <= 67 ? "🌧️" : c <= 77 ? "🌨️" : c <= 82 ? "🌧️" : c <= 86 ? "🌨️" : "⛈️";
+function renderCityWeather(d) {
+  G.cityweather.clearLayers();
+  for (const c of d?.cities || []) {
+    const arrow = c.dir != null ? `<span style="display:inline-block;transform:rotate(${c.dir + 180}deg)">↑</span>` : "";
+    L.marker([c.lat, c.lon], { interactive: true, icon: L.divIcon({ className: "wx", iconSize: [90, 16], iconAnchor: [-6, 8],
+      html: `${WMO(c.code)} ${Math.round(c.temp)}° ${arrow}${Math.round(c.wind)}${c.gust > 40 ? `<b style="color:#f59e0b">G${Math.round(c.gust)}</b>` : ""}` }) })
+      .bindPopup(`<b>${esc(c.name)}</b><br>${c.temp}°C · wind ${c.wind} mph (gust ${c.gust}) from ${c.dir}°<br>Precip ${c.precip} mm`)
+      .addTo(G.cityweather);
+  }
+}
+
+/* ------------------------------------------------------------ emergency services */
+let lastRnli = [], lastHems = [], lastFire = [];
+const ageMin = (iso) => (Date.now() - new Date(iso)) / 60000;
+function emIcon(bg, glyph, pulse) {
+  return L.divIcon({ className: "base" + (pulse ? " pulse" : ""), iconSize: [22, 22], iconAnchor: [11, 11],
+    html: `<svg width="22" height="22" viewBox="-11 -11 22 22"><circle r="9.5" fill="${bg}" stroke="#000" stroke-width="1"/>${glyph}</svg>` });
+}
+const GLYPH_BOAT = '<path d="M-6,1 L6,1 L4,5 L-4,5 Z M-0.6,-6 L-0.6,1 L0.6,1 L0.6,-6 Z M0.6,-6 L5,0 L0.6,0 Z" fill="#fff"/>';
+const GLYPH_H = '<path d="M-4,-5 v10 M4,-5 v10 M-4,0 h8" stroke="#b91c1c" stroke-width="2.4" fill="none"/>';
+const GLYPH_FLAME = '<path d="M0,-6 C3,-2 5,0 4,3 C3,6 -3,6 -4,3 C-5,0 -2,-1 -1,-4 C0,-2 1,-1 0,-6 Z" fill="#fff"/>';
+function renderRnli(d) {
+  if (d) lastRnli = d.launches || [];
+  G.rnli.clearLayers();
+  for (const l of lastRnli.filter(l => l.lat != null && l.time && ageMin(l.time) < 24 * 60)) {
+    const m = ageMin(l.time);
+    L.marker([l.lat, l.lon], { zIndexOffset: 600, opacity: m < 180 ? 1 : .55, icon: emIcon("#f97316", GLYPH_BOAT, m < 60) })
+      .bindPopup(`<b>RNLI ${esc(l.station)} launched</b><br>${esc(l.title || "")}<br>Lifeboat ${esc(l.lifeboat || "?")}<br>
+        ${new Date(l.time).toLocaleString("en-GB")} (${ago(l.time)})${l.link ? `<br><a href="${esc(l.link)}" target="_blank" rel="noopener">Station page ↗</a>` : ""}`)
+      .addTo(G.rnli);
+  }
+  counts.rnli = lastRnli.filter(l => l.time && ageMin(l.time) < 1440).length;
+  renderEmergency();
+}
+function renderHems(events) {
+  lastHems = events || [];
+  G.hems_scene.clearLayers();
+  for (const e of lastHems) {
+    const m = ageMin(e.last);
+    const what = e.cls === "sar" ? "Coastguard helicopter" : "Air ambulance";
+    L.marker([e.lat, e.lon], { zIndexOffset: 650, opacity: m < 60 ? 1 : .55, icon: emIcon("#facc15", GLYPH_H, m < 20) })
+      .bindPopup(`<b>${what} probably on scene</b><br>${esc(e.flight || e.hex)} ${e.reg ? "· " + esc(e.reg) : ""}<br>
+        ${e.kind === "landed" ? "Landed / hovering low here" : "Dropped off radar while low here"}<br>
+        First ${new Date(e.first).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} · last ${ago(e.last)}<br>
+        <span class="muted">Inferred from ADS-B — not an official incident report</span>`)
+      .addTo(G.hems_scene);
+  }
+  counts.hems_scene = lastHems.length;
+  renderEmergency();
+}
+function renderFire(d) {
+  if (d) lastFire = d.incidents || [];
+  G.fire.clearLayers();
+  for (const f of lastFire.filter(f => f.time && ageMin(f.time) < 30 * 1440)) {
+    const m = ageMin(f.time), live = f.status === "Ongoing" && m < 1440;
+    L.marker([f.lat, f.lon], { zIndexOffset: 550, opacity: m < 1440 ? 1 : m < 7 * 1440 ? .75 : .45, icon: emIcon("#dc2626", GLYPH_FLAME, live) })
+      .bindPopup(`<b>${esc(f.title)}</b> · ${esc(f.type || "")}<br>${esc(f.location || "")}${f.area ? " (" + esc(f.area) + ")" : ""}<br>
+        ${new Date(f.time).toLocaleString("en-GB")} (${ago(f.time)}) · ${esc(f.status || "")}<br>
+        <span class="muted">Stations: ${esc(f.stations || "")}</span><br>
+        <a href="${esc(f.link)}" target="_blank" rel="noopener">DSFRS report ↗</a>`)
+      .addTo(G.fire);
+  }
+  counts.fire = lastFire.filter(f => f.time && ageMin(f.time) < 30 * 1440).length;
+  renderEmergency();
+}
+function renderEmergency() {
+  const rows = [];
+  for (const e of lastHems.slice().sort((a, b) => b.last.localeCompare(a.last)).slice(0, 4))
+    rows.push(`<div class="row" style="cursor:pointer" data-ll="${e.lat},${e.lon}"><span>🚁 ${esc(e.flight || e.hex)} on scene?</span><span class="muted">${ago(e.last)}</span></div>`);
+  for (const l of lastRnli.filter(l => l.time && ageMin(l.time) < 1440).slice(0, 6))
+    rows.push(`<div class="row" ${l.lat != null ? `style="cursor:pointer" data-ll="${l.lat},${l.lon}"` : ""}><span>🛟 RNLI ${esc(l.station)}</span><span class="muted">${ago(l.time)}</span></div>`);
+  for (const f of lastFire.slice(0, 3))
+    rows.push(`<div class="row" style="cursor:pointer" data-ll="${f.lat},${f.lon}"><span>🔥 ${esc(f.title)} · ${esc(f.location || f.area || "")}</span><span class="muted">${ago(f.time)}</span></div>`);
+  $("emerg").innerHTML = rows.join("") || '<span class="muted">Nothing recent</span>';
+  renderCounts(); renderAlerts();
+}
+
+/* ------------------------------------------------------------ public webcams */
+const WEBCAM_MIN_ZOOM = 9;   // only draw cameras once zoomed in to county level or closer
+let lastCams = [];
+// curated cameras (config/cameras.json, "local": true) get the blue icon
+const GLYPH_CAM = '<rect x="-6" y="-3.5" width="8.5" height="7" rx="1.2" fill="#fff"/><path d="M2.5,-1.5 L6.5,-3.5 L6.5,3.5 L2.5,1.5 Z" fill="#fff"/>';
+const mkCamIcon = (col) => L.divIcon({ className: "base", iconSize: [18, 18], iconAnchor: [9, 9],
+  html: `<svg width="18" height="18" viewBox="-9 -9 18 18"><circle r="8" fill="${col}" stroke="#000" stroke-width="1"/>${GLYPH_CAM}</svg>` });
+const camIcon = mkCamIcon("#0d9488"), coastCamIcon = mkCamIcon("#0284c7"), worldCamIcon = mkCamIcon("#7c3aed");
+function camPopup(c) {
+  const src = c.preview ? c.image : c.image && `${c.image}${c.image.includes("?") ? "&" : "?"}t=${Date.now()}`;
+  const img = c.image ? `<a href="${esc(c.url)}" target="_blank" rel="noopener"><img src="${esc(src)}" alt="Camera image" loading="lazy" onerror="this.replaceWith('Image not available right now')"></a>${c.preview ? '<span class="muted" style="font-size:11px">Preview photo — open for the live view</span><br>' : ""}` : "";
+  return `<div class="cam-pop"><b>${esc(c.name)}</b><br><span class="muted">${esc(c.source)}${c.local && !c.image ? " · live stream on their site" : ""}</span>${img}<br>
+    <a href="${esc(c.url)}" target="_blank" rel="noopener">Open camera ↗</a>${c.video && c.video !== c.url ? ` · <a href="${esc(c.video)}" target="_blank" rel="noopener">${c.source === "TfL JamCam" ? "Latest clip" : "Live stream"} ↗</a>` : ""}</div>`;
+}
+function renderCams(d) {
+  if (d) lastCams = d.cams || [];
+  G.webcams.clearLayers();
+  counts.webcams = lastCams.length; renderCounts();
+  if (map.getZoom() < WEBCAM_MIN_ZOOM || !S.layers.webcams) return;
+  const b = map.getBounds().pad(0.3);
+  for (const c of lastCams) {
+    if (!b.contains([c.lat, c.lon])) continue;
+    L.marker([c.lat, c.lon], { icon: c.local ? coastCamIcon : c.source === "WorldCam" ? worldCamIcon : camIcon, zIndexOffset: 300 })
+      .bindPopup(() => camPopup(c), { maxWidth: 320, minWidth: 200 })
+      .bindTooltip(esc(c.name), { direction: "top", offset: [0, -8] })
+      .addTo(G.webcams);
+  }
+}
+
+/* ------------------------------------------------------------ rain radar (RainViewer, keyless) */
+let radarFrames = [], radarLayers = [], radarIdx = 0, radarTimer = null;
+const RadarCtl = L.Control.extend({
+  options: { position: "bottomright" },
+  onAdd() {
+    const d = L.DomUtil.create("div", "radar-ctl");
+    d.innerHTML = '<button id="radarPlay" title="Play last 2 hours">▶</button><span id="radarTime">Radar</span>';
+    L.DomEvent.disableClickPropagation(d);
+    d.querySelector("button").onclick = toggleRadarPlay;
+    return d;
+  },
+});
+const radarCtl = new RadarCtl();
+function showRadarFrame(i) {
+  radarIdx = i;
+  radarLayers.forEach((l, j) => l.setOpacity(j === i ? .65 : 0));
+  const f = radarFrames[i];
+  if (f && $("radarTime")) $("radarTime").textContent = "Rain " + new Date(f.time * 1000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) + (i === radarFrames.length - 1 ? " (latest)" : "");
+}
+function toggleRadarPlay() {
+  if (radarTimer) { clearInterval(radarTimer); radarTimer = null; showRadarFrame(radarFrames.length - 1); $("radarPlay").textContent = "▶"; return; }
+  $("radarPlay").textContent = "⏸";
+  let i = 0;
+  radarTimer = setInterval(() => { showRadarFrame(i); i = (i + 1) % radarFrames.length; }, 600);
+}
+async function refreshRadar() {
+  try {
+    const r = await fetch("https://api.rainviewer.com/public/weather-maps.json", { cache: "no-store" });
+    const d = await r.json();
+    radarFrames = d.radar.past.slice(-12);
+    if (radarTimer) toggleRadarPlay();
+    G.radar.clearLayers();
+    radarLayers = radarFrames.map(f => L.tileLayer(`${d.host}${f.path}/256/{z}/{x}/{y}/2/1_1.png`,
+      { maxNativeZoom: 7, maxZoom: 19, opacity: 0, zIndex: 5, attribution: "Radar &copy; RainViewer" }).addTo(G.radar));
+    showRadarFrame(radarFrames.length - 1);
+    setStatus("radar", true, radarFrames.length + " frames");
+  } catch (e) { setStatus("radar", false, String(e)); }
+}
+
+/* ------------------------------------------------------------ wind grid */
+const windCol = (mph) => mph < 10 ? "#93c5fd" : mph < 20 ? "#4ade80" : mph < 30 ? "#facc15" : mph < 40 ? "#f97316" : mph < 55 ? "#ef4444" : "#d946ef";
+const tempCol = (t) => t < 0 ? "#a5b4fc" : t < 5 ? "#7dd3fc" : t < 10 ? "#5eead4" : t < 15 ? "#86efac" : t < 20 ? "#fde047" : t < 25 ? "#fb923c" : "#f87171";
+function renderWind(d) {
+  G.wind.clearLayers(); G.temps.clearLayers();
+  for (const p of d?.points || []) {
+    const col = windCol(p.wind), len = 7 + Math.min(p.wind, 50) / 50 * 8;
+    const popup = `<b>${p.lat.toFixed(1)}°, ${p.lon.toFixed(1)}°</b><br>Wind ${compass(p.dir)} ${Math.round(p.wind)} mph, gust ${Math.round(p.gust)}<br>${p.temp}°C · cloud ${p.cloud}% · rain ${p.precip} mm`;
+    L.marker([p.lat, p.lon], { zIndexOffset: -200, icon: L.divIcon({ className: "wind", iconSize: [36, 36], iconAnchor: [18, 18],
+      html: `<svg width="36" height="36" viewBox="-18 -18 36 36"><g transform="rotate(${(p.dir ?? 0) + 180})">
+        <line x1="0" y1="${len}" x2="0" y2="${-len}" stroke="${col}" stroke-width="2" stroke-linecap="round"/>
+        <path d="M0,${-len - 3} L4,${-len + 3} L-4,${-len + 3} Z" fill="${col}"/></g>
+        <text x="9" y="14" font-size="9" fill="${col}" stroke="#000" stroke-width="2" paint-order="stroke">${Math.round(p.wind)}</text></svg>` }) })
+      .bindPopup(popup).addTo(G.wind);
+    if (p.temp != null) L.marker([p.lat, p.lon], { icon: L.divIcon({ className: "tmp", iconSize: [30, 14], iconAnchor: [15, -6],
+      html: `<span style="color:${tempCol(p.temp)}">${Math.round(p.temp)}°</span>` }) }).bindPopup(popup).addTo(G.temps);
+  }
+}
+
+/* ------------------------------------------------------------ sea state */
+// Douglas sea state from significant wave height (m)
+const DOUGLAS = [[0.1, "Calm", "#7dd3fc"], [0.5, "Smooth", "#38bdf8"], [1.25, "Slight", "#22c55e"], [2.5, "Moderate", "#facc15"],
+  [4, "Rough", "#f59e0b"], [6, "Very rough", "#f97316"], [9, "High", "#ef4444"], [14, "Very high", "#dc2626"], [99, "Phenomenal", "#a21caf"]];
+const seaState = (h) => DOUGLAS.find(d => h < d[0]) || DOUGLAS[DOUGLAS.length - 1];
+const BEAUFORT_KN = [1, 4, 7, 11, 17, 22, 28, 34, 41, 48, 56, 64];
+const beaufort = (kn) => { const i = BEAUFORT_KN.findIndex(b => kn < b); return i === -1 ? 12 : i; };
+const BF_NAME = ["Calm", "Light air", "Light breeze", "Gentle breeze", "Moderate breeze", "Fresh breeze", "Strong breeze",
+  "Near gale", "Gale", "Severe gale", "Storm", "Violent storm", "Hurricane force"];
+const compass = (d) => d == null ? "" : ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(d / 45) % 8];
+let lastSea = [];
+function renderSea(d) {
+  G.sea.clearLayers();
+  lastSea = d?.points || [];
+  for (const p of lastSea) {
+    const [, state, col] = seaState(p.wave);
+    const bf = p.wind_kn != null ? beaufort(p.wind_kn) : null;
+    const travel = (p.wave_dir ?? 0) + 180;   // API gives direction waves come FROM
+    const html = `<svg width="30" height="30" viewBox="-15 -15 30 30">
+        <circle r="11" fill="rgba(8,20,35,.85)" stroke="${col}" stroke-width="2"/>
+        <path d="M-7,1 q2.3,-3 4.6,0 t4.6,0 t4.6,0" fill="none" stroke="${col}" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M-7,5 q2.3,-3 4.6,0 t4.6,0 t4.6,0" fill="none" stroke="${col}" stroke-width="1.4" stroke-linecap="round" opacity=".7"/>
+        <g transform="rotate(${travel})"><path d="M0,-15 L3.5,-10 L-3.5,-10 Z" fill="${col}"/></g>
+      </svg><div class="lbl2">${p.wave.toFixed(1)}m${bf != null ? " · F" + bf : ""}</div>`;
+    L.marker([p.lat, p.lon], { zIndexOffset: -100, icon: L.divIcon({ className: "sea", iconSize: [60, 44], iconAnchor: [30, 15], html }) })
+      .bindPopup(`<b>${esc(p.name)}</b> · <span style="color:${col}">${state}</span><br>
+        Waves ${p.wave} m, ${p.period ?? "?"} s period, from ${compass(p.wave_dir)}<br>
+        Swell ${p.swell ?? "?"} m, ${p.swell_period ?? "?"} s from ${compass(p.swell_dir)}<br>
+        ${bf != null ? `Wind ${compass(p.wind_dir)} F${bf} ${BF_NAME[bf].toLowerCase()} (${Math.round(p.wind_kn)} kn, gust ${Math.round(p.gust_kn)})<br>` : ""}
+        ${p.vis_m != null ? `Visibility ${p.vis_m >= 10000 ? "good" : p.vis_m >= 4000 ? "moderate" : p.vis_m >= 1000 ? "poor" : "very poor (fog)"} (${(p.vis_m / 1000).toFixed(1)} km)<br>` : ""}
+        Sea temp ${p.sst ?? "?"} °C<br><span class="muted">Open-Meteo marine model</span>`)
+      .addTo(G.sea);
+  }
+  counts.sea = lastSea.length; renderCounts(); renderAlerts();
+}
+
+/* ------------------------------------------------------------ energy */
+const FUEL_COL = { WIND: "#38bdf8", CCGT: "#f97316", OCGT: "#fb923c", NUCLEAR: "#a78bfa", BIOMASS: "#84cc16", COAL: "#78716c",
+  NPSHYD: "#06b6d4", PS: "#0ea5e9", OIL: "#a8a29e", OTHER: "#94a3b8" };
+function renderGrid(d) {
+  if (!d) return;
+  const mix = (d.mix || []).filter(m => m.mw > 0);
+  const imports = mix.filter(m => m.fuel.startsWith("INT"));
+  const domestic = mix.filter(m => !m.fuel.startsWith("INT"));
+  const impMw = imports.reduce((s, m) => s + m.mw, 0);
+  const total = d.generation_mw || 1;
+  const rows = domestic.slice(0, 7).map(m => `
+    <div class="row"><span style="width:62px">${esc(m.fuel)}</span>
+      <div class="bar" style="flex:1;align-self:center"><i style="width:${m.mw / total * 100}%;background:${FUEL_COL[m.fuel] || "#94a3b8"}"></i></div>
+      <span class="muted" style="width:70px;text-align:right">${(m.mw / 1000).toFixed(1)} GW</span></div>`).join("");
+  const ci = d.carbon || {};
+  const ciCol = { "very low": "#22c55e", low: "#84cc16", moderate: "#f59e0b", high: "#ef4444", "very high": "#b91c1c" }[ci.index] || "#94a3b8";
+  $("grid").innerHTML = `
+    <div class="row"><span>Demand</span><b>${d.demand_mw ? (d.demand_mw / 1000).toFixed(1) + " GW" : "—"}</b></div>
+    <div class="row"><span>Carbon intensity</span><b style="color:${ciCol}">${ci.actual ?? ci.forecast ?? "—"} g/kWh · ${esc(ci.index || "")}</b></div>
+    ${rows}
+    <div class="row"><span style="width:62px">Imports</span><div class="bar" style="flex:1;align-self:center"><i style="width:${impMw / total * 100}%;background:#e879f9"></i></div><span class="muted" style="width:70px;text-align:right">${(impMw / 1000).toFixed(1)} GW</span></div>`;
+}
+function renderCuts(d) {
+  G.cuts.clearLayers();
+  const cuts = d?.cuts || [];
+  for (const c of cuts) {
+    const planned = /planned/i.test(c.type || "") && !/unplanned/i.test(c.type || "");
+    L.marker([c.lat, c.lon], { icon: L.divIcon({ className: "base", iconSize: [16, 16], iconAnchor: [8, 8],
+      html: `<svg width="16" height="16" viewBox="0 0 16 16"><path d="M9 1 L3 9 H7 L6 15 L13 6 H9 Z" fill="${planned ? "#94a3b8" : "#fbbf24"}" stroke="#000" stroke-width=".8"/></svg>` }) })
+      .bindPopup(`<b>Power cut · ${esc(c.dno)}</b><br>${esc(c.type || "")}<br>${esc(c.area || "")}<br>
+        ${c.customers ? c.customers + " customers · " : ""}since ${ago(c.since)}${c.eta ? "<br>ETR " + new Date(c.eta).toLocaleString() : ""}`)
+      .addTo(G.cuts);
+  }
+  counts.cuts = cuts.length; renderCounts();
+}
+
+/* ------------------------------------------------------------ roads */
+let lastRoads = [];
+function renderRoads(d) {
+  G.roads_incidents.clearLayers(); G.roads_closures.clearLayers(); G.roads_works.clearLayers();
+  if (!d) return;
+  if (d.error === "no_key") { setStatus("roads", false, "Add national_highways_key"); return; }
+  if (d.errors && d.errors.length) setStatus("roads", false, d.errors.join("; "));
+  lastRoads = d.events || [];
+  for (const e of lastRoads) {
+    const layer = e.kind === "unplanned" ? G.roads_incidents : e.full_closure ? G.roads_closures : G.roads_works;
+    const col = e.kind === "unplanned" ? "#ef4444" : e.full_closure ? "#f59e0b" : "#94a3b8";
+    const popup = `<b>${esc(e.roads.join(", ") || "Road")}</b> · ${e.kind === "unplanned" ? '<b style="color:#ef4444">' + esc(e.type) + "</b>" + (e.source ? ` <span class="muted">(${esc(e.source)})</span>` : "") : e.full_closure ? "Carriageway closure" : "Lane restriction"}<br>
+      ${esc(e.where)}<p>${esc(e.comment)}</p><span class="muted">${esc(e.cause || "")}${e.start ? " · from " + new Date(e.start).toLocaleString("en-GB") : ""}${e.end ? " to " + new Date(e.end).toLocaleString("en-GB") : ""}</span>`;
+    for (const line of e.lines) {
+      if (line.length > 1) L.polyline(line, { color: col, weight: e.kind === "unplanned" ? 5 : e.full_closure ? 4 : 2.5, opacity: .9 }).bindPopup(popup).addTo(layer);
+    }
+    const mid = e.lines[0][Math.floor(e.lines[0].length / 2)];
+    if (e.kind === "unplanned" || e.full_closure)
+      L.circleMarker(mid, { radius: e.kind === "unplanned" ? 6 : 4, color: "#000", weight: 1, fillColor: col, fillOpacity: 1 }).bindPopup(popup).addTo(layer);
+  }
+  counts.roads = { incidents: lastRoads.filter(e => e.kind === "unplanned").length,
+    closures: lastRoads.filter(e => e.kind === "planned" && e.full_closure).length,
+    works: lastRoads.filter(e => e.kind === "planned" && !e.full_closure).length };
+  renderCounts(); renderAlerts();
+}
+
+/* ------------------------------------------------------------ space & quakes */
+let lastSpace = null, lastQuakes = [];
+function renderSpace(d) {
+  if (!d) return;
+  lastSpace = d;
+  const kp = d.kp ?? null;
+  const kpCol = kp == null ? "#94a3b8" : kp >= 7 ? "#ef4444" : kp >= 5 ? "#f59e0b" : kp >= 4 ? "#facc15" : "#22c55e";
+  const awCol = { green: "#22c55e", yellow: "#facc15", amber: "#f59e0b", red: "#ef4444" }[d.aurorawatch] || "#94a3b8";
+  $("space").innerHTML = `
+    <div class="row"><span>Planetary Kp</span><b style="color:${kpCol}">${kp != null ? kp.toFixed(2) : "—"}${kp >= 5 ? " · G" + Math.min(5, Math.floor(kp) - 4) + " storm" : ""}</b></div>
+    <div class="row"><span>AuroraWatch UK</span><b style="color:${awCol}">${esc((d.aurorawatch || "—").toUpperCase())}</b></div>
+    ${(d.alerts || []).slice(0, 3).map(a => `<div class="muted" style="font-size:11px;margin-top:3px">${esc(a.text)} · ${ago(a.issued)}</div>`).join("")}`;
+  renderAlerts();
+}
+function renderQuakes(d) {
+  G.quakes.clearLayers();
+  lastQuakes = d?.quakes || [];
+  const cutoff = Date.now() - S.quakeDays * 864e5;
+  let n = 0;
+  for (const q of lastQuakes) {
+    const t = new Date(q.time);
+    if (t < cutoff) continue;
+    n++;
+    const ageH = (Date.now() - t) / 36e5;
+    L.circleMarker([q.lat, q.lon], { radius: 3 + Math.max(0, q.mag ?? 0) * 3, color: "#f472b6", weight: 1.5,
+      fillColor: "#f472b6", fillOpacity: ageH < 24 ? .7 : ageH < 168 ? .35 : .12 })
+      .bindPopup(`<b>M${q.mag} earthquake</b><br>${esc(q.place)}<br>${new Date(q.time).toLocaleString()} (${ago(q.time)})<br>Depth ${q.depth} km<br><a href="${esc(q.link)}" target="_blank" rel="noopener">BGS ↗</a>`)
+      .addTo(G.quakes);
+  }
+  counts.quakes = n; renderCounts();
+}
+
+/* ------------------------------------------------------------ meteors */
+let lastMeteors = [];
+const SHOWER_COL = ["#22d3ee", "#a3e635", "#f0abfc", "#fde047", "#93c5fd", "#fdba74"];
+function renderMeteors(d) {
+  if (d) lastMeteors = (d.meteors || []).map(m => ({ ...m, name: (m.name || "").trim() || "Sporadic" }));
+  G.meteors.clearLayers();
+  const cutoff = Date.now() - S.meteorHours * 36e5;
+  const list = lastMeteors.filter(m => new Date(m.time) >= cutoff);
+  const showers = {};
+  for (const m of list) if (m.shower && m.shower !== "spo") showers[m.shower] = (showers[m.shower] || 0) + 1;
+  const ranked = Object.entries(showers).sort((a, b) => b[1] - a[1]);
+  const colFor = (m) => m.mag <= -4 ? "#ff7a1a" : (!m.shower || m.shower === "spo") ? "#a5b4fc"
+    : SHOWER_COL[Math.max(0, ranked.findIndex(r => r[0] === m.shower)) % SHOWER_COL.length];
+  for (const m of list) {
+    const fireball = m.mag <= -4, bright = m.mag <= -1;
+    const ageH = (Date.now() - new Date(m.time)) / 36e5;
+    const col = colFor(m);
+    const popup = `<b>${fireball ? "🔥 Fireball" : "☄️ Meteor"} · ${esc(m.name || "Sporadic")}</b><br>
+      ${new Date(m.time).toLocaleString("en-GB")} (${ago(m.time)})<br>
+      Abs. mag ${m.mag} · ${m.vg} km/s · ${m.dur}s<br>
+      Height ${m.h1} → ${m.h2} km · seen by ${m.stations} cameras<br>
+      <a href="https://archive.ukmeteors.co.uk/reports/${m.id.slice(0, 4)}/orbits/${m.id.slice(0, 6)}/${m.id.slice(0, 8)}/${esc(m.id)}/index.html" target="_blank" rel="noopener">UKMON report ↗</a>`;
+    const opacity = ageH < 12 ? .9 : .45;
+    L.polyline([[m.lat1, m.lon1], [m.lat2, m.lon2]], { color: col, weight: fireball ? 5 : bright ? 3 : 1.6, opacity }).bindPopup(popup).addTo(G.meteors);
+    // small head at the end point (where it burned out)
+    L.circleMarker([m.lat2, m.lon2], { radius: fireball ? 5 : bright ? 3 : 1.5, weight: 0, fillColor: fireball ? "#fff3c4" : col, fillOpacity: opacity }).bindPopup(popup).addTo(G.meteors);
+  }
+  counts.meteors = list.length; renderCounts();
+  const brightest = list.reduce((a, b) => (!a || b.mag < a.mag) ? b : a, null);
+  $("meteors").innerHTML = list.length ? `
+    <div class="row"><span>Meteors (${S.meteorHours} h)</span><b>${list.length}</b></div>
+    ${ranked.slice(0, 3).map(([k, n]) => { const ex = list.find(m => m.shower === k); return `<div class="row"><span><span class="sev" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colFor(ex)}"></span> ${esc(ex.name)}</span><span class="muted">${n}</span></div>`; }).join("")}
+    ${brightest ? `<div class="row" style="cursor:pointer" data-ll="${brightest.lat2},${brightest.lon2}"><span>Brightest</span><span class="muted">mag ${brightest.mag} · ${ago(brightest.time)}</span></div>` : ""}`
+    : '<span class="muted">No matched meteors yet (UKMON processes overnight)</span>';
+  renderAlerts();
+}
+
+/* ------------------------------------------------------------ news */
+let lastNews = [];
+const TICKER_PX_PER_SEC = 110;
+const isWelsh = (i) => /\/cymrufyw\//.test(i.link || "");
+const SEV_COL = { 3: "#ef4444", 2: "#f59e0b", 1: "#64748b" };
+function renderNews(d) {
+  if (d) lastNews = (d.items || []).filter(i => !isWelsh(i));
+  G.news.clearLayers();
+  const cutoff = Date.now() - S.newsHours * 36e5;
+  const items = lastNews.filter(i => i.published && new Date(i.published) >= cutoff && i.severity >= S.newsMinSev);
+  // stack markers sharing the same place so they don't hide each other
+  const byPlace = {};
+  for (const i of items) if (i.lat != null) (byPlace[i.place] ||= []).push(i);
+  for (const list of Object.values(byPlace)) {
+    const top = list.reduce((a, b) => b.severity > a.severity ? b : a);
+    const ageH = (Date.now() - new Date(top.published)) / 36e5;
+    L.circleMarker([top.lat, top.lon], { radius: 6 + Math.min(list.length, 5), color: "#fff", weight: 1,
+      fillColor: SEV_COL[top.severity], fillOpacity: ageH < 2 ? .95 : ageH < 6 ? .7 : .4 })
+      .bindPopup(`<b>${esc(top.place)}</b>` + list.map(i => `<p><b>${esc(i.title)}</b><br>${esc(i.summary)}<br><span class="muted">${ago(i.published)} · BBC ${esc(i.region)}</span> <a href="${esc(i.link)}" target="_blank" rel="noopener">↗</a></p>`).join(""), { maxWidth: 320 })
+      .addTo(G.news);
+  }
+  $("newslist").innerHTML = items.slice(0, 12).map(i => `
+    <div class="news" title="${esc(i.summary)}">
+      <span class="sev" style="background:${SEV_COL[i.severity]}"></span><a href="${esc(i.link)}" target="_blank" rel="noopener">${esc(i.title)} ↗</a>
+      <div class="muted" style="font-size:11px">${ago(i.published)}${i.place ? ` · <span class="pin" data-ll="${i.lat},${i.lon}">📍 ${esc(i.place)}</span>` : ""}</div>
+    </div>`).join("") || '<span class="muted">Nothing in this window</span>';
+  const tick = items.slice(0, 20).map(i => `<a href="${esc(i.link)}" target="_blank" rel="noopener">${i.severity === 3 ? "🔴 " : ""}${esc(i.title)}</a>`).join("");
+  const track = $("tickerTrack");
+  if (track.dataset.sig !== tick) {
+    track.innerHTML = tick; track.dataset.sig = tick;
+    // constant reading speed regardless of how many headlines there are
+    track.style.animationDuration = Math.max(20, (track.scrollWidth + innerWidth) / TICKER_PX_PER_SEC) + "s";
+  }
+  counts.news = items.length; renderCounts();
+}
+
+/* ------------------------------------------------------------ alerts panel */
+function renderAlerts() {
+  const out = [];
+  for (const a of lastAircraft.filter(a => a.emergency))
+    out.push({ cls: "", ll: [a.lat, a.lon], html: `✈️ <b>${esc(a.flight || a.reg || a.hex)}</b> squawk ${esc(a.squawk)} — ${esc(a.emergency)}<small>${a.alt ?? "?"} ft · ${esc(a.type || "")}</small>` });
+  for (const v of lastVessels.filter(v => v.cls === "distress"))
+    out.push({ cls: "", ll: [v.lat, v.lon], html: `🆘 AIS distress beacon ${v.mmsi}<small>${esc(v.name || "")}</small>` });
+  for (const w of lastWarnings.filter(w => w.level !== "yellow"))
+    out.push({ cls: w.level === "red" ? "" : "amber", ll: [w.lat, w.lon], html: `⚠️ ${esc(w.title)}` });
+  const yellow = lastWarnings.filter(w => w.level === "yellow");
+  if (yellow.length) {
+    const titles = [...new Set(yellow.map(w => w.title.replace(/ affecting.*$/i, "")))];
+    out.push({ cls: "yellow", html: `⚠️ ${titles.map(esc).join(", ")}<small>${new Set(yellow.map(w => w.region)).size} regions</small>` });
+  }
+  const inc = lastRoads.filter(e => e.kind === "unplanned");
+  for (const e of inc.filter(e => e.full_closure).slice(0, 5))
+    out.push({ cls: "", ll: e.lines[0][0], html: `🚧 ${esc(e.roads.join(", "))} closed — ${esc(e.type)}<small>${esc(e.where)}</small>` });
+  const incOther = inc.filter(e => !e.full_closure);
+  if (incOther.length) out.push({ cls: "info", ll: incOther.length === 1 ? incOther[0].lines[0][0] : null, html: `🚗 ${incOther.length} live lane closure${incOther.length > 1 ? "s" : ""} on National Highways roads<small>${esc([...new Set(incOther.map(e => e.where))].slice(0, 6).join(" · "))}</small>` });
+  const gales = lastSea.filter(p => p.wind_kn != null && beaufort(p.wind_kn) >= 8);
+  if (gales.length) out.push({ cls: "amber", ll: [gales[0].lat, gales[0].lon], html: `🌬️ Gale force winds at sea<small>${esc(gales.map(p => p.name + " F" + beaufort(p.wind_kn)).join(", "))}</small>` });
+  const rough = lastSea.filter(p => p.wave >= 4);
+  if (rough.length) out.push({ cls: rough.some(p => p.wave >= 6) ? "" : "amber", ll: [rough[0].lat, rough[0].lon], html: `🌊 ${seaState(Math.max(...rough.map(p => p.wave)))[1]} seas<small>${esc(rough.map(p => `${p.name} ${p.wave.toFixed(1)}m`).join(", "))}</small>` });
+  for (const e of lastHems.filter(e => ageMin(e.last) < 30))
+    out.push({ cls: "info", ll: [e.lat, e.lon], html: `🚁 ${e.cls === "sar" ? "Coastguard helicopter" : "Air ambulance"} ${esc(e.flight || "")} probably on scene<small>${ago(e.first)}</small>` });
+  for (const l of lastRnli.filter(l => l.time && ageMin(l.time) < 60))
+    out.push({ cls: "info", ll: l.lat != null ? [l.lat, l.lon] : null, html: `🛟 RNLI ${esc(l.station)} lifeboat launched<small>${ago(l.time)}</small>` });
+  for (const f of lastFire.filter(f => f.status === "Ongoing" && ageMin(f.time) < 1440))
+    out.push({ cls: "amber", ll: [f.lat, f.lon], html: `🔥 ${esc(f.title)} — ${esc(f.location || f.area || "")}<small>DSFRS · ${ago(f.time)}</small>` });
+  const severe = lastFloods.filter(f => f.level <= 2);
+  if (severe.length) out.push({ cls: severe.some(f => f.level === 1) ? "" : "amber", html: `🌊 ${severe.length} flood warning${severe.length > 1 ? "s" : ""} in force<small>${esc([...new Set(severe.map(f => f.county))].slice(0, 4).join(", "))}</small>` });
+  else if (lastFloods.length) out.push({ cls: "yellow", html: `🌊 ${lastFloods.length} flood alert${lastFloods.length > 1 ? "s" : ""}` });
+  for (const q of lastQuakes.filter(q => (Date.now() - new Date(q.time)) < 864e5))
+    out.push({ cls: q.mag >= 2.5 ? "amber" : "info", ll: [q.lat, q.lon], html: `🌍 M${q.mag} ${esc(q.place)}<small>${ago(q.time)}</small>` });
+  for (const m of lastMeteors.filter(m => m.mag <= -4 && (Date.now() - new Date(m.time)) < 864e5))
+    out.push({ cls: "info", ll: [m.lat2, m.lon2], html: `🔥 Fireball mag ${m.mag} over the UK<small>${ago(m.time)} · ${m.stations} cameras</small>` });
+  if (lastSpace && lastSpace.kp >= 5) out.push({ cls: lastSpace.kp >= 7 ? "" : "amber", html: `🌌 Geomagnetic storm Kp ${lastSpace.kp}` });
+  if (lastSpace && ["amber", "red"].includes(lastSpace.aurorawatch)) out.push({ cls: "amber", html: `🌌 AuroraWatch UK ${lastSpace.aurorawatch.toUpperCase()} — aurora possible` });
+  const urgent = out.filter(o => o.cls === "" || o.cls === "amber").length;
+  $("btnInfo").textContent = urgent ? `Info ⚠ ${urgent}` : "Info";
+  $("btnInfo").classList.toggle("alerting", urgent > 0);
+  $("alerts").innerHTML = out.length
+    ? out.map(o => `<div class="alert ${o.cls}" ${o.ll ? `data-ll="${o.ll}"` : ""}>${o.html}</div>`).join("")
+    : '<div class="muted">All quiet ✓</div>';
+}
+
+/* ------------------------------------------------------------ left panel */
+const counts = {};
+const LAYER_UI = [
+  ["Aviation", [["ac_civil", "Civil aircraft", "--civil"], ["ac_military", "Military", "--military"], ["ac_police", "Police (NPAS)", "--police"],
+    ["ac_hems", "Air ambulance", "--hems"], ["ac_sar", "Coastguard / SAR", "--sar"], ["ac_trails", "Trails", "#64748b"],
+    ["mil_dest", "Military destination guess", "#22c55e"], ["airfields", "Military airfields", "#93c5fd"], ["army", "Army bases", "#86efac"]]],
+  ["Emergency services", [["hems_scene", "Air ambulance on scene (inferred)", "#facc15"], ["rnli", "RNLI lifeboat launches", "#f97316"],
+    ["fire", "Fire incidents (Devon & Somerset FRS)", "#dc2626"]]],
+  ["Cameras", [["webcams", "Public webcams (zoom in to see)", "#0d9488"]]],
+  ["Maritime", [["vs_special", "Navy / RNLI / SAR / gov", "#f97316"], ["vs_civil", "All other vessels", "#5eead4"]]],
+  ["Weather & environment", [["warnings", "Met Office warnings", "#facc15"], ["floods", "EA flood warnings", "#f97316"], ["cityweather", "City weather", "#cbd5e1"], ["sea", "Sea state (waves / wind)", "#38bdf8"],
+    ["radar", "Rain radar", "#22d3ee"], ["wind", "Wind arrows", "#4ade80"], ["temps", "Temperature grid", "#fde047"]]],
+  ["Infrastructure", [["cuts", "Power cuts (UKPN, SSEN)", "#fbbf24"], ["roads_incidents", "Road incidents (live)", "#ef4444"],
+    ["roads_closures", "Road closures (planned)", "#f59e0b"], ["roads_works", "Lane restrictions", "#94a3b8"]]],
+  ["Space & geological", [["quakes", "BGS earthquakes", "#f472b6"], ["meteors", "UK Meteor Network", "#a5b4fc"]]],
+  ["News", [["news", "BBC incidents", "#ef4444"]]],
+];
+function countFor(k) {
+  const a = counts.aircraft || {};
+  return { ac_civil: a.civil, ac_military: a.military, ac_police: a.police, ac_hems: a.hems, ac_sar: a.sar,
+    vs_special: counts.vessels?.special, vs_civil: counts.vessels?.total, floods: counts.floods, cuts: counts.cuts,
+    quakes: counts.quakes, news: counts.news,
+    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length }[k];
+}
+function renderCounts() { for (const el of document.querySelectorAll("[data-count]")) { const n = countFor(el.dataset.count); el.textContent = n ?? ""; } }
+function buildLeft() {
+  let h = "";
+  for (const [title, items] of LAYER_UI) {
+    h += `<h2>${title}</h2>`;
+    for (const [k, label, col] of items) {
+      const c = col.startsWith("--") ? `var(${col})` : col;
+      h += `<label class="t"><input type="checkbox" data-layer="${k}" ${S.layers[k] ? "checked" : ""}><span class="sw" style="background:${c}"></span>${label}<span class="n" data-count="${k}"></span></label>`;
+    }
+  }
+  h += `<h2>Filters</h2>
+    <div class="row"><span>Map</span><select id="fBase">${Object.entries(BASEMAPS).map(([k, b]) => `<option value="${k}">${b[0]}</option>`).join("")}</select></div>
+    <div class="row"><span>Labels</span><select id="fLabels"><option value="off">Off</option><option value="special">Special only</option><option value="all">All</option></select></div>
+    <div class="row"><span>Hide civil below</span><select id="fAlt"><option value="0">—</option><option value="5000">5,000 ft</option><option value="10000">10,000 ft</option><option value="20000">20,000 ft</option></select></div>
+    <div class="row"><span>Incident age</span><select id="fNewsH"><option value="1">1 h</option><option value="3">3 h</option><option value="6">6 h</option><option value="12">12 h</option><option value="24">24 h</option></select></div>
+    <div class="row"><span>Incident severity</span><select id="fNewsSev"><option value="1">All</option><option value="2">Medium +</option><option value="3">High only</option></select></div>
+    <div class="row"><span>Quakes</span><select id="fQuake"><option value="1">24 h</option><option value="7">7 days</option><option value="30">30 days</option><option value="365">All</option></select></div>
+    <div class="row"><span>Meteors</span><select id="fMeteor"><option value="12">12 h</option><option value="36">36 h</option><option value="72">3 nights</option></select></div>
+    <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>P</b> panels · <b>F</b> full screen · <b>H</b> home view<br>Add <code>?kiosk</code> to the URL for an always-on display.</p>`;
+  $("left").innerHTML = h + '<div class="sheet-close" data-close>Close</div>';
+  $("fBase").value = S.basemap; $("fLabels").value = S.labels; $("fAlt").value = S.minAltFt; $("fNewsH").value = S.newsHours; $("fNewsSev").value = S.newsMinSev; $("fQuake").value = S.quakeDays; $("fMeteor").value = S.meteorHours;
+  $("left").addEventListener("change", (ev) => {
+    const t = ev.target;
+    if (t.dataset.layer) {
+      S.layers[t.dataset.layer] = t.checked; syncLayers();
+      if (t.dataset.layer.startsWith("ac_") || t.dataset.layer === "mil_dest") renderAircraft(lastAircraft);
+      if (t.dataset.layer === "vs_civil") refresh.vessels();
+      if (t.dataset.layer === "webcams") renderCams();
+    }
+    if (t.id === "fBase") { S.basemap = t.value; setBasemap(t.value); }
+    if (t.id === "fLabels") { S.labels = t.value; renderAircraft(lastAircraft); refresh.vessels(); }
+    if (t.id === "fAlt") { S.minAltFt = +t.value; renderAircraft(lastAircraft); }
+    if (t.id === "fNewsH") { S.newsHours = +t.value; renderNews(); }
+    if (t.id === "fNewsSev") { S.newsMinSev = +t.value; renderNews(); }
+    if (t.id === "fMeteor") { S.meteorHours = +t.value; renderMeteors(); }
+    if (t.id === "fQuake") { S.quakeDays = +t.value; renderQuakes({ quakes: lastQuakes }); }
+    save();
+  });
+}
+// phone bottom sheets
+function openSheet(id) {
+  const el = $(id), wasOpen = el.classList.contains("open");
+  closeSheets();
+  if (!wasOpen) { el.classList.add("open"); el.scrollTop = 0; $(id === "left" ? "btnLayers" : "btnInfo").classList.add("active"); }
+}
+function closeSheets() {
+  document.querySelectorAll(".panel.open").forEach(p => p.classList.remove("open"));
+  $("btnLayers").classList.remove("active"); $("btnInfo").classList.remove("active");
+}
+$("btnLayers").onclick = () => openSheet("left");
+$("btnInfo").onclick = () => openSheet("right");
+map.on("click movestart", () => { if (phone.matches) closeSheets(); });
+// click any data-ll row to fly there
+document.addEventListener("click", (ev) => {
+  if (ev.target.closest("[data-close]")) { closeSheets(); return; }
+  const el = ev.target.closest("[data-ll]");
+  if (!el) return;
+  const [la, lo] = el.dataset.ll.split(",").map(Number);
+  if (phone.matches) closeSheets();
+  map.flyTo([la, lo], Math.max(map.getZoom(), 9), { duration: 1 });
+});
+
+/* ------------------------------------------------------------ refresh loop */
+const refresh = {
+  aircraft: async () => { const d = await getFeed("aircraft"); if (d && d.aircraft) { renderHems(d.hems_events); renderAircraft(d.aircraft); } },
+  rnli: async () => renderRnli(await getFeed("rnli")),
+  fire: async () => renderFire(await getFeed("fire")),
+  webcams: async () => renderCams(await getFeed("webcams")),
+  vessels: async () => renderVessels(await getFeed("vessels", S.layers.vs_civil ? "?all=1" : "")),
+  weather_warnings: async () => renderWarnings(await getFeed("weather_warnings")),
+  floods: async () => renderFloods(await getFeed("floods")),
+  city_weather: async () => renderCityWeather(await getFeed("city_weather")),
+  grid: async () => renderGrid(await getFeed("grid")),
+  power_cuts: async () => renderCuts(await getFeed("power_cuts")),
+  space: async () => renderSpace(await getFeed("space")),
+  quakes: async () => renderQuakes(await getFeed("quakes")),
+  news: async () => renderNews(await getFeed("news")),
+  roads: async () => renderRoads(await getFeed("roads")),
+  meteors: async () => renderMeteors(await getFeed("meteors")),
+  sea: async () => renderSea(await getFeed("sea")),
+  wind_grid: async () => renderWind(await getFeed("wind_grid")),
+  radar: refreshRadar,
+};
+const INTERVAL = { aircraft: 10, vessels: 30, weather_warnings: 600, floods: 600,
+  grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 1800, rnli: 180, fire: 900, webcams: 6 * 3600, wind_grid: 1800, radar: 300, city_weather: 1800 };
+
+function start() {
+  drawBases(); buildLeft(); syncLayers();
+  for (const [k, fn] of Object.entries(refresh)) { fn(); setInterval(fn, INTERVAL[k] * 1000); }
+  setInterval(() => renderNews(), 60000);  // age out expired incidents
+  map.on("zoomend", () => renderAircraft(lastAircraft));
+  map.on("moveend", () => renderCams());
+  setInterval(() => { const n = new Date();
+    $("clock").textContent = n.toLocaleTimeString("en-GB") + " · " + n.toISOString().slice(11, 16) + "Z"; }, 1000);
+  setTimeout(() => location.reload(), 6 * 3600 * 1000);  // keep a 24/7 display fresh
+}
+$("btnPanels").onclick = () => document.body.classList.toggle("hide-panels");
+$("btnFs").onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
+  if (e.key === "p" || e.key === "P") $("btnPanels").click();
+  if (e.key === "f" || e.key === "F") $("btnFs").click();
+  if (e.key === "h" || e.key === "H") map.flyTo(...HOME());
+});
+start();
+</script>
+</body>
+</html>

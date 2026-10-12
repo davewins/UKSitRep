@@ -1,0 +1,18 @@
+services:
+  uksitrep:
+    image: ghcr.io/OWNER/uksitrep:latest   # or: build: .
+    container_name: uksitrep
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file: .env
+    volumes:
+      - uksitrep-data:/data
+      # - ./config/cameras.json:/config/cameras.json:ro
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+
+volumes:
+  uksitrep-data:
