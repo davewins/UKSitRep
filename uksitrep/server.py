@@ -30,7 +30,9 @@ async def auth_middleware(request: web.Request, handler):
     if token and request.path not in PUBLIC_PATHS and not request.path.startswith("/icons/"):
         given = request.query.get("token") or request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
         if not given or not hmac.compare_digest(given, token):
-            return web.Response(status=401, text="Unauthorised: add ?token=... to the URL")
+            # no-store: a cached 401 would otherwise outlive a fixed URL or a container restart
+            return web.Response(status=401, text="Unauthorised: add ?token=... to the URL",
+                                headers={"Cache-Control": "no-store"})
     resp = await handler(request)
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")
     # send our origin (not full URL) so tile servers like OSM see a valid Referer
