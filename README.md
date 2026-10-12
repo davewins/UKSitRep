@@ -14,17 +14,16 @@ It runs as a ~70 MB distroless container with no shell, as a non-root user.
 | Group | What's shown |
 |---|---|
 | Aviation | Live ADS-B aircraft with trails, labels and full type names. Military aircraft get country flags, and police (NPAS), air ambulance and coastguard aircraft are picked out. Emergency squawks (7500/7600/7700) are flagged. Also: military airfields and army bases, and a guess at where military aircraft are heading |
-| Emergency services | Air ambulance / coastguard helicopter "on scene" (inferred from landings away from bases and hospitals), RNLI lifeboat launches, and Devon & Somerset FRS incidents (optional) |
+| Emergency services | Air ambulance / coastguard helicopter "on scene" (inferred from landings away from bases and hospitals), RNLI lifeboat launches, and fire & rescue incidents from Avon, Buckinghamshire, Cheshire, Cleveland, Hampshire & IoW, Royal Berkshire and Shropshire, plus Devon & Somerset (optional), each with its own toggle |
 | Maritime | Live AIS ships. Royal Navy, RNLI, coastguard, police and government vessels and distress beacons are highlighted |
 | Weather & sea | Met Office warnings, Environment Agency floods, rain radar (animated), wind arrows, temperature grid, city weather, sea state for the Shipping Forecast areas |
 | Infrastructure | Power cuts (UKPN, SSEN), electricity grid mix and demand, carbon intensity, National Highways closures and live incidents |
-| Space & geology | BGS earthquakes, UK Meteor Network meteor tracks, NOAA Kp index, AuroraWatch UK |
+| Space & geology | BGS earthquakes, UK Meteor Network meteor tracks, NOAA Kp index, AuroraWatch UK, ISS position, ground track and visible passes from the map centre |
 | Water quality | Live sewage storm overflow status from all 11 water companies (England, Wales and Scotland): discharging now, and stopped within the last 48 hours |
 | Rivers & lightning | Environment Agency river gauges against their normal range, with rising/falling trend; live lightning strikes (Blitzortung) |
 | Air & fire | Air quality and pollen (CAMS via Open-Meteo); NASA FIRMS satellite fire hotspots (optional key); NASA GIBS satellite image overlay |
 | Beaches | Environment Agency bathing water classifications and daily pollution-risk forecasts, cross-referenced with nearby sewage discharges |
-| Space | ISS position, ground track and visible passes from the map centre |
-| Transport & crime | Live forecourt fuel prices (GOV.UK Fuel Finder, optional credentials) from zoom 11; TfL line disruption in the Info panel; police.uk street crime for the area in view (zoom 14+) |
+| Transport & crime | Live forecourt fuel prices with brand logos (GOV.UK Fuel Finder, optional credentials) from zoom 11; TfL line disruption in the Info panel; police.uk street crime around the map centre (zoom 14+), falling back to the latest month a force has published |
 | Tides | High and low water times, heights and a 30-hour curve for about 700 UK and Irish ports (Admiralty EasyTide), shown when zoomed in |
 | Cameras | TfL JamCams, OpenStreetMap-tagged webcams, your own curated list, and the WorldCam directory (optional) |
 | News | BBC UK, nations and local feeds, pinned to the places they mention, filtered by severity and age, plus a scrolling ticker |
@@ -57,10 +56,11 @@ Without Docker (Python 3.11+): `pip install -r requirements.txt && DATA_DIR=./da
 | `FIRMS_MAP_KEY` | *(none)* | NASA FIRMS key for satellite fire hotspots ([free](https://firms.modaps.eosdis.nasa.gov/api/map_key/)) |
 | `FUEL_FINDER_CLIENT_ID`, `FUEL_FINDER_CLIENT_SECRET` | *(none)* | GOV.UK Fuel Finder API credentials for live forecourt prices ([register](https://www.developer.fuel-finder.service.gov.uk/access-latest-fuelprices)) |
 | `ENABLE_LIGHTNING` | `true` | Live lightning from Blitzortung.org (private, non-commercial use) |
-| `FIRE_SERVICES` | all | Fire & rescue incident feeds: `avon,bucks,cheshire,cleveland,hants,rbfrs,shropshire` (Devon & Somerset is `ENABLE_DSFRS`) |
 | `ENABLE_WORLDCAM` | `false` | Import the worldcam.eu directory (scraped; weekly refresh) |
-| `ENABLE_DSFRS` | `false` | Devon & Somerset FRS incidents (scraped) |
-| `DSFRS_STATION_IDS`, `DSFRS_AREAS` | Teignbridge + Torbay stations | Which stations and districts to show |
+| `FIRE_SERVICES` | all seven | Fire & rescue services read from their public feeds: `avon,bucks,cheshire,cleveland,hants,rbfrs,shropshire`. Remove any you don't want |
+| `ENABLE_DSFRS` | `false` | Also show Devon & Somerset FRS incidents. These are read from their incidents web page, so this is off by default |
+| `DSFRS_STATION_IDS` | the 10 Teignbridge + Torbay stations | Only used with `ENABLE_DSFRS`: which stations' incidents to fetch (DSFRS station filter ids, comma-separated) |
+| `DSFRS_AREAS` | `Teignbridge,Torbay` | Only used with `ENABLE_DSFRS`: keep incidents in these districts (drops calls where those crews helped elsewhere) |
 | `CAMERAS_FILE` | bundled `config/cameras.json` | Your curated webcams |
 | `PORT`, `DATA_DIR`, `LOG_LEVEL` | `8080`, `/data`, `INFO` | |
 
@@ -73,7 +73,7 @@ type: iframe
 url: https://<host>/k/<ACCESS_TOKEN>/
 ```
 
-Add `&kiosk` to the URL to hide the layer panel on a wall display.
+Add `?kiosk` to the URL (e.g. `https://<host>/k/<ACCESS_TOKEN>/?kiosk`) to hide the layer panel on a wall display.
 
 ## Security notes
 
