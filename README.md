@@ -7,6 +7,8 @@ It's built for an always-on screen, and the layout also works on a phone.
 One small Python (aiohttp) service serves the map and a set of cached JSON feeds.
 It runs as a ~70 MB distroless container with no shell, as a non-root user.
 
+![UK SitRep showing aircraft, ships, lifeboat launches, sewage discharges, sea state, rain radar, lightning and the grid mix](docs/screenshot.webp)
+
 ## Layers
 
 | Group | What's shown |
