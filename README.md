@@ -17,6 +17,7 @@ It runs as a ~70 MB distroless container with no shell, as a non-root user.
 | Weather & sea | Met Office warnings, Environment Agency floods, rain radar (animated), wind arrows, temperature grid, city weather, sea state for the Shipping Forecast areas |
 | Infrastructure | Power cuts (UKPN, SSEN), electricity grid mix and demand, carbon intensity, National Highways closures and live incidents |
 | Space & geology | BGS earthquakes, UK Meteor Network meteor tracks, NOAA Kp index, AuroraWatch UK |
+| Water quality | Live sewage storm overflow status from all 11 water companies (England, Wales and Scotland): discharging now, and stopped within the last 48 hours |
 | Tides | High and low water times, heights and a 30-hour curve for about 700 UK and Irish ports (Admiralty EasyTide), shown when zoomed in |
 | Cameras | TfL JamCams, OpenStreetMap-tagged webcams, your own curated list, and the WorldCam directory (optional) |
 | News | BBC UK, nations and local feeds, pinned to the places they mention, filtered by severity and age, plus a scrolling ticker |

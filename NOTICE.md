@@ -25,6 +25,7 @@ Each is subject to its own terms.
 | [tar1090](https://github.com/wiedehopf/tar1090), [tar1090-db](https://github.com/wiedehopf/tar1090-db) | Aircraft type names, ICAO country ranges (downloaded at runtime, not bundled) | GPL |
 | [flagcdn.com](https://flagcdn.com) | Flag images | Public domain flags |
 | [Esri](https://www.esri.com) basemaps, [OpenStreetMap tiles](https://operations.osmfoundation.org/policies/tiles/) | Base maps | Esri terms; OSM tile usage policy (light personal use) |
+| Water company storm overflow feeds via [Stream](https://www.streamwaterdata.co.uk) (Anglian, Northumbrian, Severn Trent, Southern, South West, Thames, United Utilities, Wessex, Yorkshire), Dŵr Cymru Welsh Water, Scottish Water | Live sewage discharges | © the respective water company, CC BY 4.0 / OGL |
 | [Admiralty EasyTide](https://easytide.admiralty.co.uk) (UKHO) | Tide times. Fetched per port when a popup is opened, cached 6 h | Crown copyright. Not for navigation |
 | worldcam.eu *(optional)* | Webcam directory | Scraped. Check their terms before enabling |
 | Devon & Somerset FRS *(optional)* | Incident pages | Scraped. Check their terms before enabling |

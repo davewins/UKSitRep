@@ -113,6 +113,23 @@ OVERPASS_MIRRORS = [
     "https://overpass.private.coffee/api/interpreter",
 ]
 PKG_DATA = Path(__file__).with_name("data")
+# Live storm overflow (sewage) status. English companies publish the Water UK "Stream"
+# schema (Status 1 = discharging); Dwr Cymru and Scottish Water have their own layouts.
+STREAM_OVERFLOWS = {
+    "South West Water": "https://services-eu1.arcgis.com/OMdMOtfhATJPcHe3/arcgis/rest/services/NEH_outlets_PROD/FeatureServer/0",
+    "Wessex Water": "https://services.arcgis.com/3SZ6e0uCvPROr4mS/arcgis/rest/services/Wessex_Water_Storm_Overflow_Activity/FeatureServer/0",
+    "Southern Water": "https://services-eu1.arcgis.com/6qJmARkS2dt2IjVA/arcgis/rest/services/SouthernWater_StormOverflowActivity_PROD_view/FeatureServer/0",
+    "Thames Water": "https://services2.arcgis.com/g6o32ZDQ33GpCIu3/arcgis/rest/services/Thames_Water_Storm_Overflow_Activity_(Production)_view/FeatureServer/0",
+    "Severn Trent": "https://services1.arcgis.com/NO7lTIlnxRMMG9Gw/arcgis/rest/services/Severn_Trent_Water_Storm_Overflow_Activity/FeatureServer/0",
+    "Anglian Water": "https://services3.arcgis.com/VCOY1atHWVcDlvlJ/arcgis/rest/services/stream_service_outfall_locations_view/FeatureServer/0",
+    "United Utilities": "https://services5.arcgis.com/5eoLvR0f8HKb7HWP/arcgis/rest/services/United_Utilities_Storm_Overflow_Activity/FeatureServer/0",
+    "Yorkshire Water": "https://services-eu1.arcgis.com/1WqkK5cDKUbF0CkH/arcgis/rest/services/Yorkshire_Water_Storm_Overflow_Activity/FeatureServer/0",
+    "Northumbrian Water": "https://services-eu1.arcgis.com/MSNNjkZ51iVh8yBj/arcgis/rest/services/Northumbrian_Water_Storm_Overflow_Activity_2_view/FeatureServer/0",
+}
+DCWW_OVERFLOWS = "https://services3.arcgis.com/KLNF7YxtENPLYVey/arcgis/rest/services/Spill_Prod/FeatureServer/0"
+SCOTTISH_OVERFLOWS = "https://services3.arcgis.com/Bb8lfThdhugyc4G3/arcgis/rest/services/Scottish_Water_Storm_Overflow_Activity/FeatureServer/0"
+SEWAGE_RECENT_H = 48  # SAS keeps an alert live for 48 h after a discharge stops
+
 # Admiralty EasyTide (UKHO): keyless, ~700 UK & Irish ports, 7-day predictions
 EASYTIDE = "https://easytide.admiralty.co.uk/Home/"
 TIDE_STATION_ID = re.compile(r"^\d{4}[A-Z]?$")
@@ -452,6 +469,87 @@ class Situation:
         self.osm_retry_at = time.time() + 1800
         _LOGGER.warning("OSM webcams: all Overpass mirrors failed, retrying in 30 min")
 
+    # ---------------------------------------------------------------- sewage
+    async def sewage(self) -> dict:
+        """Storm overflows discharging now, or that stopped within the last 48 h."""
+        async def query(url: str, where: str) -> list[dict]:
+            params = {"where": where, "outFields": "*", "outSR": "4326", "returnGeometry": "true",
+                      "resultRecordCount": "2000", "f": "json"}
+            d = await self._json(url + "/query", params=params)
+            if "error" in d:
+                raise RuntimeError(d["error"].get("message", "query failed"))
+            return [f for f in d.get("features", []) if f.get("geometry")]
+
+        def ms(v: Any) -> str | None:
+            return datetime.fromtimestamp(v / 1000, timezone.utc).isoformat() if isinstance(v, (int, float)) else None
+
+        def local(v: Any) -> str | None:  # Dwr Cymru gives UK local time without a zone
+            if not v:
+                return None
+            try:
+                return datetime.fromisoformat(v[:19]).replace(tzinfo=UK_TZ).astimezone(timezone.utc).isoformat()
+            except ValueError:
+                return None
+
+        async def stream(company: str, url: str, since: str) -> list[dict]:
+            out = []
+            for f in await query(url, f"Status=1 OR LatestEventEnd > TIMESTAMP '{since}'"):
+                a = {k.lower(): v for k, v in f["attributes"].items()}
+                active = a.get("status") == 1
+                out.append({
+                    "id": a.get("id"), "company": company, "name": f"Storm overflow {a.get('id') or ''}".strip(),
+                    "water": a.get("receivingwatercourse"), "lat": f["geometry"]["y"], "lon": f["geometry"]["x"],
+                    "active": active, "start": ms(a.get("latesteventstart")),
+                    "end": None if active else ms(a.get("latesteventend")),
+                })
+            return out
+
+        async def wales() -> list[dict]:
+            out = []
+            where = "status IN ('Overflow Operating','Overflow Not Operating (Has in the last 24 hours)')"
+            for f in await query(DCWW_OVERFLOWS, where):
+                a = f["attributes"]
+                active = a.get("status") == "Overflow Operating"
+                out.append({
+                    "id": a.get("DCWW_ID") or a.get("permit_number"), "company": "Dŵr Cymru Welsh Water",
+                    "name": a.get("asset_name"), "water": a.get("Receiving_Water"),
+                    "bathing": a.get("Linked_Bathing_Water"), "lat": f["geometry"]["y"], "lon": f["geometry"]["x"],
+                    "active": active, "start": local(a.get("start_date_time_discharge")),
+                    "end": None if active else local(a.get("stop_date_time_discharge")),
+                })
+            return out
+
+        async def scotland() -> list[dict]:
+            out = []
+            for f in await query(SCOTTISH_OVERFLOWS, "STATUS_NSOH=1 OR STATUS_DESCRIPTION LIKE 'RO%'"):
+                a = f["attributes"]
+                active = a.get("STATUS_NSOH") == 1
+                out.append({
+                    "id": a.get("ASSET_ID"), "company": "Scottish Water", "name": (a.get("ASSET_NAME") or "").title(),
+                    "water": a.get("RECEIVING_WATER"), "lat": f["geometry"]["y"], "lon": f["geometry"]["x"],
+                    "active": active, "start": a.get("START_DATETIME"), "end": None if active else a.get("END_DATETIME"),
+                })
+            return out
+
+        async def fetch() -> dict:
+            since = (datetime.now(timezone.utc) - timedelta(hours=SEWAGE_RECENT_H)).strftime("%Y-%m-%d %H:%M:%S")
+            jobs = {c: stream(c, u, since) for c, u in STREAM_OVERFLOWS.items()}
+            jobs["Dŵr Cymru Welsh Water"] = wales()
+            jobs["Scottish Water"] = scotland()
+            results = await asyncio.gather(*jobs.values(), return_exceptions=True)
+            overflows, errors = [], []
+            for company, res in zip(jobs, results):
+                if isinstance(res, Exception):
+                    errors.append(f"{company}: {res}")
+                else:
+                    overflows.extend(res)
+            if not overflows and errors:
+                raise RuntimeError("; ".join(errors))
+            return {"updated": datetime.now(timezone.utc).isoformat(), "overflows": overflows,
+                    "active": sum(o["active"] for o in overflows), "errors": errors}
+
+        return await self.cache.get("sewage", 600, fetch)
+
     # ---------------------------------------------------------------- tides
     async def tide_stations(self) -> dict:
         async def fetch() -> dict:
@@ -690,6 +788,7 @@ class Situation:
             "space": self.space, "quakes": self.quakes, "news": self.news, "roads": self.roads,
             "meteors": self.meteors, "sea": self.sea, "wind_grid": self.wind_grid, "rnli": self.rnli,
             "fire": self.fire, "webcams": self.webcams, "tide_stations": self.tide_stations,
+            "sewage": self.sewage,
         }
 
     # ---------------------------------------------------------------- weather

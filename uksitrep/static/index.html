@@ -176,7 +176,7 @@ const DEFAULTS = {
   layers: { ac_civil: true, ac_military: true, ac_police: true, ac_hems: true, ac_sar: true,
     ac_trails: true, mil_dest: true, airfields: true, army: true,
     vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
-    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, webcams: true, tides: true, quakes: true, meteors: true, news: true },
+    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, quakes: true, meteors: true, news: true },
   basemap: "dark", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
 };
 let S;
@@ -253,7 +253,7 @@ const status = {};
 function setStatus(feed, ok, note) { status[feed] = { ok, t: Date.now(), note }; renderChips(); }
 function renderChips() {
   const names = { aircraft: "ADS-B", vessels: "AIS", weather_warnings: "Met Office", floods: "EA floods",
-    city_weather: "Open-Meteo", grid: "Grid", roads: "Nat. Highways", power_cuts: "Power cuts", space: "Space wx", quakes: "BGS quakes", news: "BBC", meteors: "UKMON", sea: "Sea state", wind_grid: "Wind grid", radar: "Radar", rnli: "RNLI", fire: "DSFRS", webcams: "Webcams", tide_stations: "Tides" };
+    city_weather: "Open-Meteo", grid: "Grid", roads: "Nat. Highways", power_cuts: "Power cuts", space: "Space wx", quakes: "BGS quakes", news: "BBC", meteors: "UKMON", sea: "Sea state", wind_grid: "Wind grid", radar: "Radar", rnli: "RNLI", fire: "DSFRS", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage" };
   $("chips").innerHTML = Object.entries(status).map(([k, v]) => {
     const cls = !v.ok ? "err" : "ok";
     return `<span class="chip ${cls}" title="${esc(v.note || "")} · ${new Date(v.t).toLocaleTimeString()}">${names[k] || k}</span>`;
@@ -614,6 +614,40 @@ function renderCams(d) {
       .bindTooltip(esc(c.name), { direction: "top", offset: [0, -8] })
       .addTo(G.webcams);
   }
+}
+
+/* ------------------------------------------------------------ sewage (live storm overflow status) */
+const SEWAGE_RECENT_MIN_ZOOM = 8;
+let lastSewage = [];
+const GLYPH_DROP = '<path d="M0,-6.5 C2.5,-2.5 5,0 5,2.5 A5,5 0 0 1 -5,2.5 C-5,0 -2.5,-2.5 0,-6.5 Z" fill="#fff"/><path d="M-3,1.5 h6 M-2.2,3.6 h4.4" stroke="#78350f" stroke-width="1.1"/>';
+const fmtDur = (min) => min < 60 ? `${Math.max(1, Math.round(min))} min` : min < 2880 ? `${(min / 60).toFixed(min < 600 ? 1 : 0)} h` : `${Math.round(min / 1440)} days`;
+function sewagePopup(o) {
+  const when = (iso) => iso ? `${ukDay(iso)} ${ukTime(iso)}` : "?";
+  const dur = o.start ? fmtDur(((o.end ? Date.parse(o.end) : Date.now()) - Date.parse(o.start)) / 60000) : "";
+  return `<b>${o.active ? "🟤 Discharging now" : "Discharged recently"}</b><br>${esc(o.name)}<br>
+    <span class="muted">${esc(o.company)}</span><br>Into: <b>${esc(o.water || "?")}</b>${o.bathing && o.bathing !== o.water ? `<br>Bathing water: ${esc(o.bathing)}` : ""}<br>
+    ${o.active ? `Since ${when(o.start)}${dur ? ` (${dur})` : ""}` : `${when(o.start)} to ${when(o.end)}${dur ? ` (${dur})` : ""}<br><span class="muted">stopped ${ago(o.end)}</span>`}
+    <br><span class="muted" style="font-size:11px">Water company storm overflow monitor. Avoid swimming downstream for 48 h after a discharge.</span>`;
+}
+function renderSewage(d) {
+  if (d) lastSewage = d.overflows || [];
+  G.sewage.clearLayers(); G.sewage_recent.clearLayers();
+  const active = lastSewage.filter(o => o.active), recent = lastSewage.filter(o => !o.active && o.end && ageMin(o.end) < 48 * 60);
+  counts.sewage = active.length; counts.sewage_recent = recent.length; renderCounts();
+  if (S.layers.sewage)
+    for (const o of active)
+      L.marker([o.lat, o.lon], { icon: emIcon("#92400e", GLYPH_DROP, true), zIndexOffset: 450 })
+        .bindPopup(sewagePopup(o)).bindTooltip(`Sewage discharging: ${esc(o.water || o.name)}`, { direction: "top", offset: [0, -10] }).addTo(G.sewage);
+  if (S.layers.sewage_recent && map.getZoom() >= SEWAGE_RECENT_MIN_ZOOM) {
+    const b = map.getBounds().pad(0.3);
+    for (const o of recent) {
+      if (!b.contains([o.lat, o.lon])) continue;
+      const m = ageMin(o.end);
+      L.marker([o.lat, o.lon], { icon: emIcon("#ca8a04", GLYPH_DROP, false), opacity: m < 360 ? .95 : m < 1440 ? .7 : .45, zIndexOffset: 200 })
+        .bindPopup(sewagePopup(o)).bindTooltip(`Sewage stopped ${ago(o.end)}: ${esc(o.water || o.name)}`, { direction: "top", offset: [0, -10] }).addTo(G.sewage_recent);
+    }
+  }
+  renderAlerts();
 }
 
 /* ------------------------------------------------------------ tide times (Admiralty EasyTide) */
@@ -983,6 +1017,11 @@ function renderAlerts() {
     out.push({ cls: "info", ll: [m.lat2, m.lon2], html: `🔥 Fireball mag ${m.mag} over the UK<small>${ago(m.time)} · ${m.stations} cameras</small>` });
   if (lastSpace && lastSpace.kp >= 5) out.push({ cls: lastSpace.kp >= 7 ? "" : "amber", html: `🌌 Geomagnetic storm Kp ${lastSpace.kp}` });
   if (lastSpace && ["amber", "red"].includes(lastSpace.aurorawatch)) out.push({ cls: "amber", html: `🌌 AuroraWatch UK ${lastSpace.aurorawatch.toUpperCase()} — aurora possible` });
+  const sewNow = lastSewage.filter(o => o.active);
+  if (sewNow.length) {
+    const by = Object.entries(sewNow.reduce((m, o) => (m[o.company] = (m[o.company] || 0) + 1, m), {})).sort((x, y) => y[1] - x[1]);
+    out.push({ cls: "info", html: `🟤 ${sewNow.length} sewage overflow${sewNow.length > 1 ? "s" : ""} discharging now<small>${by.map(([c, n]) => `${esc(c)} ${n}`).join(" · ")}</small>` });
+  }
   const urgent = out.filter(o => o.cls === "" || o.cls === "amber").length;
   $("btnInfo").textContent = urgent ? `Info ⚠ ${urgent}` : "Info";
   $("btnInfo").classList.toggle("alerting", urgent > 0);
@@ -1004,6 +1043,7 @@ const LAYER_UI = [
     ["tides", "Tide times (zoom in to see)", "#60a5fa"]]],
   ["Weather & environment", [["warnings", "Met Office warnings", "#facc15"], ["floods", "EA flood warnings", "#f97316"], ["cityweather", "City weather", "#cbd5e1"], ["sea", "Sea state (waves / wind)", "#38bdf8"],
     ["radar", "Rain radar", "#22d3ee"], ["wind", "Wind arrows", "#4ade80"], ["temps", "Temperature grid", "#fde047"]]],
+  ["Water quality", [["sewage", "Sewage discharging now", "#a16207"], ["sewage_recent", "Sewage, stopped in last 48 h (zoom in)", "#ca8a04"]]],
   ["Infrastructure", [["cuts", "Power cuts (UKPN, SSEN)", "#fbbf24"], ["roads_incidents", "Road incidents (live)", "#ef4444"],
     ["roads_closures", "Road closures (planned)", "#f59e0b"], ["roads_works", "Lane restrictions", "#94a3b8"]]],
   ["Space & geological", [["quakes", "BGS earthquakes", "#f472b6"], ["meteors", "UK Meteor Network", "#a5b4fc"]]],
@@ -1014,7 +1054,7 @@ function countFor(k) {
   return { ac_civil: a.civil, ac_military: a.military, ac_police: a.police, ac_hems: a.hems, ac_sar: a.sar,
     vs_special: counts.vessels?.special, vs_civil: counts.vessels?.total, floods: counts.floods, cuts: counts.cuts,
     quakes: counts.quakes, news: counts.news,
-    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length }[k];
+    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length }[k];
 }
 function renderCounts() { for (const el of document.querySelectorAll("[data-count]")) { const n = countFor(el.dataset.count); el.textContent = n ?? ""; } }
 function buildLeft() {
@@ -1045,6 +1085,7 @@ function buildLeft() {
       if (t.dataset.layer === "vs_civil") refresh.vessels();
       if (t.dataset.layer === "webcams") renderCams();
       if (t.dataset.layer === "tides") renderTides();
+      if (t.dataset.layer.startsWith("sewage")) renderSewage();
     }
     if (t.id === "fBase") { S.basemap = setBasemap(t.value); }
     if (t.id === "fLabels") { S.labels = t.value; renderAircraft(lastAircraft); refresh.vessels(); }
@@ -1089,6 +1130,7 @@ const refresh = {
     renderCams(d);
     if (!d || !d.cams || !d.cams.length) setTimeout(refresh.webcams, 60000);  // don't wait 6 h after a failed first load
   },
+  sewage: async () => renderSewage(await getFeed("sewage")),
   tide_stations: async () => {
     const d = await getFeed("tide_stations");
     renderTides(d);
@@ -1110,14 +1152,14 @@ const refresh = {
   radar: refreshRadar,
 };
 const INTERVAL = { aircraft: 10, vessels: 30, weather_warnings: 600, floods: 600,
-  grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 1800, rnli: 180, fire: 900, webcams: 6 * 3600, tide_stations: 86400, wind_grid: 1800, radar: 300, city_weather: 1800 };
+  grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 1800, rnli: 180, fire: 900, webcams: 6 * 3600, tide_stations: 86400, sewage: 600, wind_grid: 1800, radar: 300, city_weather: 1800 };
 
 function start() {
   drawBases(); buildLeft(); syncLayers();
   for (const [k, fn] of Object.entries(refresh)) { fn(); setInterval(fn, INTERVAL[k] * 1000); }
   setInterval(() => renderNews(), 60000);  // age out expired incidents
   map.on("zoomend", () => renderAircraft(lastAircraft));
-  map.on("moveend", () => { renderCams(); renderTides(); });
+  map.on("moveend", () => { renderCams(); renderTides(); renderSewage(); });
   setInterval(() => { const n = new Date();
     $("clock").textContent = n.toLocaleTimeString("en-GB") + " · " + n.toISOString().slice(11, 16) + "Z"; }, 1000);
   setTimeout(() => location.reload(), 6 * 3600 * 1000);  // keep a 24/7 display fresh
