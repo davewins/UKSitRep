@@ -16,6 +16,9 @@ from .feeds import Situation
 
 _LOGGER = logging.getLogger("uksitrep")
 STATIC = Path(__file__).parent / "static"
+ICONS = STATIC / "icons"
+# Icons are fetched by browsers without our token, so they skip auth
+PUBLIC_PATHS = {"/healthz", "/favicon.ico", "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"}
 CFG = web.AppKey("cfg", Config)
 SIT = web.AppKey("situation", Situation)
 LOOKUPS = web.AppKey("lookups", dict)
@@ -24,7 +27,7 @@ LOOKUPS = web.AppKey("lookups", dict)
 @web.middleware
 async def auth_middleware(request: web.Request, handler):
     token = request.app[CFG].access_token
-    if token and request.path != "/healthz":
+    if token and request.path not in PUBLIC_PATHS and not request.path.startswith("/icons/"):
         given = request.query.get("token") or request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
         if not given or not hmac.compare_digest(given, token):
             return web.Response(status=401, text="Unauthorised: add ?token=... to the URL")
@@ -53,6 +56,12 @@ async def feed(request: web.Request) -> web.Response:
 async def lookup(request: web.Request) -> web.Response:
     key = request.match_info["name"]
     return web.json_response(request.app[LOOKUPS].get(key, {}), headers={"Cache-Control": "max-age=86400"})
+
+
+async def favicon(request: web.Request) -> web.FileResponse:
+    # browsers ask for these fixed paths; PNG content is fine at the .ico URL
+    name = "favicon-32.png" if request.path == "/favicon.ico" else "apple-touch-icon.png"
+    return web.FileResponse(ICONS / name, headers={"Cache-Control": "max-age=604800", "Content-Type": "image/png"})
 
 
 async def healthz(request: web.Request) -> web.Response:
@@ -105,6 +114,10 @@ def make_app(cfg: Config) -> web.Application:
     app.router.add_get("/", index)
     app.router.add_get("/index.html", index)
     app.router.add_get("/healthz", healthz)
+    app.router.add_get("/favicon.ico", favicon)
+    app.router.add_get("/apple-touch-icon.png", favicon)
+    app.router.add_get("/apple-touch-icon-precomposed.png", favicon)
+    app.router.add_static("/icons/", ICONS, append_version=False)
     app.router.add_get("/api/{feed}", feed)
     app.router.add_get("/{name:aircraft_types|icao_countries}.json", lookup)
     app.on_startup.append(_startup)
