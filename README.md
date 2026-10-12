@@ -57,6 +57,7 @@ Without Docker (Python 3.11+): `pip install -r requirements.txt && DATA_DIR=./da
 | `FIRMS_MAP_KEY` | *(none)* | NASA FIRMS key for satellite fire hotspots ([free](https://firms.modaps.eosdis.nasa.gov/api/map_key/)) |
 | `FUEL_FINDER_CLIENT_ID`, `FUEL_FINDER_CLIENT_SECRET` | *(none)* | GOV.UK Fuel Finder API credentials for live forecourt prices ([register](https://www.developer.fuel-finder.service.gov.uk/access-latest-fuelprices)) |
 | `ENABLE_LIGHTNING` | `true` | Live lightning from Blitzortung.org (private, non-commercial use) |
+| `FIRE_SERVICES` | all | Fire & rescue incident feeds: `avon,bucks,cheshire,cleveland,hants,rbfrs,shropshire` (Devon & Somerset is `ENABLE_DSFRS`) |
 | `ENABLE_WORLDCAM` | `false` | Import the worldcam.eu directory (scraped; weekly refresh) |
 | `ENABLE_DSFRS` | `false` | Devon & Somerset FRS incidents (scraped) |
 | `DSFRS_STATION_IDS`, `DSFRS_AREAS` | Teignbridge + Torbay stations | Which stations and districts to show |

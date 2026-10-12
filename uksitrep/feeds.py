@@ -23,6 +23,7 @@ from zoneinfo import ZoneInfo
 
 import aiohttp
 from .config import Config
+from .fire_services import FireServices
 from .more_feeds import LightningRelay, MoreFeeds
 from .hems_sites import HEMS_EXCLUDE_KM, HEMS_SITES
 from .places import PLACE_ORDER, PLACES
@@ -217,7 +218,7 @@ class Cache:
             return value
 
 
-class Situation(MoreFeeds):
+class Situation(MoreFeeds, FireServices):
     """All feed fetchers plus long-lived state (aircraft trails, AIS)."""
 
     def __init__(self, cfg: Config, session: aiohttp.ClientSession) -> None:
@@ -256,7 +257,8 @@ class Situation(MoreFeeds):
     # ---------------------------------------------------------------- helpers
     async def _json(self, url: str, **kw) -> Any:
         timeout = kw.pop("timeout", TIMEOUT)
-        async with self.session.get(url, headers=UA, timeout=timeout, **kw) as r:
+        headers = kw.pop("headers", UA)
+        async with self.session.get(url, headers=headers, timeout=timeout, **kw) as r:
             r.raise_for_status()
             return await r.json(content_type=None)
 
@@ -742,6 +744,18 @@ class Situation(MoreFeeds):
         return res
 
     async def fire(self) -> dict:
+        """Devon & Somerset (station-filtered) plus the other services in fire_services.py."""
+        dsfrs, others = await asyncio.gather(self._fire_dsfrs(), self.fire_services())
+        services = {**({"dsfrs": "Devon & Somerset FRS"} if self.cfg.dsfrs_stations else {}), **others["services"]}
+        errors = list(others["errors"])
+        if "error" in dsfrs:
+            errors.append(f"Devon & Somerset FRS: {dsfrs['error']}")
+        incidents = [{**i, "svc": "dsfrs"} for i in dsfrs.get("incidents", [])] + others["incidents"]
+        incidents.sort(key=lambda r: r.get("time") or "", reverse=True)
+        return {"updated": datetime.now(timezone.utc).isoformat(), "incidents": incidents,
+                "services": services, "errors": errors, "coverage": dsfrs.get("coverage")}
+
+    async def _fire_dsfrs(self) -> dict:
         async def fetch() -> dict:
             if not self.cfg.dsfrs_stations:
                 return {"incidents": [], "disabled": True}

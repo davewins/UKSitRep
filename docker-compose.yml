@@ -20,6 +20,7 @@ services:
       ENABLE_BACKGROUND_ADSB: ${ENABLE_BACKGROUND_ADSB:-true}
       ENABLE_WORLDCAM: ${ENABLE_WORLDCAM:-false}
       ENABLE_DSFRS: ${ENABLE_DSFRS:-false}
+      FIRE_SERVICES: ${FIRE_SERVICES:-avon,bucks,cheshire,cleveland,hants,rbfrs,shropshire}
       DSFRS_STATION_IDS: ${DSFRS_STATION_IDS:-}
       DSFRS_AREAS: ${DSFRS_AREAS:-Teignbridge,Torbay}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}

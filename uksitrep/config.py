@@ -46,6 +46,7 @@ class Config:
     firms_key: str | None = None
     enable_lightning: bool = True
     fuel_client_id: str | None = None
+    fire_services: set[str] = field(default_factory=set)
     fuel_client_secret: str | None = None
 
     @classmethod
@@ -76,6 +77,7 @@ class Config:
             firms_key=os.environ.get("FIRMS_MAP_KEY") or None,
             enable_lightning=_bool("ENABLE_LIGHTNING", True),
             fuel_client_id=os.environ.get("FUEL_FINDER_CLIENT_ID") or None,
+            fire_services=set(_list("FIRE_SERVICES", "avon,bucks,cheshire,cleveland,hants,rbfrs,shropshire")),
             fuel_client_secret=os.environ.get("FUEL_FINDER_CLIENT_SECRET") or None,
         )
 
