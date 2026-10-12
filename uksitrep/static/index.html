@@ -87,6 +87,8 @@
   .leaflet-popup-content a { color: #7dd3fc; }
   .wx { background: none; border: none; color: #cbd5e1; font-size: 11px; white-space: nowrap; text-shadow: 0 0 3px #000; }
   .base { background: none; border: none; }
+  .tide-tbl { border-collapse: collapse; width: 100%; font-size: 12px; margin-bottom: 4px; }
+  .tide-tbl td { padding: 1px 6px 1px 0; }
   .cam-pop img { display: block; width: 280px; max-width: 70vw; border-radius: 4px; margin: 6px 0; background: #000; min-height: 60px; }
   .sea { background: none; border: none; text-align: center; }
   .wind, .tmp { background: none; border: none; }
@@ -174,7 +176,7 @@ const DEFAULTS = {
   layers: { ac_civil: true, ac_military: true, ac_police: true, ac_hems: true, ac_sar: true,
     ac_trails: true, mil_dest: true, airfields: true, army: true,
     vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
-    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, webcams: true, quakes: true, meteors: true, news: true },
+    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, webcams: true, tides: true, quakes: true, meteors: true, news: true },
   basemap: "dark", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
 };
 let S;
@@ -251,7 +253,7 @@ const status = {};
 function setStatus(feed, ok, note) { status[feed] = { ok, t: Date.now(), note }; renderChips(); }
 function renderChips() {
   const names = { aircraft: "ADS-B", vessels: "AIS", weather_warnings: "Met Office", floods: "EA floods",
-    city_weather: "Open-Meteo", grid: "Grid", roads: "Nat. Highways", power_cuts: "Power cuts", space: "Space wx", quakes: "BGS quakes", news: "BBC", meteors: "UKMON", sea: "Sea state", wind_grid: "Wind grid", radar: "Radar", rnli: "RNLI", fire: "DSFRS", webcams: "Webcams" };
+    city_weather: "Open-Meteo", grid: "Grid", roads: "Nat. Highways", power_cuts: "Power cuts", space: "Space wx", quakes: "BGS quakes", news: "BBC", meteors: "UKMON", sea: "Sea state", wind_grid: "Wind grid", radar: "Radar", rnli: "RNLI", fire: "DSFRS", webcams: "Webcams", tide_stations: "Tides" };
   $("chips").innerHTML = Object.entries(status).map(([k, v]) => {
     const cls = !v.ok ? "err" : "ok";
     return `<span class="chip ${cls}" title="${esc(v.note || "")} · ${new Date(v.t).toLocaleTimeString()}">${names[k] || k}</span>`;
@@ -614,6 +616,74 @@ function renderCams(d) {
   }
 }
 
+/* ------------------------------------------------------------ tide times (Admiralty EasyTide) */
+const TIDE_MIN_ZOOM = 9;
+let tideStations = [];
+const tideIcon = L.divIcon({ className: "base", iconSize: [18, 18], iconAnchor: [9, 9],
+  html: '<svg width="18" height="18" viewBox="-9 -9 18 18"><circle r="8" fill="#1d4ed8" stroke="#000" stroke-width="1"/>' +
+    '<path d="M-5.5,-0.5 q1.4,-2 2.75,0 t2.75,0 t2.75,0 t2.75,0 M-5.5,3 q1.4,-2 2.75,0 t2.75,0 t2.75,0 t2.75,0" stroke="#fff" stroke-width="1.4" fill="none"/></svg>' });
+const ukTime = (iso) => new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" });
+function ukDay(iso) {
+  const f = (d) => d.toLocaleDateString("en-GB", { timeZone: "Europe/London" });
+  const d = new Date(iso), now = new Date();
+  if (f(d) === f(now)) return "Today";
+  if (f(d) === f(new Date(now.getTime() + 86400000))) return "Tomorrow";
+  return d.toLocaleDateString("en-GB", { weekday: "short", timeZone: "Europe/London" });
+}
+function tideChart(curve, events) {
+  // height curve from 6 h ago to 24 h ahead, with a "now" line and HW/LW dots
+  const now = Date.now(), t0 = now - 6 * 3600e3, t1 = now + 24 * 3600e3;
+  const pts = curve.map(([t, h]) => [Date.parse(t), h]).filter(([t]) => t >= t0 && t <= t1);
+  if (pts.length < 3) return "";
+  const hs = pts.map(p => p[1]), lo = Math.min(...hs), hi = Math.max(...hs), W = 260, H = 64;
+  const x = (t) => ((t - t0) / (t1 - t0) * W).toFixed(1), y = (h) => (H - 4 - (h - lo) / (hi - lo || 1) * (H - 14)).toFixed(1);
+  const path = pts.map(([t, h], i) => `${i ? "L" : "M"}${x(t)},${y(h)}`).join(" ");
+  const dots = events.filter(e => { const t = Date.parse(e.time); return t >= t0 && t <= t1 && e.height != null; })
+    .map(e => `<circle cx="${x(Date.parse(e.time))}" cy="${y(e.height)}" r="2.5" fill="${e.type === "HW" ? "#60a5fa" : "#94a3b8"}"/>`).join("");
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;margin:6px 0;background:#0b1220;border-radius:4px">
+    <path d="${path} L${x(pts[pts.length - 1][0])},${H} L${x(pts[0][0])},${H} Z" fill="#1d4ed833"/><path d="${path}" stroke="#60a5fa" stroke-width="1.6" fill="none"/>
+    <line x1="${x(now)}" x2="${x(now)}" y1="0" y2="${H}" stroke="#facc15" stroke-dasharray="3 2"/>${dots}</svg>`;
+}
+function tidePopup(st, d) {
+  const head = `<b>${esc(st.name)}</b> <span class="muted">tide times</span><br>`;
+  if (!d) return head + '<span class="muted">Loading…</span>';
+  if (d.error || !d.events) return head + `<span class="muted">Tide data unavailable (${esc(d.error || "no data")})</span>`;
+  const now = Date.now();
+  const next = d.events.filter(e => Date.parse(e.time) > now - 15 * 60e3).slice(0, 5);
+  // rising or falling: compare the curve either side of now
+  let state = "";
+  const c = d.curve.map(([t, h]) => [Date.parse(t), h]);
+  const i = c.findIndex(([t]) => t > now);
+  if (i > 0) {
+    const [ta, ha] = c[i - 1], [tb, hb] = c[i], h = ha + (hb - ha) * (now - ta) / (tb - ta);
+    state = `Now ${h.toFixed(1)} m, ${hb > ha ? "rising ↑" : "falling ↓"}`;
+  }
+  const rows = next.map(e => `<tr><td>${e.type === "HW" ? "High" : "Low"}</td><td>${ukDay(e.time)}</td><td><b>${ukTime(e.time)}</b></td>
+    <td style="text-align:right">${e.height != null ? e.height.toFixed(1) + " m" : ""}</td></tr>`).join("");
+  return head + (state ? `<span>${state}</span>` : "") + tideChart(d.curve, d.events) +
+    `<table class="tide-tbl">${rows}</table><span class="muted" style="font-size:11px">UK time · heights above chart datum · Admiralty EasyTide, not for navigation</span>`;
+}
+function renderTides(d) {
+  if (d) tideStations = d.stations || [];
+  G.tides.clearLayers();
+  counts.tides = tideStations.length; renderCounts();
+  if (map.getZoom() < TIDE_MIN_ZOOM || !S.layers.tides) return;
+  const b = map.getBounds().pad(0.3);
+  for (const st of tideStations) {
+    if (!b.contains([st.lat, st.lon])) continue;
+    const m = L.marker([st.lat, st.lon], { icon: tideIcon, zIndexOffset: 250 })
+      .bindPopup(tidePopup(st), { maxWidth: 300, minWidth: 260 })
+      .bindTooltip(esc(st.name), { direction: "top", offset: [0, -8] })
+      .addTo(G.tides);
+    m.on("popupopen", async (e) => {  // fetched per port on click; no status chip for these
+      let d;
+      try { const r = await fetch(withToken(`${API}tides?station=${encodeURIComponent(st.id)}`)); d = r.ok ? await r.json() : { error: r.status }; }
+      catch (err) { d = { error: String(err) }; }
+      e.popup.setContent(tidePopup(st, d));
+    });
+  }
+}
+
 /* ------------------------------------------------------------ rain radar (RainViewer, keyless) */
 let radarFrames = [], radarLayers = [], radarIdx = 0, radarTimer = null;
 const RadarCtl = L.Control.extend({
@@ -930,7 +1000,8 @@ const LAYER_UI = [
   ["Emergency services", [["hems_scene", "Air ambulance on scene (inferred)", "#facc15"], ["rnli", "RNLI lifeboat launches", "#f97316"],
     ["fire", "Fire incidents (Devon & Somerset FRS)", "#dc2626"]]],
   ["Cameras", [["webcams", "Public webcams (zoom in to see)", "#0d9488"]]],
-  ["Maritime", [["vs_special", "Navy / RNLI / SAR / gov", "#f97316"], ["vs_civil", "All other vessels", "#5eead4"]]],
+  ["Maritime", [["vs_special", "Navy / RNLI / SAR / gov", "#f97316"], ["vs_civil", "All other vessels", "#5eead4"],
+    ["tides", "Tide times (zoom in to see)", "#60a5fa"]]],
   ["Weather & environment", [["warnings", "Met Office warnings", "#facc15"], ["floods", "EA flood warnings", "#f97316"], ["cityweather", "City weather", "#cbd5e1"], ["sea", "Sea state (waves / wind)", "#38bdf8"],
     ["radar", "Rain radar", "#22d3ee"], ["wind", "Wind arrows", "#4ade80"], ["temps", "Temperature grid", "#fde047"]]],
   ["Infrastructure", [["cuts", "Power cuts (UKPN, SSEN)", "#fbbf24"], ["roads_incidents", "Road incidents (live)", "#ef4444"],
@@ -943,7 +1014,7 @@ function countFor(k) {
   return { ac_civil: a.civil, ac_military: a.military, ac_police: a.police, ac_hems: a.hems, ac_sar: a.sar,
     vs_special: counts.vessels?.special, vs_civil: counts.vessels?.total, floods: counts.floods, cuts: counts.cuts,
     quakes: counts.quakes, news: counts.news,
-    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length }[k];
+    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length }[k];
 }
 function renderCounts() { for (const el of document.querySelectorAll("[data-count]")) { const n = countFor(el.dataset.count); el.textContent = n ?? ""; } }
 function buildLeft() {
@@ -973,6 +1044,7 @@ function buildLeft() {
       if (t.dataset.layer.startsWith("ac_") || t.dataset.layer === "mil_dest") renderAircraft(lastAircraft);
       if (t.dataset.layer === "vs_civil") refresh.vessels();
       if (t.dataset.layer === "webcams") renderCams();
+      if (t.dataset.layer === "tides") renderTides();
     }
     if (t.id === "fBase") { S.basemap = setBasemap(t.value); }
     if (t.id === "fLabels") { S.labels = t.value; renderAircraft(lastAircraft); refresh.vessels(); }
@@ -1012,7 +1084,16 @@ const refresh = {
   aircraft: async () => { const d = await getFeed("aircraft"); if (d && d.aircraft) { renderHems(d.hems_events); renderAircraft(d.aircraft); } },
   rnli: async () => renderRnli(await getFeed("rnli")),
   fire: async () => renderFire(await getFeed("fire")),
-  webcams: async () => renderCams(await getFeed("webcams")),
+  webcams: async () => {
+    const d = await getFeed("webcams");
+    renderCams(d);
+    if (!d || !d.cams || !d.cams.length) setTimeout(refresh.webcams, 60000);  // don't wait 6 h after a failed first load
+  },
+  tide_stations: async () => {
+    const d = await getFeed("tide_stations");
+    renderTides(d);
+    if (!d || !d.stations || !d.stations.length) setTimeout(refresh.tide_stations, 120000);
+  },
   vessels: async () => renderVessels(await getFeed("vessels", S.layers.vs_civil ? "?all=1" : "")),
   weather_warnings: async () => renderWarnings(await getFeed("weather_warnings")),
   floods: async () => renderFloods(await getFeed("floods")),
@@ -1029,14 +1110,14 @@ const refresh = {
   radar: refreshRadar,
 };
 const INTERVAL = { aircraft: 10, vessels: 30, weather_warnings: 600, floods: 600,
-  grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 1800, rnli: 180, fire: 900, webcams: 6 * 3600, wind_grid: 1800, radar: 300, city_weather: 1800 };
+  grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 1800, rnli: 180, fire: 900, webcams: 6 * 3600, tide_stations: 86400, wind_grid: 1800, radar: 300, city_weather: 1800 };
 
 function start() {
   drawBases(); buildLeft(); syncLayers();
   for (const [k, fn] of Object.entries(refresh)) { fn(); setInterval(fn, INTERVAL[k] * 1000); }
   setInterval(() => renderNews(), 60000);  // age out expired incidents
   map.on("zoomend", () => renderAircraft(lastAircraft));
-  map.on("moveend", () => renderCams());
+  map.on("moveend", () => { renderCams(); renderTides(); });
   setInterval(() => { const n = new Date();
     $("clock").textContent = n.toLocaleTimeString("en-GB") + " · " + n.toISOString().slice(11, 16) + "Z"; }, 1000);
   setTimeout(() => location.reload(), 6 * 3600 * 1000);  // keep a 24/7 display fresh

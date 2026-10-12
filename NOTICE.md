@@ -19,11 +19,12 @@ Each is subject to its own terms.
 | [UK Meteor Network](https://ukmeteornetwork.org/our-data-apis/) | Meteor trajectories | UKMON |
 | [BBC News](https://www.bbc.co.uk/news) RSS | Headlines | Personal, non-commercial use |
 | [RNLI](https://rnli.org) launches feed | Lifeboat launches | RNLI |
-| [OpenStreetMap](https://www.openstreetmap.org/copyright) | Lifeboat station positions (`uksitrep/data/rnli_stations.json`), webcams | © OpenStreetMap contributors, ODbL |
+| [OpenStreetMap](https://www.openstreetmap.org/copyright) | Lifeboat station positions (`uksitrep/data/rnli_stations.json`), webcams (seed copy in `uksitrep/data/osm_webcams.json`) | © OpenStreetMap contributors, ODbL |
 | [postcodes.io](https://postcodes.io) / OS Open Names | Geocoding | OGL |
 | [TfL Unified API](https://api.tfl.gov.uk) | JamCams | Powered by TfL Open Data |
 | [tar1090](https://github.com/wiedehopf/tar1090), [tar1090-db](https://github.com/wiedehopf/tar1090-db) | Aircraft type names, ICAO country ranges (downloaded at runtime, not bundled) | GPL |
 | [flagcdn.com](https://flagcdn.com) | Flag images | Public domain flags |
 | [Esri](https://www.esri.com) basemaps, [OpenStreetMap tiles](https://operations.osmfoundation.org/policies/tiles/) | Base maps | Esri terms; OSM tile usage policy (light personal use) |
+| [Admiralty EasyTide](https://easytide.admiralty.co.uk) (UKHO) | Tide times. Fetched per port when a popup is opened, cached 6 h | Crown copyright. Not for navigation |
 | worldcam.eu *(optional)* | Webcam directory | Scraped. Check their terms before enabling |
 | Devon & Somerset FRS *(optional)* | Incident pages | Scraped. Check their terms before enabling |

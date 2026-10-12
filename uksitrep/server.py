@@ -47,6 +47,8 @@ async def feed(request: web.Request) -> web.Response:
     name = request.match_info["feed"]
     if name == "vessels":
         return web.json_response(await sit.vessels(request.query.get("all") == "1"))
+    if name == "tides":
+        return web.json_response(await sit.tides(request.query.get("station", "")))
     handler = sit.handlers.get(name)
     if not handler:
         return web.json_response({"error": "unknown feed"}, status=404)

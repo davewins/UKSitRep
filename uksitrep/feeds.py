@@ -110,7 +110,32 @@ UK_TZ = ZoneInfo("Europe/London")
 OVERPASS_MIRRORS = [
     "https://overpass-api.de/api/interpreter",
     "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
 ]
+PKG_DATA = Path(__file__).with_name("data")
+# Admiralty EasyTide (UKHO): keyless, ~700 UK & Irish ports, 7-day predictions
+EASYTIDE = "https://easytide.admiralty.co.uk/Home/"
+TIDE_STATION_ID = re.compile(r"^\d{4}[A-Z]?$")
+
+
+def parse_osm_webcams(els: list[dict]) -> list[dict]:
+    """Overpass elements tagged contact:webcam -> map cameras."""
+    out = []
+    for e in els:
+        t = e.get("tags", {})
+        link = t.get("contact:webcam", "").split(";")[0].strip()
+        lat = e.get("lat") or e.get("center", {}).get("lat")
+        lon = e.get("lon") or e.get("center", {}).get("lon")
+        if not link.startswith("http") or lat is None:
+            continue
+        is_img = bool(re.search(r"\.(jpe?g|png|gif)(\?|$)", link, re.I))
+        out.append({
+            "id": f"osm{e['type'][0]}{e['id']}",
+            "name": t.get("name") or t.get("description") or t.get("operator") or "Webcam",
+            "lat": lat, "lon": lon, "image": link if is_img else None, "video": None,
+            "url": link, "source": "OpenStreetMap",
+        })
+    return out
 
 
 def _km(a: float, b: float, c: float, d: float) -> float:
@@ -192,6 +217,8 @@ class Situation:
         self.rnli_stations: dict[str, list[float]] = {}
         self.place_cache: dict[str, dict | None] = {}
         self.worldcam_task: asyncio.Task | None = None
+        self.osm_task: asyncio.Task | None = None
+        self.osm_retry_at = 0.0
         self.ais = AisRelay(self, cfg.ais_key) if cfg.ais_key else None
 
     def spawn(self, coro) -> asyncio.Task:
@@ -328,7 +355,6 @@ class Situation:
     # ---------------------------------------------------------------- webcams
     async def webcams(self) -> dict:
         async def fetch() -> dict:
-            store = self.cfg.data_dir / "osm_webcams.json"
             cams: list[dict] = []
             errors = []
             try:
@@ -344,48 +370,7 @@ class Situation:
                     })
             except Exception as err:  # noqa: BLE001
                 errors.append(f"TfL: {err}")
-            osm: list[dict] | None = None
-            try:
-                query = (
-                    '[out:json][timeout:120];nwr["contact:webcam"](49.8,-8.7,60.9,1.9);out center tags;'
-                )
-                els = None
-                for mirror in OVERPASS_MIRRORS:
-                    try:
-                        async with self.session.post(
-                            mirror, data={"data": query}, headers=UA,
-                            timeout=aiohttp.ClientTimeout(total=150),
-                        ) as r:
-                            r.raise_for_status()
-                            els = (await r.json(content_type=None)).get("elements", [])
-                            break
-                    except Exception as err:  # noqa: BLE001
-                        _LOGGER.debug("overpass %s failed: %s", mirror, err)
-                if els is None:
-                    raise RuntimeError("all Overpass mirrors failed")
-                osm = []
-                for e in els:
-                    t = e.get("tags", {})
-                    link = t.get("contact:webcam", "").split(";")[0].strip()
-                    lat = e.get("lat") or e.get("center", {}).get("lat")
-                    lon = e.get("lon") or e.get("center", {}).get("lon")
-                    if not link.startswith("http") or lat is None:
-                        continue
-                    is_img = bool(re.search(r"\.(jpe?g|png|gif)(\?|$)", link, re.I))
-                    osm.append({
-                        "id": f"osm{e['type'][0]}{e['id']}",
-                        "name": t.get("name") or t.get("description") or t.get("operator") or "Webcam",
-                        "lat": lat, "lon": lon, "image": link if is_img else None, "video": None,
-                        "url": link, "source": "OpenStreetMap",
-                    })
-                await asyncio.to_thread(lambda: store.write_text(json.dumps(osm)))
-            except Exception as err:  # noqa: BLE001
-                errors.append(f"OSM: {err}")
-                try:  # fall back to the last good copy
-                    osm = await asyncio.to_thread(lambda: json.loads(store.read_text()))
-                except (OSError, ValueError):
-                    osm = []
-            cams.extend(osm or [])
+            cams.extend(await self._osm_cams())
             if self.cfg.enable_worldcam:
                 cams.extend(await self._worldcams())
             cams.extend(self.cfg.curated_cams())
@@ -395,7 +380,104 @@ class Situation:
                 asyncio.get_running_loop().call_later(1800, self.cache._data.pop, "webcams", None)
             return {"updated": datetime.now(timezone.utc).isoformat(), "cams": cams, "errors": errors}
 
-        return await self.cache.get("webcams", 86400, fetch)
+        return await self.cache.get("webcams", 6 * 3600, fetch)
+
+    async def _osm_cams(self) -> list[dict]:
+        """OSM contact:webcam tags: served from a saved copy, refreshed daily in the background.
+
+        Overpass can take minutes or fail outright, so viewers never wait on it. A copy
+        bundled with the image covers a fresh /data volume until the first refresh lands.
+        """
+        store = self.cfg.data_dir / "osm_webcams.json"
+        saved: dict = {"fetched": 0, "cams": []}
+        for path in (store, PKG_DATA / "osm_webcams.json"):
+            try:
+                raw = await asyncio.to_thread(lambda: json.loads(path.read_text()))
+            except (OSError, ValueError):
+                continue
+            # the bundled seed (and pre-1.1 saves) are bare lists: refresh as soon as possible
+            saved = {"fetched": 0, "cams": raw} if isinstance(raw, list) else raw
+            break
+        due = time.time() - saved.get("fetched", 0) > 86400 and time.time() > self.osm_retry_at
+        if due and (not self.osm_task or self.osm_task.done()):
+            self.osm_task = self.spawn(self._refresh_osm(store))
+        return saved.get("cams", [])
+
+    async def _refresh_osm(self, store: Path) -> None:
+        query = '[out:json][timeout:120];nwr["contact:webcam"](49.8,-8.7,60.9,1.9);out center tags;'
+        for mirror in OVERPASS_MIRRORS:
+            try:
+                async with self.session.post(
+                    mirror, data={"data": query}, headers=UA, timeout=aiohttp.ClientTimeout(total=150),
+                ) as r:
+                    r.raise_for_status()
+                    els = (await r.json(content_type=None)).get("elements", [])
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.info("overpass %s failed: %s", mirror, err)
+                continue
+            cams = parse_osm_webcams(els)
+            if not cams:
+                continue
+            await asyncio.to_thread(lambda: store.write_text(json.dumps({"fetched": time.time(), "cams": cams})))
+            self.cache._data.pop("webcams", None)  # pick up the new list on the next request
+            _LOGGER.info("OSM webcams refreshed: %d cameras", len(cams))
+            return
+        self.osm_retry_at = time.time() + 1800
+        _LOGGER.warning("OSM webcams: all Overpass mirrors failed, retrying in 30 min")
+
+    # ---------------------------------------------------------------- tides
+    async def tide_stations(self) -> dict:
+        async def fetch() -> dict:
+            store = self.cfg.data_dir / "tide_stations.json"
+            try:
+                d = await self._json(EASYTIDE + "GetStations")
+                stations = []
+                for f in d.get("features", []):
+                    p, (lon, lat) = f["properties"], f["geometry"]["coordinates"][:2]
+                    name = p.get("Name", "")
+                    stations.append({
+                        "id": p["Id"], "name": name.title() if name.isupper() else name,
+                        "country": p.get("Country"), "lat": lat, "lon": lon,
+                    })
+                if not stations:
+                    raise RuntimeError("empty station list")
+                await asyncio.to_thread(lambda: store.write_text(json.dumps(stations)))
+            except Exception as err:  # noqa: BLE001
+                try:
+                    stations = await asyncio.to_thread(lambda: json.loads(store.read_text()))
+                except (OSError, ValueError):
+                    raise RuntimeError(f"EasyTide stations: {err}") from err
+            return {"updated": datetime.now(timezone.utc).isoformat(), "stations": stations}
+
+        return await self.cache.get("tide_stations", 7 * 86400, fetch)
+
+    async def tides(self, station: str) -> dict:
+        """High/low water for one port, plus a height curve for the popup chart."""
+        if not TIDE_STATION_ID.match(station):
+            return {"error": "bad station id"}
+        known = {s["id"]: s for s in (await self.tide_stations()).get("stations", [])}
+        if station not in known:
+            return {"error": "unknown station"}
+
+        def utc(t: str) -> str:  # EasyTide gives UTC without a zone, with ragged fractions
+            return t[:19] + "Z"
+
+        async def fetch() -> dict:
+            d = await self._json(EASYTIDE + "GetPredictionData", params={"stationId": station})
+            now = datetime.now(timezone.utc)
+            events = [
+                {"type": "HW" if e.get("eventType") == 0 else "LW", "time": utc(e["dateTime"]),
+                 "height": round(e["height"], 2) if e.get("height") is not None else None}
+                for e in d.get("tidalEventList", []) if e.get("dateTime")
+            ]
+            lo, hi = (now - timedelta(hours=12)).isoformat()[:19], (now + timedelta(hours=48)).isoformat()[:19]
+            curve = [
+                [utc(h["dateTime"]), round(h["height"], 2)]
+                for h in d.get("tidalHeightOccurrenceList", []) if lo <= h["dateTime"][:19] <= hi
+            ]
+            return {"station": known[station], "updated": now.isoformat(), "events": events, "curve": curve}
+
+        return await self.cache.get(f"tide:{station}", 6 * 3600, fetch)
 
     async def _worldcams(self) -> list[dict]:
         """WorldCam.eu directory: served from a saved copy, refreshed weekly in the background."""
@@ -482,7 +564,7 @@ class Situation:
     async def rnli(self) -> dict:
         async def fetch() -> dict:
             if not self.rnli_stations:
-                path = Path(__file__).with_name("data") / "rnli_stations.json"
+                path = PKG_DATA / "rnli_stations.json"
                 self.rnli_stations = await asyncio.to_thread(
                     lambda: json.loads(path.read_text())
                 )
@@ -580,7 +662,7 @@ class Situation:
             "city_weather": self.city_weather, "grid": self.grid, "power_cuts": self.power_cuts,
             "space": self.space, "quakes": self.quakes, "news": self.news, "roads": self.roads,
             "meteors": self.meteors, "sea": self.sea, "wind_grid": self.wind_grid, "rnli": self.rnli,
-            "fire": self.fire, "webcams": self.webcams,
+            "fire": self.fire, "webcams": self.webcams, "tide_stations": self.tide_stations,
         }
 
     # ---------------------------------------------------------------- weather
