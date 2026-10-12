@@ -90,6 +90,12 @@ Add `?kiosk` to the URL (e.g. `https://<host>/k/<ACCESS_TOKEN>/?kiosk`) to hide 
 * Set `ACCESS_TOKEN` if the service is reachable from outside your network: anyone viewing it uses your AIS key.
 * API keys only ever come from environment variables. Never commit `.env`.
 
+## Building one for another country
+
+See [CLAUDE.md](CLAUDE.md): it covers how the project is put together, which constants and
+feeds are UK-specific, global feeds you can keep, and how to find and add local ones. It's written
+so Claude Code can follow it too.
+
 ## Data sources and licences
 
 See [NOTICE.md](NOTICE.md). Most sources are open data (OGL, CC-BY, ODbL). Some are
