@@ -16,13 +16,11 @@ It runs as a ~70 MB distroless container with no shell, as a non-root user.
 | Aviation | Live ADS-B aircraft with trails, labels and full type names. Military aircraft get country flags, and police (NPAS), air ambulance and coastguard aircraft are picked out. Emergency squawks (7500/7600/7700) are flagged. Also: military airfields and army bases, and a guess at where military aircraft are heading |
 | Emergency services | Air ambulance / coastguard helicopter "on scene" (inferred from landings away from bases and hospitals), RNLI lifeboat launches, and fire & rescue incidents from Avon, Buckinghamshire, Cheshire, Cleveland, Hampshire & IoW, Royal Berkshire and Shropshire, plus Devon & Somerset (optional), each with its own toggle |
 | Maritime | Live AIS ships (Royal Navy, RNLI, coastguard, police and government vessels and distress beacons highlighted), tide times, and sea state for the Shipping Forecast areas |
-| Weather | Met Office warnings, Environment Agency floods, rain radar (animated), wind arrows, temperature grid, city weather |
+| Weather | Met Office warnings, rain radar (animated), wind arrows, temperature grid, city weather, lightning |
 | Infrastructure | Power cuts (UKPN, SSEN), electricity grid mix and demand, carbon intensity, National Highways closures and live incidents |
 | Space & geology | BGS earthquakes, UK Meteor Network meteor tracks, NOAA Kp index, AuroraWatch UK, ISS position, ground track and visible passes from the map centre |
-| Water quality | Live sewage storm overflow status from all 11 water companies (England, Wales and Scotland): discharging now, and stopped within the last 48 hours |
-| Rivers & lightning | Environment Agency river gauges against their normal range, with rising/falling trend; live lightning strikes (Blitzortung) |
+| Water | Environment Agency flood warnings and river gauges (against their normal range, with rising/falling trend); live sewage storm overflow status from all 11 water companies (discharging now, and stopped within the last 48 hours); bathing water classifications and daily pollution-risk forecasts, cross-referenced with nearby sewage |
 | Air & fire | Air quality and pollen (CAMS via Open-Meteo); NASA FIRMS satellite fire hotspots (optional key); NASA GIBS satellite image overlay |
-| Beaches | Environment Agency bathing water classifications and daily pollution-risk forecasts, cross-referenced with nearby sewage discharges |
 | Transport & crime | Live forecourt fuel prices with brand logos (GOV.UK Fuel Finder, optional credentials) from zoom 11; TfL line disruption in the Info panel; police.uk street crime around the map centre (zoom 14+), falling back to the latest month a force has published |
 | Tides | High and low water times, heights and a 30-hour curve for about 700 UK and Irish ports (Admiralty EasyTide), shown when zoomed in |
 | Cameras | TfL JamCams, OpenStreetMap-tagged webcams, your own curated list, and the WorldCam directory (optional) |
