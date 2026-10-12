@@ -55,7 +55,21 @@ async def lookup(request: web.Request) -> web.Response:
 
 
 async def healthz(request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "version": __version__})
+    """Liveness plus which optional features are configured (never the values)."""
+    cfg = request.app[CFG]
+    return web.json_response({
+        "ok": True,
+        "version": __version__,
+        "features": {
+            "access_token": bool(cfg.access_token),
+            "ais": bool(cfg.ais_key),
+            "national_highways": bool(cfg.nh_keys),
+            "worldcam": cfg.enable_worldcam,
+            "dsfrs": bool(cfg.dsfrs_stations),
+            "bbc_local_regions": sorted(cfg.bbc_local_feeds),
+            "background_adsb": cfg.enable_background_adsb,
+        },
+    })
 
 
 async def _startup(app: web.Application) -> None:
