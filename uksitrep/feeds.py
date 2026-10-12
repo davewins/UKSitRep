@@ -243,6 +243,8 @@ class Situation(MoreFeeds):
         self.ais = AisRelay(self, cfg.ais_key) if cfg.ais_key else None
         self.lightning_relay = LightningRelay(self)
         self.river_prev: dict[str, tuple[str, float, int]] = {}
+        self.fuel_token: tuple[str, float] | None = None
+        self.fuel_lock = asyncio.Lock()
 
     def spawn(self, coro) -> asyncio.Task:
         """Start a background task and keep a reference so it is not GC'd."""
@@ -793,7 +795,7 @@ class Situation(MoreFeeds):
             "meteors": self.meteors, "sea": self.sea, "wind_grid": self.wind_grid, "rnli": self.rnli,
             "fire": self.fire, "webcams": self.webcams, "tide_stations": self.tide_stations,
             "sewage": self.sewage, "rivers": self.rivers, "lightning": self.lightning,
-            "air_quality": self.air_quality, "bathing": self.bathing, "fires": self.fires, "tfl": self.tfl,
+            "air_quality": self.air_quality, "bathing": self.bathing, "fires": self.fires, "tfl": self.tfl, "fuel": self.fuel,
         }
 
     # ---------------------------------------------------------------- weather

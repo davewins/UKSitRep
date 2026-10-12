@@ -176,7 +176,7 @@ const DEFAULTS = {
   layers: { ac_civil: true, ac_military: true, ac_police: true, ac_hems: true, ac_sar: true,
     ac_trails: true, mil_dest: true, airfields: true, army: true,
     vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
-    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, quakes: true, meteors: true, news: true },
+    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, quakes: true, meteors: true, news: true },
   basemap: "dark", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
 };
 let S;
@@ -253,7 +253,7 @@ const status = {};
 function setStatus(feed, ok, note) { status[feed] = { ok, t: Date.now(), note }; renderChips(); }
 function renderChips() {
   const names = { aircraft: "ADS-B", vessels: "AIS", weather_warnings: "Met Office", floods: "EA floods",
-    city_weather: "Open-Meteo", grid: "Grid", roads: "Nat. Highways", power_cuts: "Power cuts", space: "Space wx", quakes: "BGS quakes", news: "BBC", meteors: "UKMON", sea: "Sea state", wind_grid: "Wind grid", radar: "Radar", rnli: "RNLI", fire: "DSFRS", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage", bathing: "Bathing", rivers: "Rivers", lightning: "Lightning", air_quality: "Air quality", fires: "FIRMS", tfl: "TfL", iss: "ISS", crime: "Crime" };
+    city_weather: "Open-Meteo", grid: "Grid", roads: "Nat. Highways", power_cuts: "Power cuts", space: "Space wx", quakes: "BGS quakes", news: "BBC", meteors: "UKMON", sea: "Sea state", wind_grid: "Wind grid", radar: "Radar", rnli: "RNLI", fire: "DSFRS", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage", bathing: "Bathing", rivers: "Rivers", lightning: "Lightning", air_quality: "Air quality", fires: "FIRMS", tfl: "TfL", iss: "ISS", crime: "Crime", fuel: "Fuel" };
   $("chips").innerHTML = Object.entries(status).map(([k, v]) => {
     const cls = !v.ok ? "err" : "ok";
     return `<span class="chip ${cls}" title="${esc(v.note || "")} · ${new Date(v.t).toLocaleTimeString()}">${names[k] || k}</span>`;
@@ -828,6 +828,48 @@ function refreshCrime() {
   }, 600);
 }
 
+/* ------------------------------------------------------------ fuel prices (GOV.UK Fuel Finder) */
+const FUEL_MIN_ZOOM = 11;
+const FUEL_NAMES = { E10: "Unleaded (E10)", E5: "Super unleaded (E5)", B7_STANDARD: "Diesel", B7_PREMIUM: "Premium diesel", B10: "Diesel (B10)", HVO: "HVO" };
+let fuelKey = null, fuelTimer = null, fuelNational = null;
+function fuelPopup(o) {
+  const nat = fuelNational || {};
+  const rows = Object.entries(o.prices).map(([k, v]) => {
+    const m = nat[k]?.median, diff = m != null ? v - m : null;
+    return `<tr><td>${esc(FUEL_NAMES[k] || k)}</td><td style="text-align:right"><b>${v.toFixed(1)}p</b></td>
+      <td class="muted" style="text-align:right">${diff == null ? "" : (diff > 0 ? "+" : "") + diff.toFixed(1)}</td></tr>`;
+  }).join("");
+  return `<b>${esc(o.name)}</b><br><span class="muted">${esc(o.brand)}${o.town ? ` · ${esc(o.town)}` : ""} ${esc(o.postcode || "")}</span>
+    ${o.closed ? '<br><b style="color:#dc2626">Temporarily closed</b>' : ""}
+    <table class="tide-tbl">${rows}</table><span class="muted" style="font-size:11px">± vs UK median · updated ${o.updated ? ago(o.updated) : "?"}</span><br>
+    <a href="https://www.google.com/maps/dir/?api=1&destination=${o.lat},${o.lon}" target="_blank" rel="noopener">Directions ↗</a>`;
+}
+function refreshFuel() {
+  clearTimeout(fuelTimer);
+  if (!S.layers.fuel || map.getZoom() < FUEL_MIN_ZOOM) { G.fuel.clearLayers(); fuelKey = null; counts.fuel = undefined; renderCounts(); return; }
+  const b = map.getBounds().pad(0.25);
+  const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(v => v.toFixed(2)).join(",");
+  if (bbox === fuelKey) return;
+  fuelTimer = setTimeout(async () => {
+    fuelKey = bbox;
+    const d = await getFeed("fuel", `?bbox=${bbox}`);
+    if (!d || !d.stations || fuelKey !== bbox) return;
+    fuelNational = d.national || fuelNational;
+    G.fuel.clearLayers();
+    // colour by unleaded price relative to what's in view: cheapest third green, dearest third red
+    const e10 = d.stations.filter(o => !o.closed && o.prices.E10).map(o => o.prices.E10).sort((x, y) => x - y);
+    const q = (f) => e10[Math.floor(f * (e10.length - 1))];
+    for (const o of d.stations) {
+      const u = o.prices.E10, dsl = o.prices.B7_STANDARD;
+      const col = o.closed || u == null ? "#64748b" : u <= q(1 / 3) ? "#16a34a" : u >= q(2 / 3) ? "#dc2626" : "#ca8a04";
+      L.marker([o.lat, o.lon], { zIndexOffset: 150, icon: L.divIcon({ className: "base", iconSize: [64, 26], iconAnchor: [32, 13],
+        html: `<div style="background:${col};color:#fff;font:600 10px/12px system-ui;text-align:center;border-radius:4px;border:1px solid #000;padding:1px 2px;opacity:${o.closed ? .6 : 1}">${u != null ? `U ${u.toFixed(1)}` : "U –"}<br>${dsl != null ? `D ${dsl.toFixed(1)}` : "D –"}</div>` }) })
+        .bindPopup(() => fuelPopup(o)).bindTooltip(esc(`${o.brand || o.name}`), { direction: "top", offset: [0, -14] }).addTo(G.fuel);
+    }
+    counts.fuel = d.stations.length; renderCounts();
+  }, 600);
+}
+
 /* ------------------------------------------------------------ tide times (Admiralty EasyTide) */
 const TIDE_MIN_ZOOM = 9;
 let tideStations = [];
@@ -1237,7 +1279,7 @@ const LAYER_UI = [
     ["bathing", "Bathing waters (zoom in)", "#2563eb"]]],
   ["Infrastructure", [["cuts", "Power cuts (UKPN, SSEN)", "#fbbf24"], ["roads_incidents", "Road incidents (live)", "#ef4444"],
     ["roads_closures", "Road closures (planned)", "#f59e0b"], ["roads_works", "Lane restrictions", "#94a3b8"],
-    ["tfl", "TfL disruption (Info panel)", "#dc2626"]]],
+    ["tfl", "TfL disruption (Info panel)", "#dc2626"], ["fuel", "Fuel prices (zoom 11+)", "#22c55e"]]],
   ["Crime", [["crime", "Street crime, last month (zoom 14+)", "#c084fc"]]],
   ["Space & geological", [["quakes", "BGS earthquakes", "#f472b6"], ["meteors", "UK Meteor Network", "#a5b4fc"],
     ["iss", "ISS position & visible passes", "#e2e8f0"]]],
@@ -1248,7 +1290,7 @@ function countFor(k) {
   return { ac_civil: a.civil, ac_military: a.military, ac_police: a.police, ac_hems: a.hems, ac_sar: a.sar,
     vs_special: counts.vessels?.special, vs_civil: counts.vessels?.total, floods: counts.floods, cuts: counts.cuts,
     quakes: counts.quakes, news: counts.news,
-    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length }[k];
+    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, fuel: counts.fuel, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length }[k];
 }
 function renderCounts() { for (const el of document.querySelectorAll("[data-count]")) { const n = countFor(el.dataset.count); el.textContent = n ?? ""; } }
 function buildLeft() {
@@ -1283,6 +1325,7 @@ function buildLeft() {
       if (t.dataset.layer === "bathing") renderBathing();
       if (t.dataset.layer === "rivers") renderRivers();
       if (t.dataset.layer === "crime") refreshCrime();
+      if (t.dataset.layer === "fuel") { fuelKey = null; refreshFuel(); }
       if (t.dataset.layer === "satimg") renderSatImg();
       if (t.dataset.layer === "tfl") renderAlerts();
     }
@@ -1365,7 +1408,8 @@ function start() {
   for (const [k, fn] of Object.entries(refresh)) { fn(); setInterval(fn, INTERVAL[k] * 1000); }
   setInterval(() => renderNews(), 60000);  // age out expired incidents
   map.on("zoomend", () => renderAircraft(lastAircraft));
-  map.on("moveend", () => { renderCams(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); });
+  map.on("moveend", () => { renderCams(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); });
+  setInterval(() => { fuelKey = null; refreshFuel(); }, 30 * 60000);
   renderSatImg();
   setInterval(() => { const n = new Date();
     $("clock").textContent = n.toLocaleTimeString("en-GB") + " · " + n.toISOString().slice(11, 16) + "Z"; }, 1000);

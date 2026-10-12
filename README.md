@@ -24,7 +24,7 @@ It runs as a ~70 MB distroless container with no shell, as a non-root user.
 | Air & fire | Air quality and pollen (CAMS via Open-Meteo); NASA FIRMS satellite fire hotspots (optional key); NASA GIBS satellite image overlay |
 | Beaches | Environment Agency bathing water classifications and daily pollution-risk forecasts, cross-referenced with nearby sewage discharges |
 | Space | ISS position, ground track and visible passes from the map centre |
-| Transport & crime | TfL line disruption in the Info panel; police.uk street crime for the area in view (zoom 14+) |
+| Transport & crime | Live forecourt fuel prices (GOV.UK Fuel Finder, optional credentials) from zoom 11; TfL line disruption in the Info panel; police.uk street crime for the area in view (zoom 14+) |
 | Tides | High and low water times, heights and a 30-hour curve for about 700 UK and Irish ports (Admiralty EasyTide), shown when zoomed in |
 | Cameras | TfL JamCams, OpenStreetMap-tagged webcams, your own curated list, and the WorldCam directory (optional) |
 | News | BBC UK, nations and local feeds, pinned to the places they mention, filtered by severity and age, plus a scrolling ticker |
@@ -55,6 +55,7 @@ Without Docker (Python 3.11+): `pip install -r requirements.txt && DATA_DIR=./da
 | `BBC_LOCAL_REGIONS` | — | Extra BBC England local feeds, e.g. `gloucestershire,devon` |
 | `ENABLE_BACKGROUND_ADSB` | `true` | Poll ADS-B continuously so on-scene detection works with no viewer |
 | `FIRMS_MAP_KEY` | *(none)* | NASA FIRMS key for satellite fire hotspots ([free](https://firms.modaps.eosdis.nasa.gov/api/map_key/)) |
+| `FUEL_FINDER_CLIENT_ID`, `FUEL_FINDER_CLIENT_SECRET` | *(none)* | GOV.UK Fuel Finder API credentials for live forecourt prices ([register](https://www.developer.fuel-finder.service.gov.uk/access-latest-fuelprices)) |
 | `ENABLE_LIGHTNING` | `true` | Live lightning from Blitzortung.org (private, non-commercial use) |
 | `ENABLE_WORLDCAM` | `false` | Import the worldcam.eu directory (scraped; weekly refresh) |
 | `ENABLE_DSFRS` | `false` | Devon & Somerset FRS incidents (scraped) |

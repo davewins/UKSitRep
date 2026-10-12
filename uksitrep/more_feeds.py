@@ -48,6 +48,9 @@ FIRMS_BOX = "-11,49.5,2.5,61"  # W,S,E,N
 
 TFL_MODES = "tube,overground,dlr,elizabeth-line,tram"
 
+FUEL_API = "https://www.fuel-finder.service.gov.uk/api/v1"
+FUEL_TYPES = ("E10", "E5", "B7_STANDARD", "B7_PREMIUM", "B10", "HVO")
+
 ISS_TLE = "https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE"
 
 
@@ -482,6 +485,112 @@ class MoreFeeds:
             return {"updated": datetime.now(timezone.utc).isoformat(), "lines": lines}
 
         return await self.cache.get("tfl", 300, fetch)
+
+    # ------------------------------------------------------------ fuel prices (GOV.UK Fuel Finder)
+    async def _fuel_token(self) -> str:
+        tok = self.fuel_token
+        if tok and time.time() < tok[1] - 120:
+            return tok[0]
+        async with self.session.post(f"{FUEL_API}/oauth/generate_access_token", json={
+                "client_id": self.cfg.fuel_client_id, "client_secret": self.cfg.fuel_client_secret},
+                timeout=aiohttp.ClientTimeout(total=30)) as r:
+            r.raise_for_status()
+            d = await r.json(content_type=None)
+        d = d.get("data", d)
+        self.fuel_token = (d["access_token"], time.time() + float(d.get("expires_in", 3600)))
+        return d["access_token"]
+
+    async def _fuel_batches(self, path: str) -> list[dict]:
+        """All batches (500 each) of a Fuel Finder list, one request at a time as the API requires."""
+        out: list[dict] = []
+        async with self.fuel_lock:
+            for batch in range(1, 80):
+                headers = {"Authorization": f"Bearer {await self._fuel_token()}", "Accept": "application/json"}
+                async with self.session.get(f"{FUEL_API}/{path}", params={"batch-number": str(batch)}, headers=headers,
+                                            timeout=aiohttp.ClientTimeout(total=60)) as r:
+                    if r.status == 404:  # past the last batch
+                        break
+                    if r.status == 429:
+                        await asyncio.sleep(5)
+                        continue
+                    r.raise_for_status()
+                    d = await r.json(content_type=None)
+                items = d if isinstance(d, list) else d.get("data", [])
+                out.extend(items)
+                if len(items) < 500:
+                    break
+                await asyncio.sleep(0.7)  # stay well under 100 requests a minute
+        return out
+
+    async def fuel(self, bbox: tuple[float, float, float, float] | None = None) -> dict:
+        """Forecourt prices. The full list is ~2.5 MB, so viewers ask for their bounding box (S,W,N,E)."""
+        if not (self.cfg.fuel_client_id and self.cfg.fuel_client_secret):
+            return {"error": "no_key", "stations": []}
+        d = await self._fuel_all()
+        if "error" in d:
+            return d
+        if bbox is None:
+            return {**d, "stations": []}
+        s, w, n, e = bbox
+        return {**d, "stations": [o for o in d["stations"] if s <= o["lat"] <= n and w <= o["lon"] <= e][:1500]}
+
+    async def _fuel_all(self) -> dict:
+        async def stations() -> dict:
+            store = self.cfg.data_dir / "fuel_stations.json"
+
+            async def fetch() -> dict:
+                try:
+                    out = {}
+                    for s in await self._fuel_batches("pfs"):
+                        loc = s.get("location") or {}
+                        if s.get("permanent_closure") or not isinstance(loc.get("latitude"), (int, float)):
+                            continue
+                        out[s["node_id"]] = {
+                            "name": (s.get("trading_name") or "").title(), "brand": (s.get("brand_name") or "").title(),
+                            "lat": loc["latitude"], "lon": loc["longitude"], "postcode": loc.get("postcode"),
+                            "town": (loc.get("city") or "").title(), "closed": bool(s.get("temporary_closure")),
+                            "motorway": bool(s.get("is_motorway_service_station")),
+                            "supermarket": bool(s.get("is_supermarket_service_station")),
+                        }
+                    if not out:
+                        raise RuntimeError("no forecourts returned")
+                    await asyncio.to_thread(lambda: store.write_text(json.dumps(out)))
+                    return out
+                except Exception as err:  # noqa: BLE001
+                    try:
+                        return await asyncio.to_thread(lambda: json.loads(store.read_text()))
+                    except (OSError, ValueError):
+                        raise RuntimeError(f"Fuel Finder forecourts: {err}") from err
+
+            return await self.cache.get("fuel_stations", 86400, fetch)
+
+        async def fetch() -> dict:
+            st = await stations()
+            if "error" in st and len(st) == 1:
+                raise RuntimeError(st["error"])
+            out = []
+            for p in await self._fuel_batches("pfs/fuel-prices"):
+                s = st.get(p.get("node_id"))
+                if not s:
+                    continue
+                prices, latest = {}, None
+                for fp in p.get("fuel_prices") or []:
+                    v = fp.get("price")
+                    if fp.get("fuel_type") in FUEL_TYPES and isinstance(v, (int, float)) and 80 <= v <= 350:
+                        prices[fp["fuel_type"]] = round(v, 1)
+                        latest = max(latest or "", fp.get("price_last_updated") or "")
+                if prices:
+                    out.append({**s, "prices": prices, "updated": latest or None})
+            if not out:
+                raise RuntimeError("no prices returned")
+            avg = {}
+            for ft in FUEL_TYPES:
+                vals = sorted(o["prices"][ft] for o in out if ft in o["prices"] and not o["closed"])
+                if vals:
+                    avg[ft] = {"median": vals[len(vals) // 2], "n": len(vals)}
+            return {"updated": datetime.now(timezone.utc).isoformat(), "stations": out, "national": avg}
+
+        return await self.cache.get("fuel", 1800, fetch)
 
     # ------------------------------------------------------------ street crime
     async def crime(self, lat: float, lon: float) -> dict:

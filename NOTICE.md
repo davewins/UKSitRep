@@ -32,6 +32,7 @@ Each is subject to its own terms.
 | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov) *(optional key)*, [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) | Fire hotspots, satellite imagery | NASA open data; please acknowledge LANCE FIRMS / GIBS |
 | [CelesTrak](https://celestrak.org) + [python-sgp4](https://pypi.org/project/sgp4/) | ISS orbit | CelesTrak terms; MIT |
 | [TfL Unified API](https://api.tfl.gov.uk) | Line status | Powered by TfL Open Data |
+| [GOV.UK Fuel Finder](https://www.developer.fuel-finder.service.gov.uk) *(optional credentials)* | Fuel prices | Motor Fuel Price (Open Data) Regulations 2025; Fuel Finder terms |
 | [data.police.uk](https://data.police.uk) | Street-level crime | OGL v3 |
 | [Admiralty EasyTide](https://easytide.admiralty.co.uk) (UKHO) | Tide times. Fetched per port when a popup is opened, cached 6 h | Crown copyright. Not for navigation |
 | worldcam.eu *(optional)* | Webcam directory | Scraped. Check their terms before enabling |

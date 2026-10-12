@@ -71,6 +71,14 @@ async def feed(request: web.Request) -> web.Response:
     name = request.match_info["feed"]
     if name == "vessels":
         return web.json_response(await sit.vessels(request.query.get("all") == "1"))
+    if name == "fuel":
+        try:
+            bbox = tuple(float(x) for x in request.query["bbox"].split(","))
+            if len(bbox) != 4:
+                raise ValueError
+        except (KeyError, ValueError):
+            bbox = None
+        return web.json_response(await sit.fuel(bbox))
     if name in ("iss", "crime"):
         try:
             lat, lon = float(request.query["lat"]), float(request.query["lon"])
@@ -116,6 +124,7 @@ async def healthz(request: web.Request) -> web.Response:
             "background_adsb": cfg.enable_background_adsb,
             "lightning": cfg.enable_lightning,
             "firms": bool(cfg.firms_key),
+            "fuel_finder": bool(cfg.fuel_client_id and cfg.fuel_client_secret),
         },
     })
 
@@ -133,6 +142,8 @@ async def _startup(app: web.Application) -> None:
         sit.spawn(sit.adsb_loop())
     if cfg.enable_lightning:
         sit.lightning_relay.start()
+    if cfg.fuel_client_id and cfg.fuel_client_secret:
+        sit.spawn(sit.fuel())  # warm the cache: a cold fetch is ~30 batched requests
     _LOGGER.info(
         "UK SitRep %s on %s:%d (AIS %s, National Highways %s, WorldCam %s, DSFRS %s, auth %s)",
         __version__, cfg.host, cfg.port, "on" if cfg.ais_key else "off", "on" if cfg.nh_keys else "off",
