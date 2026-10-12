@@ -51,6 +51,8 @@ TFL_MODES = "tube,overground,dlr,elizabeth-line,tram"
 FUEL_API = "https://www.fuel-finder.service.gov.uk/api/v1"
 FUEL_TYPES = ("E10", "E5", "B7_STANDARD", "B7_PREMIUM", "B10", "HVO")
 
+CRIME_MIN_PER_MONTH = 10  # fewer than this within a mile usually means the force didn't submit
+
 ISS_TLE = "https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE"
 
 
@@ -594,29 +596,60 @@ class MoreFeeds:
 
     # ------------------------------------------------------------ street crime
     async def crime(self, lat: float, lon: float) -> dict:
-        """police.uk street-level crime within a mile, latest published month."""
+        """police.uk street-level crime within a mile of a point.
+
+        Uses the latest published month. Some forces stop submitting for a while
+        (Gloucestershire since early 2026), so if the latest month has next to
+        nothing we step back to the most recent month that has real data.
+        """
         if not (49.8 <= lat <= 61 and -8.7 <= lon <= 2):
             return {"error": "outside the UK"}
         lat, lon = round(lat, 2), round(lon, 2)
 
+        async def month_of(date: str | None) -> list[dict]:
+            params = {"lat": str(lat), "lng": str(lon)}
+            if date:
+                params["date"] = date
+            for attempt in range(3):
+                try:
+                    return await self._json("https://data.police.uk/api/crimes-street/all-crime",
+                                            params=params, timeout=aiohttp.ClientTimeout(total=30))
+                except aiohttp.ClientResponseError as err:
+                    if err.status != 429 or attempt == 2:
+                        raise
+                    await asyncio.sleep(2 * (attempt + 1))  # police.uk allows short bursts only
+            return []
+
         async def fetch() -> dict:
-            d = await self._json("https://data.police.uk/api/crimes-street/all-crime",
-                                 params={"lat": str(lat), "lng": str(lon)}, timeout=aiohttp.ClientTimeout(total=30))
+            latest_list = await self.cache.get("police_dates", 86400, lambda: self._json(
+                "https://data.police.uk/api/crimes-street-dates"))
+            latest = latest_list[0]["date"] if isinstance(latest_list, list) and latest_list else None
+            crimes = await month_of(None)
+            month = latest
+            if len(crimes) < CRIME_MIN_PER_MONTH and latest:
+                y, m = map(int, latest.split("-"))
+                for _ in range(12):
+                    y, m = (y, m - 1) if m > 1 else (y - 1, 12)
+                    older = await month_of(f"{y:04d}-{m:02d}")
+                    if len(older) >= CRIME_MIN_PER_MONTH:
+                        crimes, month = older, f"{y:04d}-{m:02d}"
+                        break
+                    await asyncio.sleep(0.4)
             spots: dict[str, dict] = {}
-            month = None
-            for c in d:
+            for c in crimes:
                 loc = c.get("location") or {}
                 try:
                     la, lo = float(loc["latitude"]), float(loc["longitude"])
                 except (KeyError, TypeError, ValueError):
                     continue
-                month = month or c.get("month")
+                month = c.get("month") or month
                 k = f"{la:.5f},{lo:.5f}"
                 spot = spots.setdefault(k, {"lat": la, "lon": lo, "street": (loc.get("street") or {}).get("name"),
                                             "crimes": {}})
                 cat = c.get("category", "other")
                 spot["crimes"][cat] = spot["crimes"].get(cat, 0) + 1
-            return {"updated": datetime.now(timezone.utc).isoformat(), "month": month,
+            return {"updated": datetime.now(timezone.utc).isoformat(), "month": month, "latest": latest,
+                    "older": bool(latest and month and month != latest),
                     "centre": [lat, lon], "spots": list(spots.values())}
 
         return await self.cache.get(f"crime:{lat},{lon}", 12 * 3600, fetch)

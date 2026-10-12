@@ -810,10 +810,15 @@ const CRIME_NAMES = { "anti-social-behaviour": "Anti-social behaviour", "bicycle
   "criminal-damage-arson": "Criminal damage & arson", drugs: "Drugs", "other-theft": "Other theft", "possession-of-weapons": "Weapons",
   "public-order": "Public order", robbery: "Robbery", shoplifting: "Shoplifting", "theft-from-the-person": "Theft from the person",
   "vehicle-crime": "Vehicle crime", "violent-crime": "Violence & sexual offences", "other-crime": "Other crime" };
-let crimeKey = null, crimeTimer = null;
+let crimeKey = null, crimeTimer = null, crimeInfo = null;
+const monthName = (ym) => ym ? new Date(ym + "-15").toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "?";
 function refreshCrime() {
   clearTimeout(crimeTimer);
-  if (!S.layers.crime || map.getZoom() < CRIME_MIN_ZOOM) { G.crime.clearLayers(); crimeKey = null; counts.crime = undefined; renderCounts(); return; }
+  if (!S.layers.crime || map.getZoom() < CRIME_MIN_ZOOM) {
+    G.crime.clearLayers(); crimeKey = null; counts.crime = undefined; renderCounts();
+    if (crimeInfo) { crimeInfo = null; renderAlerts(); }
+    return;
+  }
   const c = map.getCenter(), key = `${c.lat.toFixed(2)},${c.lng.toFixed(2)}`;
   if (key === crimeKey) return;
   crimeTimer = setTimeout(async () => {  // wait for panning to settle
@@ -821,11 +826,13 @@ function refreshCrime() {
     const d = await getFeed("crime", `?lat=${c.lat.toFixed(2)}&lon=${c.lng.toFixed(2)}`);
     if (!d || !d.spots || crimeKey !== key) return;
     G.crime.clearLayers();
+    crimeInfo = d.older ? d : null; renderAlerts();
+    const when = `${monthName(d.month)}${d.older ? ` <b style="color:#f59e0b">(older data: no ${monthName(d.latest)} figures published for this area)</b>` : ""}`;
     let total = 0;
     for (const s of d.spots) {
       const n = Object.values(s.crimes).reduce((a, b) => a + b, 0); total += n;
       L.circleMarker([s.lat, s.lon], { radius: Math.min(12, 3 + n * 1.2), color: "#000", weight: 1, fillColor: "#c084fc", fillOpacity: .75 })
-        .bindPopup(`<b>${esc(s.street || "Street")}</b><br><span class="muted">${esc(d.month || "")} · police.uk</span><br>` +
+        .bindPopup(`<b>${esc(s.street || "Street")}</b><br><span class="muted">${when} · police.uk</span><br>` +
           Object.entries(s.crimes).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} × ${esc(CRIME_NAMES[k] || k)}`).join("<br>"))
         .addTo(G.crime);
     }
@@ -1285,6 +1292,8 @@ function renderAlerts() {
   if (S.layers.iss && soon) out.push({ cls: "info", html: `🛰️ ISS visible ${ukTime(soon.start)} to ${ukTime(soon.end)}, max ${soon.max_el}°<small>near map centre</small>` });
   if (S.layers.tfl) for (const l of lastTfl.filter(l => l.severity < 10 || [11, 15, 16, 17].includes(l.severity)))
     out.push({ cls: [1, 2, 3, 6].includes(l.severity) ? "amber" : "info", html: `🚇 ${esc(l.name)}: ${esc(l.status)}<small>${esc((l.reason || "").replace(/^[^:]{0,40}:\s*/, "").slice(0, 140))}</small>` });
+  if (S.layers.crime && typeof crimeInfo !== "undefined" && crimeInfo)
+    out.push({ cls: "info", html: `🚓 Street crime shown is from ${monthName(crimeInfo.month)}<small>The local force hasn't published ${monthName(crimeInfo.latest)} figures to police.uk</small>` });
   const sewNow = lastSewage.filter(o => o.active);
   if (sewNow.length) {
     const by = Object.entries(sewNow.reduce((m, o) => (m[o.company] = (m[o.company] || 0) + 1, m), {})).sort((x, y) => y[1] - x[1]);
