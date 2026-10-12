@@ -214,6 +214,9 @@ class Situation:
         self.hems_last: dict[str, dict] = {}
         self.hems_events: list[dict] = []
         self.adsb_complete = False
+        self.adsb_backoff = 0.0
+        self.adsb_retry_at = 0.0
+        self.last_aircraft: dict | None = None
         self.rnli_stations: dict[str, list[float]] = {}
         self.place_cache: dict[str, dict | None] = {}
         self.worldcam_task: asyncio.Task | None = None
@@ -244,7 +247,27 @@ class Situation:
         async def fetch() -> dict:
             urls = [f"https://api.adsb.lol/v2/point/{la}/{lo}/250" for la, lo in ADSB_POINTS]
             urls.append("https://api.adsb.lol/v2/mil")
-            results = await asyncio.gather(*(self._json(u) for u in urls), return_exceptions=True)
+            if time.monotonic() < self.adsb_retry_at:  # rate-limited: keep showing the last picture
+                if self.last_aircraft:
+                    return {**self.last_aircraft, "stale": True}
+                return {"error": "adsb.lol rate limit, backing off", "aircraft": [], "hems_events": self.hems_events}
+            # one at a time: adsb.lol limits bursts per IP
+            results: list[Any] = []
+            for u in urls:
+                try:
+                    results.append(await self._json(u))
+                except Exception as err:  # noqa: BLE001
+                    results.append(err)
+                    if getattr(err, "status", None) == 429:
+                        retry = getattr(err, "headers", None) or {}
+                        try:
+                            wait = float(retry.get("Retry-After", 0))
+                        except (TypeError, ValueError):
+                            wait = 0
+                        self.adsb_backoff = min(300.0, max(30.0, self.adsb_backoff * 2, wait))
+                        self.adsb_retry_at = time.monotonic() + self.adsb_backoff
+                        _LOGGER.warning("adsb.lol rate limit (429); pausing %.0f s", self.adsb_backoff)
+                        break
             merged: dict[str, dict] = {}
             ok = 0
             for res in results:
@@ -257,11 +280,15 @@ class Situation:
                         continue
                     merged.setdefault(ac["hex"], ac)
             if not ok:
-                raise RuntimeError("all adsb.lol requests failed")
+                err = next(r for r in results if isinstance(r, Exception))
+                raise RuntimeError(f"all adsb.lol requests failed ({type(err).__name__}: {err})")
             self.adsb_complete = ok == len(urls)
-            return self._normalise_aircraft(merged)
+            if self.adsb_complete:
+                self.adsb_backoff = 0.0
+            self.last_aircraft = self._normalise_aircraft(merged)
+            return self.last_aircraft
 
-        return await self.cache.get("aircraft", 8, fetch)
+        return await self.cache.get("aircraft", 12, fetch)
 
     def _normalise_aircraft(self, merged: dict[str, dict]) -> dict:
         now = time.monotonic()
@@ -653,7 +680,7 @@ class Situation:
                 await self.aircraft()
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug("background adsb poll failed: %s", err)
-            await asyncio.sleep(10)
+            await asyncio.sleep(15)
 
     @property
     def handlers(self) -> dict:
