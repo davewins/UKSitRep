@@ -47,6 +47,9 @@
   .panel h2:first-child { margin-top: 2px; }
   label.t { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
   label.t .sw { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+  #left h2 label.grp { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .bulk { display: flex; gap: 6px; margin: 4px 0 2px; }
+  .bulk button { flex: 1; background: #1e293b; color: inherit; border: 1px solid #334155; border-radius: 4px; padding: 3px 0; cursor: pointer; font: inherit; font-size: 12px; }
   .sublayers { margin-left: 18px; border-left: 1px solid var(--line, #334155); padding-left: 8px; }
   .sublayers.off { opacity: .4; }
   .sublayers label.t { font-size: 12px; padding: 1px 0; }
@@ -1369,10 +1372,80 @@ function countFor(k) {
     meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, fuel: counts.fuel, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length }[k] ?? (k.startsWith("fire_") ? counts[k] : undefined);
 }
 function renderCounts() { for (const el of document.querySelectorAll("[data-count]")) { const n = countFor(el.dataset.count); el.textContent = n ?? ""; } }
+// Views: switch many layers at once. Anything not listed is turned off.
+const FIRE_KIDS = ["fire_dsfrs", "fire_avon", "fire_bucks", "fire_cheshire", "fire_cleveland", "fire_hants", "fire_rbfrs", "fire_shropshire"];
+const VIEWS = {
+  military: ["Military", ["ac_military", "ac_trails", "mil_dest", "airfields", "army", "vs_special"]],
+  emergency: ["Emergency", ["ac_police", "ac_hems", "ac_sar", "ac_trails", "hems_scene", "rnli", "fire", ...FIRE_KIDS, "vs_special",
+    "warnings", "floods", "roads_incidents", "news"]],
+  transport: ["Transport & infrastructure", ["ac_civil", "ac_military", "ac_police", "ac_hems", "ac_sar", "vs_civil", "vs_special",
+    "roads_incidents", "roads_closures", "roads_works", "tfl", "fuel", "cuts", "webcams"]],
+  weather: ["Weather & water", ["warnings", "cityweather", "radar", "wind", "temps", "lightning", "floods", "rivers", "sea",
+    "sewage", "air"]],
+  coast: ["Coast & sea", ["vs_special", "vs_civil", "ac_sar", "tides", "sea", "bathing", "sewage", "sewage_recent", "rnli",
+    "warnings", "webcams"]],
+  space: ["Space", ["iss", "meteors", "quakes"]],
+};
+const allLayerKeys = () => Object.keys(DEFAULTS.layers);
+function viewLayers(v) {
+  if (v === "everything") return Object.fromEntries(allLayerKeys().map(k => [k, k !== "satimg"]));
+  const on = new Set(VIEWS[v][1]);
+  return Object.fromEntries(allLayerKeys().map(k => [k, on.has(k)]));
+}
+// Re-render whatever depends on the layers that changed
+function afterToggle(keys) {
+  const has = (f) => keys.some(f);
+  syncLayers();
+  for (const k of keys) {
+    const subs = document.querySelector(`.sublayers[data-parent="${k}"]`);
+    if (subs) { subs.classList.toggle("off", !S.layers[k]); subs.querySelectorAll("input").forEach(i => i.disabled = !S.layers[k]); }
+  }
+  if (has(k => k.startsWith("fire"))) renderFire();
+  if (has(k => k.startsWith("ac_") || k === "mil_dest")) renderAircraft(lastAircraft);
+  if (has(k => k === "vs_civil")) refresh.vessels();
+  if (has(k => k === "webcams")) renderCams();
+  if (has(k => k === "tides")) renderTides();
+  if (has(k => k.startsWith("sewage"))) renderSewage();
+  if (has(k => k === "bathing")) renderBathing();
+  if (has(k => k === "rivers")) renderRivers();
+  if (has(k => k === "crime")) refreshCrime();
+  if (has(k => k === "fuel")) { fuelKey = null; refreshFuel(); }
+  if (has(k => k === "satimg")) renderSatImg();
+  if (has(k => k === "tfl" || k === "iss")) renderAlerts();
+  syncGroupBoxes();
+}
+function setLayers(next) {
+  const changed = allLayerKeys().filter(k => !!S.layers[k] !== !!next[k]);
+  for (const k of changed) S.layers[k] = !!next[k];
+  document.querySelectorAll("#left input[data-layer]").forEach(i => { i.checked = !!S.layers[i.dataset.layer]; });
+  afterToggle(changed);
+}
+function syncGroupBoxes() {
+  document.querySelectorAll("#left input[data-group]").forEach(g => {
+    const keys = LAYER_UI[+g.dataset.group][1].map(it => it[0]);
+    const on = keys.filter(k => S.layers[k]).length;
+    g.checked = on === keys.length; g.indeterminate = on > 0 && on < keys.length;
+  });
+  const v = $("fView"); if (v) v.value = S.view || "custom";
+}
+function applyView(v) {
+  if (v === "custom") return;
+  if (v === "mine") { if (S.customLayers) setLayers(S.customLayers); S.view = "custom"; }
+  else {
+    if (!S.view || S.view === "custom") S.customLayers = { ...S.layers };  // remember the hand-picked set
+    setLayers(viewLayers(v)); S.view = v;
+  }
+  syncGroupBoxes(); save();
+}
 function buildLeft() {
-  let h = "";
-  for (const [title, items] of LAYER_UI) {
-    h += `<h2>${title}</h2>`;
+  let h = `<h2>View</h2>
+    <div class="row"><select id="fView" style="flex:1">
+      <option value="custom">Custom</option><option value="everything">Everything</option>
+      ${Object.entries(VIEWS).map(([k, [name]]) => `<option value="${k}">${name}</option>`).join("")}
+      <option value="mine">My layers (before the view)</option></select></div>
+    <div class="bulk"><button data-bulk="all">All on</button><button data-bulk="none">All off</button></div>`;
+  LAYER_UI.forEach(([title, items], gi) => {
+    h += `<h2><label class="grp"><input type="checkbox" data-group="${gi}">${title}</label></h2>`;
     for (const [k, label, col, children] of items) {
       const c = col.startsWith("--") ? `var(${col})` : col;
       h += `<label class="t"><input type="checkbox" data-layer="${k}" ${S.layers[k] ? "checked" : ""}><span class="sw" style="background:${c}"></span>${label}<span class="n" data-count="${k}"></span></label>`;
@@ -1381,7 +1454,7 @@ function buildLeft() {
           `<label class="t"><input type="checkbox" data-layer="${ck}" ${S.layers[ck] ? "checked" : ""} ${S.layers[k] ? "" : "disabled"}>${cl}<span class="n" data-count="${ck}"></span></label>`).join("") + "</div>";
       }
     }
-  }
+  });
   h += `<h2>Filters</h2>
     <div class="row"><span>Map</span><select id="fBase">${Object.entries(BASEMAPS).map(([k, b]) => `<option value="${k}">${b[0]}</option>`).join("")}</select></div>
     <div class="row"><span>Labels</span><select id="fLabels"><option value="off">Off</option><option value="special">Special only</option><option value="all">All</option></select></div>
@@ -1390,27 +1463,29 @@ function buildLeft() {
     <div class="row"><span>Incident severity</span><select id="fNewsSev"><option value="1">All</option><option value="2">Medium +</option><option value="3">High only</option></select></div>
     <div class="row"><span>Quakes</span><select id="fQuake"><option value="1">24 h</option><option value="7">7 days</option><option value="30">30 days</option><option value="365">All</option></select></div>
     <div class="row"><span>Meteors</span><select id="fMeteor"><option value="12">12 h</option><option value="36">36 h</option><option value="72">3 nights</option></select></div>
-    <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>P</b> panels · <b>F</b> full screen · <b>H</b> home view<br>Add <code>?kiosk</code> to the URL for an always-on display.</p>`;
+    <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>P</b> panels · <b>F</b> full screen · <b>H</b> home view<br>Add <code>?kiosk</code> to the URL for an always-on display, and <code>?view=military</code> (or emergency, transport, weather, coast, space, everything) to open in a view.</p>`;
   $("left").innerHTML = h + '<div class="sheet-close" data-close>Close</div>';
   $("fBase").value = S.basemap; $("fLabels").value = S.labels; $("fAlt").value = S.minAltFt; $("fNewsH").value = S.newsHours; $("fNewsSev").value = S.newsMinSev; $("fQuake").value = S.quakeDays; $("fMeteor").value = S.meteorHours;
+  syncGroupBoxes();
+  $("left").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-bulk]");
+    if (!b) return;
+    if (!S.view || S.view === "custom") S.customLayers = { ...S.layers };
+    setLayers(Object.fromEntries(allLayerKeys().map(k => [k, b.dataset.bulk === "all" && k !== "satimg"])));
+    S.view = "custom"; syncGroupBoxes(); save();
+  });
   $("left").addEventListener("change", (ev) => {
     const t = ev.target;
+    if (t.id === "fView") { applyView(t.value); return; }
+    if (t.dataset.group != null) {
+      const keys = LAYER_UI[+t.dataset.group][1].flatMap(it => [it[0], ...(it[3] || []).map(c => c[0])]);
+      setLayers({ ...S.layers, ...Object.fromEntries(keys.map(k => [k, t.checked])) });
+      S.view = "custom"; syncGroupBoxes(); save(); return;
+    }
     if (t.dataset.layer) {
-      S.layers[t.dataset.layer] = t.checked; syncLayers();
-      const subs = document.querySelector(`.sublayers[data-parent="${t.dataset.layer}"]`);
-      if (subs) { subs.classList.toggle("off", !t.checked); subs.querySelectorAll("input").forEach(i => i.disabled = !t.checked); }
-      if (t.dataset.layer.startsWith("fire")) renderFire();
-      if (t.dataset.layer.startsWith("ac_") || t.dataset.layer === "mil_dest") renderAircraft(lastAircraft);
-      if (t.dataset.layer === "vs_civil") refresh.vessels();
-      if (t.dataset.layer === "webcams") renderCams();
-      if (t.dataset.layer === "tides") renderTides();
-      if (t.dataset.layer.startsWith("sewage")) renderSewage();
-      if (t.dataset.layer === "bathing") renderBathing();
-      if (t.dataset.layer === "rivers") renderRivers();
-      if (t.dataset.layer === "crime") refreshCrime();
-      if (t.dataset.layer === "fuel") { fuelKey = null; refreshFuel(); }
-      if (t.dataset.layer === "satimg") renderSatImg();
-      if (t.dataset.layer === "tfl") renderAlerts();
+      S.layers[t.dataset.layer] = t.checked;
+      S.view = "custom";
+      afterToggle([t.dataset.layer]);
     }
     if (t.id === "fBase") { S.basemap = setBasemap(t.value); }
     if (t.id === "fLabels") { S.labels = t.value; renderAircraft(lastAircraft); refresh.vessels(); }
@@ -1487,7 +1562,10 @@ const INTERVAL = { aircraft: 10, vessels: 30, weather_warnings: 600, floods: 600
   grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 1800, rnli: 180, fire: 900, webcams: 6 * 3600, tide_stations: 86400, sewage: 600, bathing: 3 * 3600, rivers: 600, lightning: 30, air_quality: 3600, fires: 1800, tfl: 300, iss: 30, wind_grid: 1800, radar: 300, city_weather: 1800 };
 
 function start() {
-  drawBases(); buildLeft(); syncLayers();
+  drawBases(); buildLeft();
+  const pv = params.get("view");
+  if (pv && (pv === "everything" || VIEWS[pv])) applyView(pv);
+  syncLayers();
   for (const [k, fn] of Object.entries(refresh)) { fn(); setInterval(fn, INTERVAL[k] * 1000); }
   setInterval(() => renderNews(), 60000);  // age out expired incidents
   map.on("zoomend", () => { renderAircraft(lastAircraft); renderVessels(); });

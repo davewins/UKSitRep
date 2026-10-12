@@ -26,6 +26,17 @@ It runs as a ~70 MB distroless container with no shell, as a non-root user.
 | Cameras | TfL JamCams, OpenStreetMap-tagged webcams, your own curated list, and the WorldCam directory (optional) |
 | News | BBC UK, nations and local feeds, pinned to the places they mention, filtered by severity and age, plus a scrolling ticker |
 
+## Views
+
+The layer panel has a **View** menu that switches many layers at once: *Everything*,
+*Military*, *Emergency*, *Transport & infrastructure*, *Weather & water*, *Coast & sea* and
+*Space*. *My layers* puts back the set you had before picking a view. Each group heading has
+its own checkbox, and *All on* / *All off* sit at the top.
+
+Add `?view=<name>` to the URL to open in a view (`military`, `emergency`, `transport`,
+`weather`, `coast`, `space`, `everything`), e.g. for a wall display:
+`https://<host>/k/<ACCESS_TOKEN>/?kiosk&view=military`.
+
 ## Quick start
 
 ```bash
