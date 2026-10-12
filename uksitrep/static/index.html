@@ -87,6 +87,11 @@
   .leaflet-popup-content a { color: #7dd3fc; }
   .wx { background: none; border: none; color: #cbd5e1; font-size: 11px; white-space: nowrap; text-shadow: 0 0 3px #000; }
   .base { background: none; border: none; }
+  .fuel-card { background: #0f172a; color: #e2e8f0; border: 2px solid; border-radius: 5px; padding: 1px 3px 2px; font: 600 10px/12px system-ui; box-shadow: 0 1px 3px #0008; }
+  .fuel-head { display: flex; align-items: center; gap: 3px; white-space: nowrap; overflow: hidden; font-size: 9.5px; color: #fff; margin-bottom: 1px; }
+  .fuel-head span { overflow: hidden; text-overflow: ellipsis; }
+  .fuel-p { display: flex; justify-content: space-between; }
+  .fuel-p span { color: #94a3b8; font-weight: 500; }
   .tide-tbl { border-collapse: collapse; width: 100%; font-size: 12px; margin-bottom: 4px; }
   .tide-tbl td { padding: 1px 6px 1px 0; }
   .cam-pop img { display: block; width: 280px; max-width: 70vw; border-radius: 4px; margin: 6px 0; background: #000; min-height: 60px; }
@@ -832,14 +837,44 @@ function refreshCrime() {
 const FUEL_MIN_ZOOM = 11;
 const FUEL_NAMES = { E10: "Unleaded (E10)", E5: "Super unleaded (E5)", B7_STANDARD: "Diesel", B7_PREMIUM: "Premium diesel", B10: "Diesel (B10)", HVO: "HVO" };
 let fuelKey = null, fuelTimer = null, fuelNational = null;
+// [match prefix, display name, favicon domain (checked by eye) or null, badge colours + text when there's no good icon]
+const FUEL_BRANDS = [
+  ["esso", "Esso", "esso.co.uk"], ["bp", "BP", null, "#009900", "#ffe600", "bp"], ["shell", "Shell", "shell.co.uk"],
+  ["tesco", "Tesco", "tesco.com"], ["texaco", "Texaco", "texaco.co.uk"], ["morrisons", "Morrisons", "morrisons.com"],
+  ["sainsbury", "Sainsbury's", null, "#f06c00", "#fff", "S"], ["jet", "Jet", "jetlocal.co.uk"], ["gulf", "Gulf", "gulfoil.co.uk"],
+  ["valero", "Valero", null, "#0a3d91", "#ffc72c", "V"], ["murco", "Murco", null, "#d71920", "#fff", "M"],
+  ["eg", "EG", null, "#000", "#e4002b", "EG"], ["maxol", "Maxol", "maxol.ie"], ["pace", "Pace", "pacefuelcare.co.uk"],
+  ["solo", "Solo", null, "#1d4ed8", "#fff", "S"], ["circle k", "Circle K", "circlek.com"], ["welcome break", "Welcome Break", "welcomebreak.co.uk"],
+  ["essar", "Essar", "essar.com"], ["gleaner", "Gleaner", "gleaner.co.uk"], ["spar", "Spar", "spar.co.uk"],
+  ["highland fuels", "Highland Fuels", "highlandfuels.co.uk"], ["the co-op", "Co-op", "coop.co.uk"], ["co-op", "Co-op", "coop.co.uk"],
+  ["east of england co-op", "Co-op", "coop.co.uk"], ["costco", "Costco", null, "#e31837", "#fff", "C"], ["total", "TotalEnergies", "totalenergies.co.uk"],
+  ["applegreen", "Applegreen", "applegreenstores.com"], ["emo", "Emo", "emo-oil.com"], ["harvest", "Harvest", null, "#15803d", "#fff", "H"],
+  ["go", "Go", null, "#facc15", "#000", "GO"],
+];
+function fuelBrand(o) {
+  const raw = (o.brand || "").trim(), b = raw.toLowerCase();
+  // short keys (bp, eg, go, jet) must be a whole word; longer ones can prefix ("sainsburys", "total energies")
+  const m = FUEL_BRANDS.find(([k]) => b === k || b.startsWith(k + " ") || (k.length > 3 && b.startsWith(k)));
+  if (m) return { name: m[1], domain: m[2], badge: m[3] ? m.slice(3) : null };
+  const generic = !raw || /^(none|unbranded|independ[ae]nt)$/i.test(raw);
+  // independents: a short version of the trading name instead
+  const name = (generic ? o.name : raw).replace(/\b(petrol filling station|filling station|service station|services|garage|ltd|limited)\b/gi, "").replace(/[-,]+/g, " ").trim();
+  return { name: name.split(/\s+/).slice(0, 2).join(" ") || "Fuel", domain: null, badge: ["#475569", "#fff", (name[0] || "?").toUpperCase()] };
+}
+function fuelLogo(br, size) {
+  const badge = (b) => `<span style="display:inline-block;width:${size}px;height:${size}px;border-radius:3px;background:${b[0]};color:${b[1]};font:700 ${b[2].length > 1 ? size * .5 : size * .7}px/${size}px system-ui;text-align:center;vertical-align:middle">${esc(b[2])}</span>`;
+  if (!br.domain) return badge(br.badge || ["#475569", "#fff", "?"]);
+  return `<img src="https://www.google.com/s2/favicons?domain=${br.domain}&sz=64" width="${size}" height="${size}" alt="" style="vertical-align:middle;border-radius:3px;background:#fff">`;
+}
 function fuelPopup(o) {
   const nat = fuelNational || {};
   const rows = Object.entries(o.prices).map(([k, v]) => {
     const m = nat[k]?.median, diff = m != null ? v - m : null;
     return `<tr><td>${esc(FUEL_NAMES[k] || k)}</td><td style="text-align:right"><b>${v.toFixed(1)}p</b></td>
-      <td class="muted" style="text-align:right">${diff == null ? "" : (diff > 0 ? "+" : "") + diff.toFixed(1)}</td></tr>`;
+      <td class="muted" style="text-align:right">${diff == null ? "" : (diff > 0 ? "+" : "") + diff.toFixed(1) + "p"}</td></tr>`;
   }).join("");
-  return `<b>${esc(o.name)}</b><br><span class="muted">${esc(o.brand)}${o.town ? ` · ${esc(o.town)}` : ""} ${esc(o.postcode || "")}</span>
+  const br = fuelBrand(o);
+  return `${fuelLogo(br, 22)} <b>${esc(o.name)}</b><br><span class="muted">${esc(br.name)}${o.town ? ` · ${esc(o.town)}` : ""} ${esc(o.postcode || "")}</span>
     ${o.closed ? '<br><b style="color:#dc2626">Temporarily closed</b>' : ""}
     <table class="tide-tbl">${rows}</table><span class="muted" style="font-size:11px">± vs UK median · updated ${o.updated ? ago(o.updated) : "?"}</span><br>
     <a href="https://www.google.com/maps/dir/?api=1&destination=${o.lat},${o.lon}" target="_blank" rel="noopener">Directions ↗</a>`;
@@ -862,9 +897,13 @@ function refreshFuel() {
     for (const o of d.stations) {
       const u = o.prices.E10, dsl = o.prices.B7_STANDARD;
       const col = o.closed || u == null ? "#64748b" : u <= q(1 / 3) ? "#16a34a" : u >= q(2 / 3) ? "#dc2626" : "#ca8a04";
-      L.marker([o.lat, o.lon], { zIndexOffset: 150, icon: L.divIcon({ className: "base", iconSize: [64, 26], iconAnchor: [32, 13],
-        html: `<div style="background:${col};color:#fff;font:600 10px/12px system-ui;text-align:center;border-radius:4px;border:1px solid #000;padding:1px 2px;opacity:${o.closed ? .6 : 1}">${u != null ? `U ${u.toFixed(1)}` : "U –"}<br>${dsl != null ? `D ${dsl.toFixed(1)}` : "D –"}</div>` }) })
-        .bindPopup(() => fuelPopup(o)).bindTooltip(esc(`${o.brand || o.name}`), { direction: "top", offset: [0, -14] }).addTo(G.fuel);
+      const br = fuelBrand(o);
+      L.marker([o.lat, o.lon], { zIndexOffset: 150, icon: L.divIcon({ className: "base", iconSize: [80, 42], iconAnchor: [40, 21],
+        html: `<div class="fuel-card" style="border-color:${col};opacity:${o.closed ? .6 : 1}">
+          <div class="fuel-head">${fuelLogo(br, 13)}<span>${esc(br.name)}</span></div>
+          <div class="fuel-p"><span>Unl</span><b style="color:${col === "#ca8a04" ? "#facc15" : col === "#16a34a" ? "#4ade80" : col === "#dc2626" ? "#f87171" : "#cbd5e1"}">${u != null ? u.toFixed(1) + "p" : "–"}</b></div>
+          <div class="fuel-p"><span>Dsl</span><b>${dsl != null ? dsl.toFixed(1) + "p" : "–"}</b></div></div>` }) })
+        .bindPopup(() => fuelPopup(o)).bindTooltip(esc(o.name), { direction: "top", offset: [0, -22] }).addTo(G.fuel);
     }
     counts.fuel = d.stations.length; renderCounts();
   }, 600);
