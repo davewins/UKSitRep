@@ -29,6 +29,10 @@ docker compose up -d        # then open http://<host>:8080/?token=<ACCESS_TOKEN>
 
 Or build it yourself: `docker build -t uksitrep .`
 
+**Portainer:** create a stack from this repository (or paste `docker-compose.yml` into the web
+editor) and add the settings under *Environment variables*. The compose file's `environment:`
+block passes them into the container.
+
 Without Docker (Python 3.11+): `pip install -r requirements.txt && DATA_DIR=./data python -m uksitrep`
 
 ## Configuration (environment variables)

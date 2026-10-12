@@ -5,10 +5,23 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"
-    env_file: .env
+    # Values come from a .env file next to this file (docker compose) or from
+    # the stack's "Environment variables" section (Portainer). Unset = default.
+    environment:
+      ACCESS_TOKEN: ${ACCESS_TOKEN:-}
+      AISSTREAM_API_KEY: ${AISSTREAM_API_KEY:-}
+      NATIONAL_HIGHWAYS_KEY: ${NATIONAL_HIGHWAYS_KEY:-}
+      NATIONAL_HIGHWAYS_KEY_SECONDARY: ${NATIONAL_HIGHWAYS_KEY_SECONDARY:-}
+      BBC_LOCAL_REGIONS: ${BBC_LOCAL_REGIONS:-}
+      ENABLE_BACKGROUND_ADSB: ${ENABLE_BACKGROUND_ADSB:-true}
+      ENABLE_WORLDCAM: ${ENABLE_WORLDCAM:-false}
+      ENABLE_DSFRS: ${ENABLE_DSFRS:-false}
+      DSFRS_STATION_IDS: ${DSFRS_STATION_IDS:-}
+      DSFRS_AREAS: ${DSFRS_AREAS:-Teignbridge,Torbay}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:
       - uksitrep-data:/data
-      # - ./config/cameras.json:/config/cameras.json:ro
+      # - ./config/cameras.json:/config/cameras.json:ro   # then set CAMERAS_FILE=/config/cameras.json
     read_only: true
     security_opt:
       - no-new-privileges:true
