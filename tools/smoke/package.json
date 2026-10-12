@@ -1,0 +1,7 @@
+{
+  "name": "uksitrep-smoke",
+  "private": true,
+  "description": "Loads the map in jsdom against a running server and reports feed status, layer counts and JS errors",
+  "scripts": { "smoke": "node smoke.js" },
+  "dependencies": { "jsdom": "^24.1.3" }
+}
