@@ -24,6 +24,6 @@ Each is subject to its own terms.
 | [TfL Unified API](https://api.tfl.gov.uk) | JamCams | Powered by TfL Open Data |
 | [tar1090](https://github.com/wiedehopf/tar1090), [tar1090-db](https://github.com/wiedehopf/tar1090-db) | Aircraft type names, ICAO country ranges (downloaded at runtime, not bundled) | GPL |
 | [flagcdn.com](https://flagcdn.com) | Flag images | Public domain flags |
-| [CARTO](https://carto.com/attributions), [Esri](https://www.esri.com), OSM tiles | Base maps | Their tile terms |
+| [Esri](https://www.esri.com) basemaps, [OpenStreetMap tiles](https://operations.osmfoundation.org/policies/tiles/) | Base maps | Esri terms; OSM tile usage policy (light personal use) |
 | worldcam.eu *(optional)* | Webcam directory | Scraped. Check their terms before enabling |
 | Devon & Somerset FRS *(optional)* | Incident pages | Scraped. Check their terms before enabling |

@@ -30,7 +30,8 @@ async def auth_middleware(request: web.Request, handler):
             return web.Response(status=401, text="Unauthorised: add ?token=... to the URL")
     resp = await handler(request)
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")
-    resp.headers.setdefault("Referrer-Policy", "no-referrer")
+    # send our origin (not full URL) so tile servers like OSM see a valid Referer
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     return resp
 
 

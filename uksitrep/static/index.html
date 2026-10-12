@@ -188,21 +188,31 @@ L.control.zoom({ position: "bottomleft" }).addTo(map);
 // All keyless tile sources
 const DATA_ATTR = " | ADS-B: adsb.lol | AIS: aisstream.io | National Highways | UKMON | Met Office, EA, BGS, NOAA, Elexon, BBC";
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/";
+// All keyless tile sources. [label, url, attribution, maxNativeZoom, labels overlay url?]
+// (CARTO basemaps now require an API key, so they are not used.)
 const BASEMAPS = {
-  dark: ["Dark (CARTO)", "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", "&copy; OpenStreetMap &copy; CARTO", "abcd", 19],
-  darkgrey: ["Dark grey (Esri)", ESRI + "Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", "Tiles &copy; Esri", "", 16],
-  voyager: ["Street (CARTO Voyager)", "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", "&copy; OpenStreetMap &copy; CARTO", "abcd", 19],
-  osm: ["OpenStreetMap", "https://tile.openstreetmap.org/{z}/{x}/{y}.png", "&copy; OpenStreetMap contributors", "", 19],
-  satellite: ["Satellite (Esri)", ESRI + "World_Imagery/MapServer/tile/{z}/{y}/{x}", "Imagery &copy; Esri, Maxar, Earthstar Geographics", "", 18],
+  dark: ["Dark (Esri)", ESRI + "Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", "Tiles &copy; Esri", 16,
+    ESRI + "Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}"],
+  street: ["Street (Esri)", ESRI + "World_Street_Map/MapServer/tile/{z}/{y}/{x}", "Tiles &copy; Esri", 18],
+  topo: ["Topographic (Esri)", ESRI + "World_Topo_Map/MapServer/tile/{z}/{y}/{x}", "Tiles &copy; Esri", 18],
+  osm: ["OpenStreetMap", "https://tile.openstreetmap.org/{z}/{x}/{y}.png", "&copy; OpenStreetMap contributors", 19],
+  satellite: ["Satellite (Esri)", ESRI + "World_Imagery/MapServer/tile/{z}/{y}/{x}", "Imagery &copy; Esri, Maxar, Earthstar Geographics", 18,
+    ESRI + "Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"],
 };
-let baseLayer = null;
+const BASEMAP_ALIASES = { darkgrey: "dark", voyager: "street" };   // old saved choices
+let baseLayer = null, labelLayer = null;
 function setBasemap(key) {
+  key = BASEMAP_ALIASES[key] || key;
   const b = BASEMAPS[key] || BASEMAPS.dark;
   if (baseLayer) baseLayer.remove();
-  baseLayer = L.tileLayer(b[1], { maxZoom: b[4], subdomains: b[3] || "abc", attribution: b[2] + DATA_ATTR }).addTo(map);
+  if (labelLayer) { labelLayer.remove(); labelLayer = null; }
+  baseLayer = L.tileLayer(b[1], { maxZoom: 19, maxNativeZoom: b[3], attribution: b[2] + DATA_ATTR }).addTo(map);
   baseLayer.bringToBack();
+  if (b[4]) labelLayer = L.tileLayer(b[4], { maxZoom: 19, maxNativeZoom: b[3], pane: "shadowPane", opacity: .9 }).addTo(map);
+  return key;
 }
-setBasemap(S.basemap);
+S.basemap = setBasemap(S.basemap);
+
 
 const G = {};  // layer groups
 for (const k of Object.keys(DEFAULTS.layers)) G[k] = L.layerGroup();
@@ -960,7 +970,7 @@ function buildLeft() {
       if (t.dataset.layer === "vs_civil") refresh.vessels();
       if (t.dataset.layer === "webcams") renderCams();
     }
-    if (t.id === "fBase") { S.basemap = t.value; setBasemap(t.value); }
+    if (t.id === "fBase") { S.basemap = setBasemap(t.value); }
     if (t.id === "fLabels") { S.labels = t.value; renderAircraft(lastAircraft); refresh.vessels(); }
     if (t.id === "fAlt") { S.minAltFt = +t.value; renderAircraft(lastAircraft); }
     if (t.id === "fNewsH") { S.newsHours = +t.value; renderNews(); }
