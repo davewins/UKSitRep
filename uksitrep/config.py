@@ -43,6 +43,8 @@ class Config:
     dsfrs_areas: set[str] = field(default_factory=set)
     bbc_local_feeds: dict[str, str] = field(default_factory=dict)
     cameras_file: Path | None = None
+    firms_key: str | None = None
+    enable_lightning: bool = True
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -69,6 +71,8 @@ class Config:
             dsfrs_areas=set(_list("DSFRS_AREAS", "Teignbridge,Torbay")),
             bbc_local_feeds=bbc,
             cameras_file=Path(cams) if cams else None,
+            firms_key=os.environ.get("FIRMS_MAP_KEY") or None,
+            enable_lightning=_bool("ENABLE_LIGHTNING", True),
         )
 
     def curated_cams(self) -> list[dict]:

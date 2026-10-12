@@ -176,7 +176,7 @@ const DEFAULTS = {
   layers: { ac_civil: true, ac_military: true, ac_police: true, ac_hems: true, ac_sar: true,
     ac_trails: true, mil_dest: true, airfields: true, army: true,
     vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
-    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, quakes: true, meteors: true, news: true },
+    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, quakes: true, meteors: true, news: true },
   basemap: "dark", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
 };
 let S;
@@ -253,7 +253,7 @@ const status = {};
 function setStatus(feed, ok, note) { status[feed] = { ok, t: Date.now(), note }; renderChips(); }
 function renderChips() {
   const names = { aircraft: "ADS-B", vessels: "AIS", weather_warnings: "Met Office", floods: "EA floods",
-    city_weather: "Open-Meteo", grid: "Grid", roads: "Nat. Highways", power_cuts: "Power cuts", space: "Space wx", quakes: "BGS quakes", news: "BBC", meteors: "UKMON", sea: "Sea state", wind_grid: "Wind grid", radar: "Radar", rnli: "RNLI", fire: "DSFRS", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage" };
+    city_weather: "Open-Meteo", grid: "Grid", roads: "Nat. Highways", power_cuts: "Power cuts", space: "Space wx", quakes: "BGS quakes", news: "BBC", meteors: "UKMON", sea: "Sea state", wind_grid: "Wind grid", radar: "Radar", rnli: "RNLI", fire: "DSFRS", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage", bathing: "Bathing", rivers: "Rivers", lightning: "Lightning", air_quality: "Air quality", fires: "FIRMS", tfl: "TfL", iss: "ISS", crime: "Crime" };
   $("chips").innerHTML = Object.entries(status).map(([k, v]) => {
     const cls = !v.ok ? "err" : "ok";
     return `<span class="chip ${cls}" title="${esc(v.note || "")} · ${new Date(v.t).toLocaleTimeString()}">${names[k] || k}</span>`;
@@ -650,6 +650,184 @@ function renderSewage(d) {
   renderAlerts();
 }
 
+/* ------------------------------------------------------------ second batch: rivers, lightning, air, bathing, fires, ISS, TfL, crime */
+const ukDT = (iso) => iso ? `${ukDay(iso)} ${ukTime(iso)}` : "?";
+
+// River levels (EA gauges)
+const RIVER_MIN_ZOOM = 9;
+const RIVER_COL = { record: "#dc2626", high: "#f97316", normal: "#38bdf8", low: "#94a3b8" };
+let lastRivers = [];
+function riverPopup(g) {
+  const span = g.high - g.low, pct = span > 0 ? Math.round((g.level - g.low) / span * 100) : null;
+  const trend = g.trend > 0 ? "rising ↑" : g.trend < 0 ? "falling ↓" : "steady";
+  return `<b>${esc(g.river || "River")} at ${esc(g.name)}</b><br><span class="muted">${esc(g.town || "")}</span><br>
+    Level <b>${g.level.toFixed(2)} m</b>, ${trend}<br>Typical range ${g.low ?? "?"} to ${g.high ?? "?"} m${pct != null ? ` (${pct}% of range)` : ""}<br>
+    <b style="color:${RIVER_COL[g.state]}">${{ record: "At or above highest recent level", high: "Above normal range", normal: "Normal range", low: "Below normal range" }[g.state]}</b><br>
+    <span class="muted">${ukDT(g.time)}</span>${g.rloi ? `<br><a href="https://check-for-flooding.service.gov.uk/station/${encodeURIComponent(g.rloi)}" target="_blank" rel="noopener">Check for flooding ↗</a>` : ""}`;
+}
+function renderRivers(d) {
+  if (d) lastRivers = d.gauges || [];
+  G.rivers.clearLayers();
+  const raised = lastRivers.filter(g => g.state === "high" || g.state === "record");
+  counts.rivers = raised.length; renderCounts();
+  if (!S.layers.rivers) return;
+  const all = map.getZoom() >= RIVER_MIN_ZOOM, b = map.getBounds().pad(0.2);
+  for (const g of all ? lastRivers : raised) {
+    if (all && !b.contains([g.lat, g.lon])) continue;
+    L.circleMarker([g.lat, g.lon], { radius: g.state === "normal" || g.state === "low" ? 4 : 6, color: "#000", weight: 1,
+      fillColor: RIVER_COL[g.state], fillOpacity: .9 })
+      .bindPopup(riverPopup(g)).bindTooltip(`${esc(g.river || g.name)} ${g.level.toFixed(2)} m ${g.trend > 0 ? "↑" : g.trend < 0 ? "↓" : ""}`)
+      .addTo(G.rivers);
+  }
+  renderAlerts();
+}
+
+// Lightning (Blitzortung)
+let lastStrikes = [];
+function renderLightning(d) {
+  if (d) lastStrikes = d.strikes || [];
+  G.lightning.clearLayers();
+  const now = Date.now() / 1000;
+  for (const [t, la, lo] of lastStrikes) {
+    const m = (now - t) / 60;
+    L.circleMarker([la, lo], { radius: m < 10 ? 5 : m < 30 ? 4 : 3, stroke: m < 10, color: "#fff", weight: 1,
+      fillColor: m < 10 ? "#fde047" : m < 30 ? "#f59e0b" : "#b45309", fillOpacity: m < 10 ? 1 : m < 60 ? .75 : .45, interactive: false })
+      .addTo(G.lightning);
+  }
+  counts.lightning = lastStrikes.filter(([t]) => now - t < 1800).length; renderCounts(); renderAlerts();
+}
+
+// Air quality & pollen (Open-Meteo / CAMS, European AQI)
+const AQI_BANDS = [[20, "#22c55e", "Good"], [40, "#84cc16", "Fair"], [60, "#eab308", "Moderate"], [80, "#f97316", "Poor"], [100, "#dc2626", "Very poor"], [1e9, "#7e22ce", "Extremely poor"]];
+const aqiBand = (v) => AQI_BANDS.find(([max]) => v <= max) || AQI_BANDS[0];
+let lastAir = [];
+function renderAir(d) {
+  if (d) lastAir = d.points || [];
+  G.air.clearLayers();
+  for (const p of lastAir) {
+    if (p.aqi == null) continue;
+    const [, col, label] = aqiBand(p.aqi);
+    const pollen = Object.entries(p.pollen || {}).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    L.marker([p.lat, p.lon], { icon: L.divIcon({ className: "base", iconSize: [26, 16], iconAnchor: [13, -6],
+      html: `<div style="background:${col};color:#000;font:600 10px/16px system-ui;text-align:center;border-radius:8px;border:1px solid #000">${p.aqi}</div>` }) })
+      .bindPopup(`<b>${esc(p.name)}</b> air quality<br>European AQI <b style="color:${col}">${p.aqi} (${label})</b><br>
+        PM2.5 ${p.pm25 ?? "?"} · PM10 ${p.pm10 ?? "?"} · NO₂ ${p.no2 ?? "?"} · O₃ ${p.o3 ?? "?"} µg/m³<br>
+        Pollen: ${pollen.length ? pollen.map(([k, v]) => `${k} ${Math.round(v)}`).join(", ") + " grains/m³" : "none detected"}<br><span class="muted" style="font-size:11px">CAMS model via Open-Meteo</span>`)
+      .addTo(G.air);
+  }
+  counts.air = lastAir.filter(p => p.aqi > 40).length; renderCounts();
+}
+
+// Bathing waters (EA)
+const BATHING_MIN_ZOOM = 9;
+const BW_COL = { Excellent: "#2563eb", Good: "#16a34a", Sufficient: "#ca8a04", Poor: "#dc2626" };
+const GLYPH_SWIM = '<circle cx="2.5" cy="-3.5" r="1.8" fill="#fff"/><path d="M-6,1.5 q1.5,-1.5 3,0 t3,0 t3,0 t3,0 M-5,-0.5 l4,-3 l3,2.5" stroke="#fff" stroke-width="1.4" fill="none"/>';
+let lastBathing = [];
+function bathingPopup(b) {
+  const near = lastSewage.filter(o => (o.active || (o.end && ageMin(o.end) < 2880)) && distKm(b.lat, b.lon, o.lat, o.lon) < 3)
+    .sort((x, y) => y.active - x.active);
+  return `<b>${esc(b.name)}</b> bathing water<br>Classification: <b style="color:${BW_COL[b.classification] || "inherit"}">${esc(b.classification || "not classified")}</b><br>
+    ${b.risk ? `Today's pollution risk: <b style="color:${b.risk === "normal" ? "#16a34a" : "#dc2626"}">${esc(b.risk)}</b><br>` : '<span class="muted">No daily forecast (outside May to September)</span><br>'}
+    ${b.sample_date ? `Last sample ${b.sample_date.slice(6, 8)}/${b.sample_date.slice(4, 6)}/${b.sample_date.slice(0, 4)}<br>` : ""}
+    ${near.length ? `<b style="color:#b45309">${near.length} storm overflow${near.length > 1 ? "s" : ""} within 3 km ${near.some(o => o.active) ? "discharging now" : "discharged in the last 48 h"}</b><br>` : ""}
+    ${b.heavy_rain_risk ? '<span class="muted">Water quality can drop after heavy rain</span><br>' : ""}
+    <a href="${esc(b.url)}" target="_blank" rel="noopener">EA bathing water profile ↗</a>`;
+}
+function renderBathing(d) {
+  if (d) lastBathing = d.sites || [];
+  G.bathing.clearLayers();
+  counts.bathing = lastBathing.length; renderCounts();
+  if (!S.layers.bathing || map.getZoom() < BATHING_MIN_ZOOM) return;
+  const b = map.getBounds().pad(0.3);
+  for (const w of lastBathing) {
+    if (!b.contains([w.lat, w.lon])) continue;
+    const alert = w.risk && w.risk !== "normal";
+    L.marker([w.lat, w.lon], { icon: emIcon(BW_COL[w.classification] || "#64748b", GLYPH_SWIM, alert), zIndexOffset: 260 })
+      .bindPopup(() => bathingPopup(w)).bindTooltip(esc(w.name), { direction: "top", offset: [0, -10] }).addTo(G.bathing);
+  }
+}
+
+// NASA FIRMS fire hotspots
+let lastFires = [];
+function renderFires(d) {
+  if (d) lastFires = d.fires || [];
+  G.fires.clearLayers();
+  for (const f of lastFires) {
+    const h = ageMin(f.time) / 60;
+    L.circleMarker([f.lat, f.lon], { radius: Math.min(9, 3 + Math.sqrt(f.frp || 1)), color: "#000", weight: 1,
+      fillColor: h < 12 ? "#ef4444" : "#f97316", fillOpacity: h < 12 ? .9 : .55 })
+      .bindPopup(`<b>Satellite heat detection</b><br>${ukDT(f.time)} (${ago(f.time)})<br>Fire radiative power ${f.frp} MW<br>
+        VIIRS ${esc(f.sat || "")} · ${f.night ? "night" : "day"} pass · confidence ${esc({ l: "low", n: "nominal", h: "high" }[f.confidence] || f.confidence || "?")}<br>
+        <span class="muted" style="font-size:11px">May be a wildfire, a controlled burn or an industrial heat source (steelworks, flares)</span>`)
+      .addTo(G.fires);
+  }
+  counts.fires = lastFires.length; renderCounts();
+}
+
+// NASA GIBS satellite image (VIIRS true colour, yesterday: today's swaths are incomplete)
+let satDate = null;
+function renderSatImg() {
+  const day = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  if (satDate === day) return;
+  satDate = day;
+  G.satimg.clearLayers();
+  L.tileLayer(`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/${day}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`,
+    { maxNativeZoom: 9, maxZoom: 18, opacity: .85, zIndex: 5, attribution: "NASA GIBS / VIIRS" }).addTo(G.satimg);
+}
+
+// ISS
+let lastIss = null;
+const GLYPH_SAT = '<rect x="-2" y="-2" width="4" height="4" fill="#fff"/><path d="M-8,-1.5 h5 v3 h-5 Z M3,-1.5 h5 v3 h-5 Z" fill="#93c5fd" stroke="#fff" stroke-width=".6"/>';
+function renderIss(d) {
+  if (d && !d.error) lastIss = d;
+  G.iss.clearLayers();
+  if (!lastIss) return;
+  let seg = [], prev = null;
+  const segs = [];
+  for (const [la, lo] of lastIss.track) { if (prev != null && Math.abs(lo - prev) > 180) { segs.push(seg); seg = []; } seg.push([la, lo]); prev = lo; }
+  segs.push(seg);
+  for (const s of segs) L.polyline(s, { color: "#e2e8f0", weight: 1.2, opacity: .5, dashArray: "4 4", interactive: false }).addTo(G.iss);
+  const passes = (lastIss.passes || []).map(p => `<tr><td>${ukDay(p.start)}</td><td><b>${ukTime(p.start)}</b> to ${ukTime(p.end)}</td><td>max ${p.max_el}°</td></tr>`).join("");
+  L.marker([lastIss.lat, lastIss.lon], { icon: emIcon("#1e293b", GLYPH_SAT, false), zIndexOffset: 700 })
+    .bindPopup(`<b>International Space Station</b><br>${lastIss.alt_km} km up · ${lastIss.sunlit ? "in sunlight" : "in Earth's shadow"}<br>
+      ${lastIss.observer ? `Visible passes near ${lastIss.observer[0]}, ${lastIss.observer[1]} (map centre):` : ""}
+      ${passes ? `<table class="tide-tbl">${passes}</table>` : '<br><span class="muted">No visible passes in the next 3 days</span>'}`)
+    .bindTooltip("ISS").addTo(G.iss);
+  renderAlerts();
+}
+
+// TfL line status (Info panel only)
+let lastTfl = [];
+
+// Street crime (police.uk, fetched for the map centre when zoomed right in)
+const CRIME_MIN_ZOOM = 14;
+const CRIME_NAMES = { "anti-social-behaviour": "Anti-social behaviour", "bicycle-theft": "Bicycle theft", burglary: "Burglary",
+  "criminal-damage-arson": "Criminal damage & arson", drugs: "Drugs", "other-theft": "Other theft", "possession-of-weapons": "Weapons",
+  "public-order": "Public order", robbery: "Robbery", shoplifting: "Shoplifting", "theft-from-the-person": "Theft from the person",
+  "vehicle-crime": "Vehicle crime", "violent-crime": "Violence & sexual offences", "other-crime": "Other crime" };
+let crimeKey = null, crimeTimer = null;
+function refreshCrime() {
+  clearTimeout(crimeTimer);
+  if (!S.layers.crime || map.getZoom() < CRIME_MIN_ZOOM) { G.crime.clearLayers(); crimeKey = null; counts.crime = undefined; renderCounts(); return; }
+  const c = map.getCenter(), key = `${c.lat.toFixed(2)},${c.lng.toFixed(2)}`;
+  if (key === crimeKey) return;
+  crimeTimer = setTimeout(async () => {  // wait for panning to settle
+    crimeKey = key;
+    const d = await getFeed("crime", `?lat=${c.lat.toFixed(2)}&lon=${c.lng.toFixed(2)}`);
+    if (!d || !d.spots || crimeKey !== key) return;
+    G.crime.clearLayers();
+    let total = 0;
+    for (const s of d.spots) {
+      const n = Object.values(s.crimes).reduce((a, b) => a + b, 0); total += n;
+      L.circleMarker([s.lat, s.lon], { radius: Math.min(12, 3 + n * 1.2), color: "#000", weight: 1, fillColor: "#c084fc", fillOpacity: .75 })
+        .bindPopup(`<b>${esc(s.street || "Street")}</b><br><span class="muted">${esc(d.month || "")} · police.uk</span><br>` +
+          Object.entries(s.crimes).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} × ${esc(CRIME_NAMES[k] || k)}`).join("<br>"))
+        .addTo(G.crime);
+    }
+    counts.crime = total; renderCounts();
+  }, 600);
+}
+
 /* ------------------------------------------------------------ tide times (Admiralty EasyTide) */
 const TIDE_MIN_ZOOM = 9;
 let tideStations = [];
@@ -1017,6 +1195,15 @@ function renderAlerts() {
     out.push({ cls: "info", ll: [m.lat2, m.lon2], html: `🔥 Fireball mag ${m.mag} over the UK<small>${ago(m.time)} · ${m.stations} cameras</small>` });
   if (lastSpace && lastSpace.kp >= 5) out.push({ cls: lastSpace.kp >= 7 ? "" : "amber", html: `🌌 Geomagnetic storm Kp ${lastSpace.kp}` });
   if (lastSpace && ["amber", "red"].includes(lastSpace.aurorawatch)) out.push({ cls: "amber", html: `🌌 AuroraWatch UK ${lastSpace.aurorawatch.toUpperCase()} — aurora possible` });
+  const raised = lastRivers.filter(g => g.state === "record" || g.state === "high");
+  if (raised.length) out.push({ cls: raised.some(g => g.state === "record") ? "amber" : "info", ll: raised.length === 1 ? [raised[0].lat, raised[0].lon] : null,
+    html: `🌊 ${raised.length} river gauge${raised.length > 1 ? "s" : ""} above normal range<small>${raised.slice(0, 4).map(g => esc(g.river || g.name)).join(", ")}${raised.length > 4 ? "…" : ""}</small>` });
+  const nowS = Date.now() / 1000, recentStrikes = lastStrikes.filter(([t, la, lo]) => nowS - t < 1800 && la > 49.8 && la < 60.9 && lo > -8.7 && lo < 1.9);
+  if (recentStrikes.length) out.push({ cls: "info", ll: [recentStrikes.at(-1)[1], recentStrikes.at(-1)[2]], html: `⚡ ${recentStrikes.length} lightning strike${recentStrikes.length > 1 ? "s" : ""} over the UK in the last 30 min` });
+  const soon = lastIss?.passes?.find(p => Date.parse(p.end) > Date.now() && Date.parse(p.start) - Date.now() < 3 * 3600e3);
+  if (S.layers.iss && soon) out.push({ cls: "info", html: `🛰️ ISS visible ${ukTime(soon.start)} to ${ukTime(soon.end)}, max ${soon.max_el}°<small>near map centre</small>` });
+  if (S.layers.tfl) for (const l of lastTfl.filter(l => l.severity < 10 || [11, 15, 16, 17].includes(l.severity)))
+    out.push({ cls: [1, 2, 3, 6].includes(l.severity) ? "amber" : "info", html: `🚇 ${esc(l.name)}: ${esc(l.status)}<small>${esc((l.reason || "").replace(/^[^:]{0,40}:\s*/, "").slice(0, 140))}</small>` });
   const sewNow = lastSewage.filter(o => o.active);
   if (sewNow.length) {
     const by = Object.entries(sewNow.reduce((m, o) => (m[o.company] = (m[o.company] || 0) + 1, m), {})).sort((x, y) => y[1] - x[1]);
@@ -1042,11 +1229,18 @@ const LAYER_UI = [
   ["Maritime", [["vs_special", "Navy / RNLI / SAR / gov", "#f97316"], ["vs_civil", "All other vessels", "#5eead4"],
     ["tides", "Tide times (zoom in to see)", "#60a5fa"]]],
   ["Weather & environment", [["warnings", "Met Office warnings", "#facc15"], ["floods", "EA flood warnings", "#f97316"], ["cityweather", "City weather", "#cbd5e1"], ["sea", "Sea state (waves / wind)", "#38bdf8"],
-    ["radar", "Rain radar", "#22d3ee"], ["wind", "Wind arrows", "#4ade80"], ["temps", "Temperature grid", "#fde047"]]],
-  ["Water quality", [["sewage", "Sewage discharging now", "#a16207"], ["sewage_recent", "Sewage, stopped in last 48 h (zoom in)", "#ca8a04"]]],
+    ["radar", "Rain radar", "#22d3ee"], ["wind", "Wind arrows", "#4ade80"], ["temps", "Temperature grid", "#fde047"],
+    ["lightning", "Lightning (last 2 h)", "#fde047"], ["rivers", "River levels (high: always; all: zoom in)", "#38bdf8"],
+    ["air", "Air quality & pollen", "#a3e635"], ["fires", "Satellite fire hotspots (NASA)", "#ef4444"],
+    ["satimg", "Satellite image, yesterday (NASA)", "#e2e8f0"]]],
+  ["Water quality", [["sewage", "Sewage discharging now", "#a16207"], ["sewage_recent", "Sewage, stopped in last 48 h (zoom in)", "#ca8a04"],
+    ["bathing", "Bathing waters (zoom in)", "#2563eb"]]],
   ["Infrastructure", [["cuts", "Power cuts (UKPN, SSEN)", "#fbbf24"], ["roads_incidents", "Road incidents (live)", "#ef4444"],
-    ["roads_closures", "Road closures (planned)", "#f59e0b"], ["roads_works", "Lane restrictions", "#94a3b8"]]],
-  ["Space & geological", [["quakes", "BGS earthquakes", "#f472b6"], ["meteors", "UK Meteor Network", "#a5b4fc"]]],
+    ["roads_closures", "Road closures (planned)", "#f59e0b"], ["roads_works", "Lane restrictions", "#94a3b8"],
+    ["tfl", "TfL disruption (Info panel)", "#dc2626"]]],
+  ["Crime", [["crime", "Street crime, last month (zoom 14+)", "#c084fc"]]],
+  ["Space & geological", [["quakes", "BGS earthquakes", "#f472b6"], ["meteors", "UK Meteor Network", "#a5b4fc"],
+    ["iss", "ISS position & visible passes", "#e2e8f0"]]],
   ["News", [["news", "BBC incidents", "#ef4444"]]],
 ];
 function countFor(k) {
@@ -1054,7 +1248,7 @@ function countFor(k) {
   return { ac_civil: a.civil, ac_military: a.military, ac_police: a.police, ac_hems: a.hems, ac_sar: a.sar,
     vs_special: counts.vessels?.special, vs_civil: counts.vessels?.total, floods: counts.floods, cuts: counts.cuts,
     quakes: counts.quakes, news: counts.news,
-    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length }[k];
+    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length }[k];
 }
 function renderCounts() { for (const el of document.querySelectorAll("[data-count]")) { const n = countFor(el.dataset.count); el.textContent = n ?? ""; } }
 function buildLeft() {
@@ -1086,6 +1280,11 @@ function buildLeft() {
       if (t.dataset.layer === "webcams") renderCams();
       if (t.dataset.layer === "tides") renderTides();
       if (t.dataset.layer.startsWith("sewage")) renderSewage();
+      if (t.dataset.layer === "bathing") renderBathing();
+      if (t.dataset.layer === "rivers") renderRivers();
+      if (t.dataset.layer === "crime") refreshCrime();
+      if (t.dataset.layer === "satimg") renderSatImg();
+      if (t.dataset.layer === "tfl") renderAlerts();
     }
     if (t.id === "fBase") { S.basemap = setBasemap(t.value); }
     if (t.id === "fLabels") { S.labels = t.value; renderAircraft(lastAircraft); refresh.vessels(); }
@@ -1131,6 +1330,13 @@ const refresh = {
     if (!d || !d.cams || !d.cams.length) setTimeout(refresh.webcams, 60000);  // don't wait 6 h after a failed first load
   },
   sewage: async () => renderSewage(await getFeed("sewage")),
+  bathing: async () => renderBathing(await getFeed("bathing")),
+  rivers: async () => renderRivers(await getFeed("rivers")),
+  lightning: async () => renderLightning(await getFeed("lightning")),
+  air_quality: async () => renderAir(await getFeed("air_quality")),
+  fires: async () => renderFires(await getFeed("fires")),
+  tfl: async () => { const d = await getFeed("tfl"); if (d && d.lines) { lastTfl = d.lines; renderAlerts(); } },
+  iss: async () => { const c = map.getCenter(); renderIss(await getFeed("iss", `?lat=${(Math.round(c.lat * 2) / 2).toFixed(1)}&lon=${(Math.round(c.lng * 2) / 2).toFixed(1)}`)); },
   tide_stations: async () => {
     const d = await getFeed("tide_stations");
     renderTides(d);
@@ -1152,14 +1358,15 @@ const refresh = {
   radar: refreshRadar,
 };
 const INTERVAL = { aircraft: 10, vessels: 30, weather_warnings: 600, floods: 600,
-  grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 1800, rnli: 180, fire: 900, webcams: 6 * 3600, tide_stations: 86400, sewage: 600, wind_grid: 1800, radar: 300, city_weather: 1800 };
+  grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 1800, rnli: 180, fire: 900, webcams: 6 * 3600, tide_stations: 86400, sewage: 600, bathing: 3 * 3600, rivers: 600, lightning: 30, air_quality: 3600, fires: 1800, tfl: 300, iss: 30, wind_grid: 1800, radar: 300, city_weather: 1800 };
 
 function start() {
   drawBases(); buildLeft(); syncLayers();
   for (const [k, fn] of Object.entries(refresh)) { fn(); setInterval(fn, INTERVAL[k] * 1000); }
   setInterval(() => renderNews(), 60000);  // age out expired incidents
   map.on("zoomend", () => renderAircraft(lastAircraft));
-  map.on("moveend", () => { renderCams(); renderTides(); renderSewage(); });
+  map.on("moveend", () => { renderCams(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); });
+  renderSatImg();
   setInterval(() => { const n = new Date();
     $("clock").textContent = n.toLocaleTimeString("en-GB") + " · " + n.toISOString().slice(11, 16) + "Z"; }, 1000);
   setTimeout(() => location.reload(), 6 * 3600 * 1000);  // keep a 24/7 display fresh

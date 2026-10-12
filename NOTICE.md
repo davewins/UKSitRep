@@ -26,6 +26,13 @@ Each is subject to its own terms.
 | [flagcdn.com](https://flagcdn.com) | Flag images | Public domain flags |
 | [Esri](https://www.esri.com) basemaps, [OpenStreetMap tiles](https://operations.osmfoundation.org/policies/tiles/) | Base maps | Esri terms; OSM tile usage policy (light personal use) |
 | Water company storm overflow feeds via [Stream](https://www.streamwaterdata.co.uk) (Anglian, Northumbrian, Severn Trent, Southern, South West, Thames, United Utilities, Wessex, Yorkshire), Dŵr Cymru Welsh Water, Scottish Water | Live sewage discharges | © the respective water company, CC BY 4.0 / OGL |
+| [Environment Agency](https://environment.data.gov.uk/flood-monitoring/doc/reference) river gauges, [bathing water quality](https://environment.data.gov.uk/bwq/) | River levels, beaches | OGL v3 |
+| [Blitzortung.org](https://www.blitzortung.org) | Lightning strikes | Private, non-commercial use; volunteer network |
+| [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) (Copernicus CAMS) | Air quality & pollen | CC BY 4.0 |
+| [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov) *(optional key)*, [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) | Fire hotspots, satellite imagery | NASA open data; please acknowledge LANCE FIRMS / GIBS |
+| [CelesTrak](https://celestrak.org) + [python-sgp4](https://pypi.org/project/sgp4/) | ISS orbit | CelesTrak terms; MIT |
+| [TfL Unified API](https://api.tfl.gov.uk) | Line status | Powered by TfL Open Data |
+| [data.police.uk](https://data.police.uk) | Street-level crime | OGL v3 |
 | [Admiralty EasyTide](https://easytide.admiralty.co.uk) (UKHO) | Tide times. Fetched per port when a popup is opened, cached 6 h | Crown copyright. Not for navigation |
 | worldcam.eu *(optional)* | Webcam directory | Scraped. Check their terms before enabling |
 | Devon & Somerset FRS *(optional)* | Incident pages | Scraped. Check their terms before enabling |

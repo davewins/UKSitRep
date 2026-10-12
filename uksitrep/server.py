@@ -71,6 +71,16 @@ async def feed(request: web.Request) -> web.Response:
     name = request.match_info["feed"]
     if name == "vessels":
         return web.json_response(await sit.vessels(request.query.get("all") == "1"))
+    if name in ("iss", "crime"):
+        try:
+            lat, lon = float(request.query["lat"]), float(request.query["lon"])
+        except (KeyError, ValueError):
+            if name == "crime":
+                return web.json_response({"error": "lat and lon required"}, status=400)
+            lat = lon = None
+        if name == "crime":
+            return web.json_response(await sit.crime(lat, lon))
+        return web.json_response(await sit.iss(lat, lon))
     if name == "tides":
         return web.json_response(await sit.tides(request.query.get("station", "")))
     handler = sit.handlers.get(name)
@@ -104,6 +114,8 @@ async def healthz(request: web.Request) -> web.Response:
             "dsfrs": bool(cfg.dsfrs_stations),
             "bbc_local_regions": sorted(cfg.bbc_local_feeds),
             "background_adsb": cfg.enable_background_adsb,
+            "lightning": cfg.enable_lightning,
+            "firms": bool(cfg.firms_key),
         },
     })
 
@@ -119,6 +131,8 @@ async def _startup(app: web.Application) -> None:
     app[LOOKUPS] = {"aircraft_types": types, "icao_countries": countries}
     if cfg.enable_background_adsb:
         sit.spawn(sit.adsb_loop())
+    if cfg.enable_lightning:
+        sit.lightning_relay.start()
     _LOGGER.info(
         "UK SitRep %s on %s:%d (AIS %s, National Highways %s, WorldCam %s, DSFRS %s, auth %s)",
         __version__, cfg.host, cfg.port, "on" if cfg.ais_key else "off", "on" if cfg.nh_keys else "off",

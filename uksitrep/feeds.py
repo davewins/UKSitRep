@@ -23,6 +23,7 @@ from zoneinfo import ZoneInfo
 
 import aiohttp
 from .config import Config
+from .more_feeds import LightningRelay, MoreFeeds
 from .hems_sites import HEMS_EXCLUDE_KM, HEMS_SITES
 from .places import PLACE_ORDER, PLACES
 
@@ -216,7 +217,7 @@ class Cache:
             return value
 
 
-class Situation:
+class Situation(MoreFeeds):
     """All feed fetchers plus long-lived state (aircraft trails, AIS)."""
 
     def __init__(self, cfg: Config, session: aiohttp.ClientSession) -> None:
@@ -240,6 +241,8 @@ class Situation:
         self.osm_task: asyncio.Task | None = None
         self.osm_retry_at = 0.0
         self.ais = AisRelay(self, cfg.ais_key) if cfg.ais_key else None
+        self.lightning_relay = LightningRelay(self)
+        self.river_prev: dict[str, tuple[str, float, int]] = {}
 
     def spawn(self, coro) -> asyncio.Task:
         """Start a background task and keep a reference so it is not GC'd."""
@@ -250,7 +253,8 @@ class Situation:
 
     # ---------------------------------------------------------------- helpers
     async def _json(self, url: str, **kw) -> Any:
-        async with self.session.get(url, headers=UA, timeout=TIMEOUT, **kw) as r:
+        timeout = kw.pop("timeout", TIMEOUT)
+        async with self.session.get(url, headers=UA, timeout=timeout, **kw) as r:
             r.raise_for_status()
             return await r.json(content_type=None)
 
@@ -788,7 +792,8 @@ class Situation:
             "space": self.space, "quakes": self.quakes, "news": self.news, "roads": self.roads,
             "meteors": self.meteors, "sea": self.sea, "wind_grid": self.wind_grid, "rnli": self.rnli,
             "fire": self.fire, "webcams": self.webcams, "tide_stations": self.tide_stations,
-            "sewage": self.sewage,
+            "sewage": self.sewage, "rivers": self.rivers, "lightning": self.lightning,
+            "air_quality": self.air_quality, "bathing": self.bathing, "fires": self.fires, "tfl": self.tfl,
         }
 
     # ---------------------------------------------------------------- weather

@@ -1,0 +1,513 @@
+"""Second batch of feeds: rivers, lightning, air quality, bathing water, ISS,
+satellite fire hotspots, TfL status and street crime.
+
+Mixed into Situation, so these use its session, cache and helpers.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from collections import deque
+from datetime import datetime, timedelta, timezone
+import csv
+import io
+import json
+import logging
+import math
+import time
+from typing import Any
+
+import aiohttp
+
+_LOGGER = logging.getLogger("uksitrep")
+
+EA_FLOOD = "https://environment.data.gov.uk/flood-monitoring"
+
+# Lightning: Blitzortung.org volunteer network (private, non-commercial use)
+BLITZ_HOSTS = ("ws1", "ws7", "ws8", "ws5")
+BLITZ_BOX = (45.0, -16.0, 63.0, 8.0)  # S, W, N, E: UK, Ireland and near continent
+BLITZ_KEEP_S = 2 * 3600
+
+# Air quality / pollen points (Open-Meteo CAMS), a spread across the UK
+AIR_POINTS = [
+    ("London", 51.507, -0.128), ("Birmingham", 52.486, -1.890), ("Manchester", 53.481, -2.242),
+    ("Leeds", 53.801, -1.549), ("Newcastle", 54.978, -1.618), ("Liverpool", 53.408, -2.991),
+    ("Bristol", 51.455, -2.588), ("Plymouth", 50.375, -4.143), ("Exeter", 50.718, -3.534),
+    ("Torquay", 50.462, -3.525), ("Southampton", 50.910, -1.404), ("Brighton", 50.822, -0.137),
+    ("Norwich", 52.630, 1.297), ("Cambridge", 52.205, 0.122), ("Oxford", 51.752, -1.258),
+    ("Gloucester", 51.864, -2.244), ("Nottingham", 52.954, -1.158), ("Sheffield", 53.381, -1.470),
+    ("Hull", 53.744, -0.332), ("Carlisle", 54.892, -2.934), ("Cardiff", 51.481, -3.179),
+    ("Swansea", 51.621, -3.944), ("Aberystwyth", 52.415, -4.083), ("Belfast", 54.597, -5.930),
+    ("Derry", 54.997, -7.309), ("Glasgow", 55.864, -4.252), ("Edinburgh", 55.953, -3.188),
+    ("Aberdeen", 57.150, -2.094), ("Inverness", 57.478, -4.224), ("Dundee", 56.462, -2.971),
+]
+POLLEN = ("alder", "birch", "grass", "mugwort", "olive", "ragweed")
+
+FIRMS_SOURCES = ("VIIRS_SNPP_NRT", "VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT")
+FIRMS_BOX = "-11,49.5,2.5,61"  # W,S,E,N
+
+TFL_MODES = "tube,overground,dlr,elizabeth-line,tram"
+
+ISS_TLE = "https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE"
+
+
+def _in_box(lat: float, lon: float, box: tuple[float, float, float, float]) -> bool:
+    return box[0] <= lat <= box[2] and box[1] <= lon <= box[3]
+
+
+def _lzw_decode(s: str) -> str:
+    """Blitzortung frames are LZW-compressed JSON strings."""
+    if not s:
+        return s
+    table: dict[int, str] = {}
+    prev = cur = s[0]
+    out = [cur]
+    code = 256
+    for ch in s[1:]:
+        n = ord(ch)
+        entry = ch if n < 256 else table.get(n, prev + cur)
+        out.append(entry)
+        cur = entry[0]
+        table[code] = prev + cur
+        code += 1
+        prev = entry
+    return "".join(out)
+
+
+class LightningRelay:
+    """Keeps a rolling 2 h window of strikes near the UK from Blitzortung."""
+
+    def __init__(self, owner) -> None:
+        self.owner = owner
+        self.strikes: deque[tuple[float, float, float]] = deque()  # (unix s, lat, lon)
+        self.connected = False
+        self.task: asyncio.Task | None = None
+
+    def start(self) -> None:
+        if not self.task or self.task.done():
+            self.task = self.owner.spawn(self._run())
+
+    async def _run(self) -> None:
+        backoff, i = 5, 0
+        while True:
+            host = BLITZ_HOSTS[i % len(BLITZ_HOSTS)]
+            i += 1
+            try:
+                async with self.owner.session.ws_connect(
+                    f"wss://{host}.blitzortung.org/", heartbeat=60,
+                    headers={"Origin": "https://map.blitzortung.org"},
+                    timeout=aiohttp.ClientWSTimeout(ws_close=10),
+                ) as ws:
+                    await ws.send_str('{"a":111}')
+                    self.connected, backoff = True, 5
+                    _LOGGER.info("lightning: connected to %s.blitzortung.org", host)
+                    async for msg in ws:
+                        if msg.type != aiohttp.WSMsgType.TEXT:
+                            continue
+                        try:
+                            s = json.loads(_lzw_decode(msg.data))
+                            lat, lon = float(s["lat"]), float(s["lon"])
+                        except (ValueError, KeyError, TypeError):
+                            continue
+                        if _in_box(lat, lon, BLITZ_BOX):
+                            self.strikes.append((s.get("time", 0) / 1e9 or time.time(), lat, lon))
+                        self._trim()
+            except asyncio.CancelledError:
+                raise
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.info("lightning: %s.blitzortung.org dropped: %s", host, err)
+            self.connected = False
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 300)
+
+    def _trim(self) -> None:
+        cutoff = time.time() - BLITZ_KEEP_S
+        while self.strikes and self.strikes[0][0] < cutoff:
+            self.strikes.popleft()
+
+    def snapshot(self) -> dict:
+        self._trim()
+        return {
+            "updated": datetime.now(timezone.utc).isoformat(), "connected": self.connected,
+            "strikes": [[round(t), round(la, 4), round(lo, 4)] for t, la, lo in self.strikes],
+        }
+
+
+# ------------------------------------------------------------------ ISS maths
+def _gmst(dt: datetime) -> float:
+    """Greenwich mean sidereal time in radians."""
+    jd = dt.timestamp() / 86400.0 + 2440587.5
+    t = (jd - 2451545.0) / 36525.0
+    g = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * t * t - t ** 3 / 38710000.0
+    return math.radians(g % 360.0)
+
+
+def _sun_eci(dt: datetime) -> tuple[float, float, float]:
+    """Approximate Sun position (km, ECI) - plenty for day/night and eclipse tests."""
+    n = dt.timestamp() / 86400.0 + 2440587.5 - 2451545.0
+    lon = math.radians((280.460 + 0.9856474 * n) % 360)
+    g = math.radians((357.528 + 0.9856003 * n) % 360)
+    lam = lon + math.radians(1.915) * math.sin(g) + math.radians(0.020) * math.sin(2 * g)
+    eps = math.radians(23.439 - 0.0000004 * n)
+    r = 149597870.7 * (1.00014 - 0.01671 * math.cos(g) - 0.00014 * math.cos(2 * g))
+    return (r * math.cos(lam), r * math.cos(eps) * math.sin(lam), r * math.sin(eps) * math.sin(lam))
+
+
+def _observer_eci(lat: float, lon: float, dt: datetime) -> tuple[float, float, float]:
+    a, f = 6378.137, 1 / 298.257223563
+    phi, th = math.radians(lat), _gmst(dt) + math.radians(lon)
+    c = 1 / math.sqrt(1 + f * (f - 2) * math.sin(phi) ** 2)
+    s = (1 - f) ** 2 * c
+    return (a * c * math.cos(phi) * math.cos(th), a * c * math.cos(phi) * math.sin(th), a * s * math.sin(phi))
+
+
+def _elevation(lat: float, lon: float, dt: datetime, target: tuple[float, float, float]) -> float:
+    """Elevation (deg) of an ECI target as seen from lat/lon."""
+    ox, oy, oz = _observer_eci(lat, lon, dt)
+    rx, ry, rz = target[0] - ox, target[1] - oy, target[2] - oz
+    phi, th = math.radians(lat), _gmst(dt) + math.radians(lon)
+    up = (math.cos(phi) * math.cos(th), math.cos(phi) * math.sin(th), math.sin(phi))
+    rng = math.sqrt(rx * rx + ry * ry + rz * rz)
+    return math.degrees(math.asin((rx * up[0] + ry * up[1] + rz * up[2]) / rng))
+
+
+def _sunlit(sat: tuple[float, float, float], sun: tuple[float, float, float]) -> bool:
+    """Cylindrical Earth-shadow test."""
+    sl = math.sqrt(sum(c * c for c in sun))
+    u = [c / sl for c in sun]
+    along = sum(s * c for s, c in zip(sat, u))
+    if along > 0:
+        return True
+    perp = math.sqrt(max(0.0, sum(s * s for s in sat) - along * along))
+    return perp > 6371.0
+
+
+def _eci_to_latlon(r: tuple[float, float, float], dt: datetime) -> tuple[float, float, float]:
+    x, y, z = r
+    lon = math.degrees(math.atan2(y, x) - _gmst(dt))
+    lon = (lon + 540) % 360 - 180
+    p = math.sqrt(x * x + y * y)
+    lat = math.degrees(math.atan2(z, p))
+    alt = math.sqrt(x * x + y * y + z * z) - 6371.0
+    return lat, lon, alt
+
+
+class MoreFeeds:
+    """Mixin for Situation."""
+
+    # ------------------------------------------------------------ river levels
+    async def rivers(self) -> dict:
+        async def stations() -> dict:
+            store = self.cfg.data_dir / "river_stations.json"
+
+            async def fetch() -> dict:
+                try:
+                    d = await self._json(f"{EA_FLOOD}/id/stations", params={
+                        "parameter": "level", "_view": "full", "_limit": "10000"},
+                        timeout=aiohttp.ClientTimeout(total=90))
+                    out = {}
+                    for s in d.get("items", []):
+                        sc = s.get("stageScale")
+                        if not isinstance(sc, dict) or not isinstance(s.get("lat"), (int, float)):
+                            continue
+                        measures = s.get("measures") or []
+                        if isinstance(measures, dict):
+                            measures = [measures]
+                        # prefer the main stage gauge over downstream / tidal measures
+                        m = next((m for m in measures if m.get("qualifier") == "Stage"), None)
+                        if not m:
+                            continue
+                        hr = sc.get("highestRecent")
+                        out[m["@id"].rsplit("/", 1)[-1]] = {
+                            "id": s.get("notation"), "name": s.get("label"), "river": s.get("riverName"),
+                            "town": s.get("town"), "lat": s["lat"], "lon": s["long"], "rloi": s.get("RLOIid"),
+                            "low": sc.get("typicalRangeLow"), "high": sc.get("typicalRangeHigh"),
+                            "record": hr.get("value") if isinstance(hr, dict) else None,
+                        }
+                    if not out:
+                        raise RuntimeError("no stations")
+                    await asyncio.to_thread(lambda: store.write_text(json.dumps(out)))
+                    return out
+                except Exception as err:  # noqa: BLE001
+                    try:
+                        return await asyncio.to_thread(lambda: json.loads(store.read_text()))
+                    except (OSError, ValueError):
+                        raise RuntimeError(f"EA stations: {err}") from err
+
+            return await self.cache.get("river_stations", 86400, fetch)
+
+        async def fetch() -> dict:
+            st = await stations()
+            if isinstance(st, dict) and "error" in st and len(st) == 1:
+                raise RuntimeError(st["error"])
+            d = await self._json(f"{EA_FLOOD}/data/readings", params={
+                "latest": "", "parameter": "level", "_limit": "10000"})
+            now = datetime.now(timezone.utc)
+            out = []
+            for r in d.get("items", []):
+                mid = str(r.get("measure", "")).rsplit("/", 1)[-1]
+                s = st.get(mid)
+                v = r.get("value")
+                if not s or not isinstance(v, (int, float)):
+                    continue
+                try:
+                    age = (now - datetime.fromisoformat(r["dateTime"].replace("Z", "+00:00"))).total_seconds()
+                except (KeyError, ValueError):
+                    continue
+                if age > 6 * 3600:  # gauge offline
+                    continue
+                prev = self.river_prev.get(mid)
+                trend = 0
+                if prev and prev[0] != r["dateTime"]:
+                    trend = 1 if v - prev[1] > 0.01 else -1 if prev[1] - v > 0.01 else 0
+                elif prev:
+                    trend = prev[2]
+                self.river_prev[mid] = (r["dateTime"], v, trend)
+                state = "normal"
+                # some gauges' "highest recent" is on another datum; only trust it above the typical range
+                rec = s["record"] if s["record"] is not None and s["high"] is not None and s["record"] > s["high"] else None
+                if rec is not None and v >= rec:
+                    state = "record"
+                elif s["high"] is not None and v > s["high"]:
+                    state = "high"
+                elif s["low"] is not None and v < s["low"]:
+                    state = "low"
+                out.append({**s, "level": round(v, 3), "time": r["dateTime"], "trend": trend, "state": state})
+            return {"updated": now.isoformat(), "gauges": out}
+
+        return await self.cache.get("rivers", 600, fetch)
+
+    # ------------------------------------------------------------ lightning
+    async def lightning(self) -> dict:
+        if not self.cfg.enable_lightning:
+            return {"error": "disabled", "strikes": []}
+        self.lightning_relay.start()
+        return self.lightning_relay.snapshot()
+
+    # ------------------------------------------------------------ air quality
+    async def air_quality(self) -> dict:
+        async def fetch() -> dict:
+            pollen = ",".join(f"{p}_pollen" for p in POLLEN)
+            d = await self._json("https://air-quality-api.open-meteo.com/v1/air-quality", params={
+                "latitude": ",".join(str(p[1]) for p in AIR_POINTS),
+                "longitude": ",".join(str(p[2]) for p in AIR_POINTS),
+                "current": f"european_aqi,pm2_5,pm10,nitrogen_dioxide,ozone,{pollen}",
+                "timezone": "Europe/London",
+            })
+            if isinstance(d, dict):
+                d = [d]
+            out = []
+            for (name, lat, lon), loc in zip(AIR_POINTS, d):
+                c = loc.get("current", {})
+                out.append({
+                    "name": name, "lat": lat, "lon": lon, "aqi": c.get("european_aqi"),
+                    "pm25": c.get("pm2_5"), "pm10": c.get("pm10"), "no2": c.get("nitrogen_dioxide"),
+                    "o3": c.get("ozone"), "pollen": {p: c.get(f"{p}_pollen") for p in POLLEN},
+                })
+            return {"updated": datetime.now(timezone.utc).isoformat(), "points": out}
+
+        return await self.cache.get("air_quality", 3600, fetch)
+
+    # ------------------------------------------------------------ bathing water
+    async def bathing(self) -> dict:
+        def name(o: Any) -> str | None:
+            if isinstance(o, dict):
+                n = o.get("name") or o.get("label")
+                if isinstance(n, list):
+                    n = n[0] if n else None
+                return n.get("_value") if isinstance(n, dict) else n
+            return None
+
+        async def fetch() -> dict:
+            d = await self._json("https://environment.data.gov.uk/doc/bathing-water.json",
+                                 params={"_pageSize": "1000"}, timeout=aiohttp.ClientTimeout(total=60))
+            now = datetime.now(timezone.utc)
+            out = []
+            for b in d.get("result", {}).get("items", []):
+                sp = b.get("samplingPoint") or {}
+                if not isinstance(sp.get("lat"), (int, float)):
+                    continue
+                risk = b.get("latestRiskPrediction")
+                risk_level = None
+                if isinstance(risk, dict):
+                    exp = (risk.get("expiresAt") or {}).get("_value")
+                    try:
+                        live = exp and datetime.fromisoformat(exp).replace(tzinfo=timezone.utc) > now
+                    except ValueError:
+                        live = False
+                    risk_level = name(risk.get("riskLevel")) if live else None
+                bid = b.get("eubwidNotation")
+                sample = b.get("latestSampleAssessment")
+                out.append({
+                    "id": bid, "name": name(b), "lat": sp["lat"], "lon": sp["long"],
+                    "classification": name((b.get("latestComplianceAssessment") or {}).get("complianceClassification")),
+                    "risk": risk_level, "heavy_rain_risk": bool(b.get("waterQualityImpactedByHeavyRain")),
+                    "sample_date": sample.split("/date/")[1][:8] if isinstance(sample, str) and "/date/" in sample else None,
+                    "url": f"https://environment.data.gov.uk/bwq/profiles/profile.html?site={bid}",
+                })
+            return {"updated": now.isoformat(), "sites": out}
+
+        return await self.cache.get("bathing", 6 * 3600, fetch)
+
+    # ------------------------------------------------------------ ISS
+    async def iss(self, lat: float | None = None, lon: float | None = None) -> dict:
+        from sgp4.api import Satrec, jday  # imported lazily: only this feed needs it
+
+        async def tle() -> dict:
+            async def fetch() -> dict:
+                lines = [ln.strip() for ln in (await self._text(ISS_TLE)).splitlines() if ln.strip()]
+                l1 = next(ln for ln in lines if ln.startswith("1 "))
+                l2 = next(ln for ln in lines if ln.startswith("2 "))
+                return {"l1": l1, "l2": l2}
+            return await self.cache.get("iss_tle", 6 * 3600, fetch)
+
+        t = await tle()
+        if "error" in t:
+            return {"error": t["error"]}
+        sat = Satrec.twoline2rv(t["l1"], t["l2"])
+
+        def pos(dt: datetime) -> tuple[float, float, float] | None:
+            jd, fr = jday(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second + dt.microsecond / 1e6)
+            err, r, _ = sat.sgp4(jd, fr)
+            return None if err else tuple(r)
+
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        r = pos(now)
+        if r is None:
+            return {"error": "propagation failed"}
+        la, lo, alt = _eci_to_latlon(r, now)
+        track = []
+        for m in range(-45, 96, 3):  # roughly one orbit behind, one ahead
+            dt = now + timedelta(minutes=m)
+            p = pos(dt)
+            if p:
+                tla, tlo, _ = _eci_to_latlon(p, dt)
+                track.append([round(tla, 3), round(tlo, 3), m])
+        out = {"updated": now.isoformat(), "lat": round(la, 4), "lon": round(lo, 4), "alt_km": round(alt),
+               "sunlit": _sunlit(r, _sun_eci(now)), "track": track}
+        if lat is not None and lon is not None:
+            key = f"iss_passes:{lat:.1f},{lon:.1f}"
+            out["passes"] = await self.cache.get(key, 1800, lambda: asyncio.to_thread(
+                self._iss_passes, pos, lat, lon, now))
+            out["observer"] = [round(lat, 1), round(lon, 1)]
+        return out
+
+    @staticmethod
+    def _iss_passes(pos, lat: float, lon: float, start: datetime) -> list[dict]:
+        """Visible passes over the next 3 days: ISS above 10 deg, sunlit, observer in darkness."""
+        passes: list[dict] = []
+        cur: dict | None = None
+        for i in range(0, 3 * 86400, 20):
+            dt = start + timedelta(seconds=i)
+            r = pos(dt)
+            if r is None:
+                continue
+            el = _elevation(lat, lon, dt, r)
+            if el >= 10:
+                sun = _sun_eci(dt)
+                visible = _sunlit(r, sun) and _elevation(lat, lon, dt, sun) < -6
+                if cur is None:
+                    cur = {"start": dt, "max_el": el, "max_time": dt, "visible_from": dt if visible else None,
+                           "visible_to": dt if visible else None}
+                if el > cur["max_el"]:
+                    cur["max_el"], cur["max_time"] = el, dt
+                if visible:
+                    cur["visible_from"] = cur["visible_from"] or dt
+                    cur["visible_to"] = dt
+                cur["end"] = dt
+            elif cur is not None:
+                if cur["visible_from"]:
+                    passes.append({
+                        "start": cur["visible_from"].isoformat(), "end": cur["visible_to"].isoformat(),
+                        "max_el": round(cur["max_el"]), "max_time": cur["max_time"].isoformat(),
+                    })
+                cur = None
+                if len(passes) >= 5:
+                    break
+        return passes
+
+    # ------------------------------------------------------------ satellite fire hotspots
+    async def fires(self) -> dict:
+        if not self.cfg.firms_key:
+            return {"error": "no_key", "fires": []}
+
+        async def fetch() -> dict:
+            async def one(src: str) -> list[dict]:
+                txt = await self._text(
+                    f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{self.cfg.firms_key}/{src}/{FIRMS_BOX}/2")
+                if not txt.startswith("latitude"):
+                    raise RuntimeError(txt.strip()[:120])
+                rows = []
+                for row in csv.DictReader(io.StringIO(txt)):
+                    try:
+                        hhmm = row["acq_time"].zfill(4)
+                        when = datetime.strptime(f"{row['acq_date']} {hhmm}", "%Y-%m-%d %H%M").replace(tzinfo=timezone.utc)
+                        rows.append({
+                            "lat": float(row["latitude"]), "lon": float(row["longitude"]),
+                            "time": when.isoformat(), "frp": float(row.get("frp") or 0),
+                            "confidence": row.get("confidence"), "sat": row.get("satellite"),
+                            "night": row.get("daynight") == "N",
+                        })
+                    except (KeyError, ValueError):
+                        continue
+                return rows
+
+            results = await asyncio.gather(*(one(s) for s in FIRMS_SOURCES), return_exceptions=True)
+            fires, errors = [], []
+            for src, res in zip(FIRMS_SOURCES, results):
+                if isinstance(res, Exception):
+                    errors.append(f"{src}: {res}")
+                else:
+                    fires.extend(res)
+            if not fires and errors:
+                raise RuntimeError("; ".join(errors))
+            return {"updated": datetime.now(timezone.utc).isoformat(), "fires": fires, "errors": errors}
+
+        return await self.cache.get("fires", 1800, fetch)
+
+    # ------------------------------------------------------------ TfL
+    async def tfl(self) -> dict:
+        async def fetch() -> dict:
+            d = await self._json(f"https://api.tfl.gov.uk/Line/Mode/{TFL_MODES}/Status")
+            lines = []
+            for ln in d:
+                sts = ln.get("lineStatuses") or []
+                worst = min(sts, key=lambda s: s.get("statusSeverity", 10)) if sts else {}
+                lines.append({
+                    "name": ln.get("name"), "mode": ln.get("modeName"),
+                    "severity": worst.get("statusSeverity", 10),
+                    "status": worst.get("statusSeverityDescription", "Good Service"),
+                    "reason": " ".join(dict.fromkeys(s.get("reason", "").strip() for s in sts if s.get("reason"))),
+                })
+            return {"updated": datetime.now(timezone.utc).isoformat(), "lines": lines}
+
+        return await self.cache.get("tfl", 300, fetch)
+
+    # ------------------------------------------------------------ street crime
+    async def crime(self, lat: float, lon: float) -> dict:
+        """police.uk street-level crime within a mile, latest published month."""
+        if not (49.8 <= lat <= 61 and -8.7 <= lon <= 2):
+            return {"error": "outside the UK"}
+        lat, lon = round(lat, 2), round(lon, 2)
+
+        async def fetch() -> dict:
+            d = await self._json("https://data.police.uk/api/crimes-street/all-crime",
+                                 params={"lat": str(lat), "lng": str(lon)}, timeout=aiohttp.ClientTimeout(total=30))
+            spots: dict[str, dict] = {}
+            month = None
+            for c in d:
+                loc = c.get("location") or {}
+                try:
+                    la, lo = float(loc["latitude"]), float(loc["longitude"])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                month = month or c.get("month")
+                k = f"{la:.5f},{lo:.5f}"
+                spot = spots.setdefault(k, {"lat": la, "lon": lo, "street": (loc.get("street") or {}).get("name"),
+                                            "crimes": {}})
+                cat = c.get("category", "other")
+                spot["crimes"][cat] = spot["crimes"].get(cat, 0) + 1
+            return {"updated": datetime.now(timezone.utc).isoformat(), "month": month,
+                    "centre": [lat, lon], "spots": list(spots.values())}
+
+        return await self.cache.get(f"crime:{lat},{lon}", 12 * 3600, fetch)
