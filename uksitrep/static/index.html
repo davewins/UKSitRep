@@ -457,24 +457,40 @@ function renderMilWatch(mil) {
 
 /* ------------------------------------------------------------ vessels */
 const VS_COL = { military: "#4ade80", rnli: "#f97316", sar: "#fb923c", police: "#3b82f6", medical: "#facc15",
-  government: "#a78bfa", distress: "#ef4444", sar_aircraft: "#fb923c", civil: "#5eead4" };
+  government: "#a78bfa", distress: "#ef4444", sar_aircraft: "#fb923c", civil: "#0891b2" };  // civil: strong teal, readable on dark and light maps
 const VS_NAME = { military: "Military", rnli: "RNLI lifeboat", sar: "Coastguard / SAR", police: "Police / law enforcement",
   medical: "Medical", government: "Government / public service", distress: "AIS distress beacon (SART/MOB/EPIRB)",
   sar_aircraft: "SAR aircraft (AIS)", civil: "Vessel" };
 let lastVessels = [];
+const VS_ARROW_ZOOM = 10;  // civil vessels become heading arrows from here
+let lastVesselFeed = null;
 function renderVessels(d) {
+  if (d === undefined) d = lastVesselFeed;  // re-render on zoom
   G.vs_civil.clearLayers(); G.vs_special.clearLayers();
   if (!d) return;
   if (d.error === "no_key") { setStatus("vessels", false, "Add aisstream_api_key to enable AIS"); return; }
+  lastVesselFeed = d;
   lastVessels = d.vessels || [];
+  const z = map.getZoom(), arrows = z >= VS_ARROW_ZOOM, inView = map.getBounds().pad(0.2);
   for (const v of lastVessels) {
     const col = VS_COL[v.cls] || VS_COL.civil;
     const popup = `<b>${esc(v.name || "MMSI " + v.mmsi)}</b><br><span class="muted">${VS_NAME[v.cls]}</span><br>
       ${v.sog != null ? v.sog + " kn" : ""} ${v.cog != null ? "· COG " + Math.round(v.cog) + "°" : ""}<br>
       MMSI ${v.mmsi}${v.callsign ? " · " + esc(v.callsign) : ""}${v.dest ? "<br>→ " + esc(v.dest) : ""}<br>
       <a href="https://www.marinetraffic.com/en/ais/details/ships/mmsi:${v.mmsi}" target="_blank" rel="noopener">MarineTraffic ↗</a>`;
-    if (v.cls === "civil") {
-      L.circleMarker([v.lat, v.lon], { radius: 2.5, color: col, weight: 0, fillOpacity: .7 }).bindPopup(popup).addTo(G.vs_civil);
+    if (v.cls === "civil" && arrows) {
+      if (!inView.contains([v.lat, v.lon])) continue;
+      const moving = (v.sog ?? 0) > 0.5, rot = v.hdg ?? v.cog ?? 0;
+      const m = L.marker([v.lat, v.lon], { zIndexOffset: 100, icon: L.divIcon({ className: "vs", iconSize: [16, 16], iconAnchor: [8, 8],
+        html: moving
+          ? `<svg width="16" height="16" viewBox="-8 -8 16 16"><g transform="rotate(${rot})"><path d="M0,-7 L4.5,5.5 L0,3 L-4.5,5.5 Z" fill="${col}" stroke="#0f172a" stroke-width="1"/></g></svg>`
+          : `<svg width="16" height="16" viewBox="-8 -8 16 16"><circle r="3.6" fill="${col}" stroke="#0f172a" stroke-width="1"/></svg>` }) })
+        .bindPopup(popup);
+      if (S.labels === "all" && z >= 12 && v.name) m.bindTooltip(esc(v.name), { permanent: true, className: "lbl", direction: "right", offset: [7, 0] });
+      m.addTo(G.vs_civil);
+    } else if (v.cls === "civil") {
+      L.circleMarker([v.lat, v.lon], { radius: z <= 6 ? 2.5 : z <= 8 ? 3.5 : 4.5, color: "#0f172a", weight: z <= 6 ? 0.5 : 1,
+        fillColor: col, fillOpacity: .9 }).bindPopup(popup).addTo(G.vs_civil);
     } else {
       const rot = v.hdg ?? v.cog ?? 0;
       const m = L.marker([v.lat, v.lon], { zIndexOffset: 400, icon: L.divIcon({ className: "vs" + (v.cls === "distress" ? " pulse" : ""), iconSize: [18, 18], iconAnchor: [9, 9],
@@ -1328,7 +1344,7 @@ const LAYER_UI = [
       ["fire_bucks", "Buckinghamshire & MK"], ["fire_cheshire", "Cheshire"], ["fire_cleveland", "Cleveland"],
       ["fire_hants", "Hampshire & Isle of Wight"], ["fire_rbfrs", "Royal Berkshire"], ["fire_shropshire", "Shropshire"]]]]],
   ["Cameras", [["webcams", "Public webcams (zoom in to see)", "#0d9488"]]],
-  ["Maritime", [["vs_special", "Navy / RNLI / SAR / gov", "#f97316"], ["vs_civil", "All other vessels", "#5eead4"],
+  ["Maritime", [["vs_special", "Navy / RNLI / SAR / gov", "#f97316"], ["vs_civil", "All other vessels", "#0891b2"],
     ["tides", "Tide times (zoom in to see)", "#60a5fa"]]],
   ["Weather & environment", [["warnings", "Met Office warnings", "#facc15"], ["floods", "EA flood warnings", "#f97316"], ["cityweather", "City weather", "#cbd5e1"], ["sea", "Sea state (waves / wind)", "#38bdf8"],
     ["radar", "Rain radar", "#22d3ee"], ["wind", "Wind arrows", "#4ade80"], ["temps", "Temperature grid", "#fde047"],
@@ -1474,8 +1490,8 @@ function start() {
   drawBases(); buildLeft(); syncLayers();
   for (const [k, fn] of Object.entries(refresh)) { fn(); setInterval(fn, INTERVAL[k] * 1000); }
   setInterval(() => renderNews(), 60000);  // age out expired incidents
-  map.on("zoomend", () => renderAircraft(lastAircraft));
-  map.on("moveend", () => { renderCams(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); });
+  map.on("zoomend", () => { renderAircraft(lastAircraft); renderVessels(); });
+  map.on("moveend", () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); });
   setInterval(() => { fuelKey = null; refreshFuel(); }, 30 * 60000);
   renderSatImg();
   setInterval(() => { const n = new Date();
