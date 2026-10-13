@@ -19,7 +19,7 @@ Each is subject to its own terms.
 | [UK Meteor Network](https://ukmeteornetwork.org/our-data-apis/) | Meteor trajectories | UKMON |
 | [BBC News](https://www.bbc.co.uk/news) RSS | Headlines | Personal, non-commercial use |
 | [RNLI](https://rnli.org) launches feed | Lifeboat launches | RNLI |
-| [OpenStreetMap](https://www.openstreetmap.org/copyright) | Lifeboat station positions (`uksitrep/data/rnli_stations.json`), webcams (seed copy in `uksitrep/data/osm_webcams.json`) | © OpenStreetMap contributors, ODbL |
+| [OpenStreetMap](https://www.openstreetmap.org/copyright) | Lifeboat station positions (`uksitrep/data/rnli_stations.json`), webcams (seed copy in `uksitrep/data/osm_webcams.json`), observatories and telescopes (seed copy in `uksitrep/data/observatories.json`) | © OpenStreetMap contributors, ODbL |
 | [postcodes.io](https://postcodes.io) / OS Open Names | Geocoding | OGL |
 | [TfL Unified API](https://api.tfl.gov.uk) | JamCams | Powered by TfL Open Data |
 | [tar1090](https://github.com/wiedehopf/tar1090), [tar1090-db](https://github.com/wiedehopf/tar1090-db) | Aircraft type names, ICAO country ranges (downloaded at runtime, not bundled) | GPL |
@@ -30,6 +30,8 @@ Each is subject to its own terms.
 | [Blitzortung.org](https://www.blitzortung.org) | Lightning strikes | Private, non-commercial use; volunteer network |
 | [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) (Copernicus CAMS) | Air quality & pollen | CC BY 4.0 |
 | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov) *(optional key)*, [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) | Fire hotspots, satellite imagery | NASA open data; please acknowledge LANCE FIRMS / GIBS |
+| [Allsky camera map](https://www.thomasjacquin.com/allsky-map/) (Thomas Jacquin's Allsky project) | Locations, links and latest images of allsky cameras whose owners chose to show them on the map; images are loaded from the owners' own sites | Owners' content; links and images shown as published, not stored |
+| [allsky-map.com](https://allsky-map.com) ([TN-1/allsky-map](https://github.com/TN-1/allsky-map), for [indi-allsky](https://github.com/aaronwmorris/indi-allsky)) | indi-allsky camera locations, online status and latest image | Owners' content, served by allsky-map.com; not stored |
 | [CelesTrak](https://celestrak.org) + [python-sgp4](https://pypi.org/project/sgp4/) | ISS orbit | CelesTrak terms; MIT |
 | [TfL Unified API](https://api.tfl.gov.uk) | Line status | Powered by TfL Open Data |
 | [GOV.UK Fuel Finder](https://www.developer.fuel-finder.service.gov.uk) *(optional credentials)* | Fuel prices | Motor Fuel Price (Open Data) Regulations 2025; Fuel Finder terms |

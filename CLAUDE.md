@@ -28,6 +28,7 @@ fixed, allow-listed upstream URLs (never an open proxy)
 | `uksitrep/config.py` | `Config.from_env()`: every environment variable |
 | `uksitrep/feeds.py` | `Cache`, `Situation`, core feeds (aircraft, AIS relay, weather, grid, roads, news, sewage, tides, webcams…) and the `handlers` map |
 | `uksitrep/more_feeds.py` | `MoreFeeds` mixin: rivers, lightning relay, air quality, bathing water, ISS (sgp4), FIRMS, TfL, fuel, crime |
+| `uksitrep/sky.py` | `SkyWatch` mixin: allsky cameras (Allsky map page, allsky-map.com for indi-allsky) and OSM observatories/telescopes/planetaria with a curated list of famous sites |
 | `uksitrep/fire_services.py` | `FireServices` mixin: fire & rescue feeds, text-to-place geocoding restricted to a bounding box |
 | `uksitrep/lookups.py` | Aircraft type names and ICAO-address-to-country tables, downloaded at startup (GPL, not bundled) |
 | `uksitrep/places.py`, `hems_sites.py` | Gazetteer for pinning news to places; hospital/base sites for air-ambulance "on scene" inference |
@@ -72,12 +73,12 @@ Work through these in order. Keep the generic machinery; replace the data.
 **1. Geography and defaults**
 - `feeds.py`: `BBOX` (S, W, N, E), `UK_TZ`, `ADSB_POINTS` (≤250 nm circles covering the country).
 - `index.html`: `HOME()` (centre and zoom), `BASEMAPS` if you want local styles.
-- `more_feeds.py`: `BLITZ_BOX`, `AIR_POINTS`, `FIRMS_BOX`.
+- `more_feeds.py`: `BLITZ_BOX`, `AIR_POINTS`, `FIRMS_BOX`; `sky.py`: `SKY_BOX`, `CURATED_SITES`.
 - `feeds.py`: `CITY_WEATHER`, `SEA_POINTS` (offshore points, one per sea area).
 
 **2. Global feeds that work anywhere (keep these)**
 adsb.lol (aircraft), aisstream.io (ships, free key), Open-Meteo (weather, marine, air quality),
-RainViewer (radar tiles), NASA FIRMS (fires, free key) and GIBS (imagery), CelesTrak + sgp4 (ISS),
+RainViewer (radar tiles), allsky camera maps (worldwide; filter by `SKY_BOX` in `sky.py`), NASA FIRMS (fires, free key) and GIBS (imagery), CelesTrak + sgp4 (ISS),
 Blitzortung (lightning; coverage varies by region), NOAA SWPC (space weather), OpenStreetMap
 Overpass (webcams and other tagged features), tar1090 lookups. Re-check each one's terms and
 coverage for your country.
