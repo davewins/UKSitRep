@@ -35,6 +35,13 @@ Each is subject to its own terms.
 | [Google Fonts](https://fonts.google.com) (Share Tech Mono, VT323, Orbitron, Exo 2, Oxanium) | Fonts for the optional film styles, loaded only when one is picked | SIL Open Font License |
 | [Rail Data Marketplace](https://raildata.org.uk) (Rail Delivery Group): Live Departure Board (Darwin) and National Rail Disruptions | Departure boards, delays, cancellations, disruption bulletins | Rail Data Marketplace licence terms for each product (free); requires your own keys |
 | [Bus Open Data Service](https://data.bus-data.dft.gov.uk) (DfT) | Live bus positions and bus disruptions | OGL v3; requires your own key |
+| [NESO Carbon Intensity API](https://carbonintensity.org.uk) | Regional carbon intensity, mix and forecast | CC BY 4.0 |
+| [NESO Data Portal](https://www.neso.energy/data-portal/gis-boundaries-gb-dno-license-areas): GB DNO licence areas | Region outlines (simplified extract in `uksitrep/data/energy_regions.json`) | NESO Open Data Licence |
+| [Sheffield Solar PV_Live](https://www.solar.sheffield.ac.uk/pvlive/) | Regional solar generation estimates | Sheffield Solar terms (free, with attribution) |
+| [Octopus Energy API](https://developer.octopus.energy) | Agile half-hourly prices by region | Octopus public API |
+| [Elexon BMRS / Insights](https://bmrs.elexon.co.uk) | Physical notifications per generating unit; unit reference data | Elexon BMRS data licence (attribution) |
+| [OSUKED Power Station Dictionary](https://github.com/OSUKED/Power-Station-Dictionary) | Generator positions and unit ids (extract in `uksitrep/data/power_plants.json`) | MIT |
+| [Open Charge Map](https://openchargemap.org) | EV chargers | CC BY 4.0 (most data); requires your own key |
 | [Traveline National Operator Codes](https://www.travelinedata.org.uk/traveline-open-data/transport-operations/) | Bus operator names (extract in `uksitrep/data/bus_operators.json`) | Traveline open data terms |
 | [NaPTAN](https://www.data.gov.uk/dataset/ff93ffc1-6656-47d8-9155-85ea0b8f2251/national-public-transport-access-nodes-naptan) (DfT) | Station positions and codes (extract in `uksitrep/data/rail_stations.json`) | OGL v3 |
 | [CelesTrak](https://celestrak.org) + [python-sgp4](https://pypi.org/project/sgp4/) | ISS orbit | CelesTrak terms; MIT |

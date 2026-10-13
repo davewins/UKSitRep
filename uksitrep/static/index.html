@@ -143,6 +143,17 @@
   #btnLayers, #btnInfo, .sheet-close { display: none; }
   @media (min-width: 761px) { body:not(.hide-panels):not(.kiosk) .leaflet-bottom.leaflet-left { left: 286px; } }
   .view-ctl a { font-weight: 700; font-size: 12px; }
+  .region-lbl { background: rgba(10,15,22,.72); border: 0; color: #f1f5f9; font: 600 11px/1.2 system-ui, sans-serif; padding: 1px 5px; box-shadow: none; }
+  .region-lbl::before { display: none; }
+  .radar-ctl button.on { background: var(--accent, #38bdf8); color: #000; }
+  .gen { border-radius: 50%; border: 1.5px solid #0b1118; box-shadow: 0 0 0 1px rgba(255,255,255,.35); display: flex; align-items: center; justify-content: center; }
+  .gen svg { width: 78%; height: 78%; }
+  .gen .blades { transform-origin: 0 -1px; animation: spin linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .gen .blades { animation: none; } }
+  .spark { display: flex; align-items: flex-end; gap: 1px; height: 46px; margin: 4px 0 2px; }
+  .spark i { flex: 1; min-width: 2px; border-radius: 1px 1px 0 0; }
+  .ev { width: 16px; height: 16px; border-radius: 4px; border: 1px solid #0b1118; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff; }
   .leaflet-popup.has-fav .leaflet-popup-content { margin-right: 40px; }
   .leaflet-container a.fav-star { position: absolute; top: 3px; right: 24px; width: 20px; height: 20px; line-height: 20px; text-align: center;
     font-size: 17px; color: #94a3b8; text-decoration: none; z-index: 2; }
@@ -432,8 +443,8 @@ const DEFAULTS = {
   layers: { ac_civil: true, ac_military: true, ac_police: true, ac_hems: true, ac_sar: true,
     ac_trails: true, mil_dest: true, airfields: true, army: true,
     vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
-    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, home: true, favs: true, quakes: true, meteors: true, allsky: true, observatories: true, rail_stations: true, rail_disruptions: true, buses: true, bus_stops: true, bus_disruptions: true, news: true },
-  basemap: "dark", theme: "standard", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
+    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, grid_regions: false, windfarms: true, plants: true, chargers: true, home: true, favs: true, quakes: true, meteors: true, allsky: true, observatories: true, rail_stations: true, rail_disruptions: true, buses: true, bus_stops: true, bus_disruptions: true, news: true },
+  regionMode: "carbon", basemap: "dark", theme: "standard", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
 };
 let S;
 try { S = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem("ukSit") || "{}"));
@@ -533,7 +544,8 @@ function setStatus(feed, ok, note) { status[feed] = { ok, t: Date.now(), note };
 const FEED_NAMES = { aircraft: "ADS-B aircraft", vessels: "AIS ships", weather_warnings: "Met Office warnings", floods: "EA floods",
   city_weather: "Open-Meteo weather", grid: "Electricity grid", roads: "National Highways", power_cuts: "Power cuts", space: "Space weather",
   quakes: "BGS earthquakes", news: "BBC news", meteors: "UK Meteor Network", sea: "Sea state", wind_grid: "Wind grid", radar: "Rain radar",
-  favourites: "Favourites", home_info: "Home location", rnli: "RNLI launches", fire: "Fire & rescue", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage overflows", bathing: "Bathing waters",
+  favourites: "Favourites", home_info: "Home location", energy_regions: "Energy regions", energy_live: "Carbon, solar & Agile",
+  generators: "Generation (Elexon)", chargers: "EV chargers (OCM)", rnli: "RNLI launches", fire: "Fire & rescue", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage overflows", bathing: "Bathing waters",
   rivers: "River levels", lightning: "Lightning", air_quality: "Air quality", fires: "NASA fire hotspots", tfl: "TfL status", iss: "ISS", allsky: "Allsky cameras", observatories: "Observatories", rail_stations: "Rail stations", rail_disruptions: "Rail disruptions", buses: "Live buses", bus_stops: "Bus stops", bus_board: "Bus departures", bus_disruptions: "Bus disruptions",
   crime: "Street crime", fuel: "Fuel prices", home: "Near home" };
 // "off" = an optional feed with no key / switched off: not a fault
@@ -1456,6 +1468,17 @@ function renderHome(d) {
   const nb = d0.bus?.near || [];
   if (nb.length) r.push(row("🚌", nb.slice(0, 4).map(b => `<b>${esc(b.line)}</b> to ${esc(b.dest || "?")} <span class="muted">${b.km} km</span>`).join(" · "), null));
   for (const x of d0.bus?.disruptions || []) r.push(row("🚌", `<b style="color:${x.planned ? "#fbbf24" : "#fb923c"}">${esc(x.summary)}</b>${x.lines.length ? ` <span class="muted">(${esc(x.lines.join(", "))})</span>` : ""}`, null));
+  const en = d0.energy || {};
+  if (en.agile) {
+    const a = en.agile, neg = a.negative || [];
+    r.push(row("⚡", `Agile <b style="color:${agileCol(a.now)}">${a.now.toFixed(1)}p</b> now${a.next != null ? ` → ${a.next.toFixed(1)}p` : ""}${a.cheap ? ` · cheapest 3 h ${ukDay(a.cheap.start)} ${ukTime(a.cheap.start)}–${ukTime(a.cheap.end)} (avg ${a.cheap.p.toFixed(1)}p)` : ""}`
+      + neg.map(x => ` · <b style="color:#38bdf8">negative ${ukDay(x.start)} ${ukTime(x.start)}–${ukTime(x.end)} (to ${x.min}p)</b>`).join(""), null));
+  }
+  if (en.carbon) {
+    const c = en.carbon;
+    r.push(row("🌱", `Grid here <b style="color:${CI_COL[c.index] || "inherit"}">${c.g} g/kWh</b> (${esc(c.index)})${c.clean ? ` · cleanest 3 h ${ukDay(c.clean.start)} ${ukTime(c.clean.start)}–${ukTime(c.clean.end)} (${c.clean.g} g)` : ""}`
+      + (en.solar?.mw > 0 ? ` · ☀️ ${en.solar.mw.toLocaleString()} MW solar (${Math.round(en.solar.mw / en.solar.cap * 100)}%)` : ""), null));
+  }
   const homes = d0.homes || [];
   $("nearTitle").innerHTML = homes.length > 1
     ? `Near <select id="homeSel" title="Which home">${homes.map(x => `<option value="${esc(x.key)}"${x.key === h.key ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select> (${h.radius_km} km)`
@@ -1974,6 +1997,132 @@ function renderAlerts() {
     : '<div class="muted">All quiet ✓</div>';
 }
 
+/* ------------------------------------------------------------ energy: regions, generation, EV chargers */
+const CI_COL = { "very low": "#16a34a", low: "#84cc16", moderate: "#facc15", high: "#f97316", "very high": "#dc2626" };
+const agileCol = (p) => p == null ? "#64748b" : p < 0 ? "#38bdf8" : p < 10 ? "#16a34a" : p < 17 ? "#84cc16" : p < 24 ? "#facc15" : p < 30 ? "#f97316" : "#dc2626";
+const solarCol = (f) => f <= 0.005 ? "#334155" : `hsl(${45 + 10 * (1 - f)}, ${60 + 35 * f}%, ${28 + 30 * f}%)`;
+const REGION_MODES = { carbon: "Carbon", solar: "Solar", agile: "Agile" };
+let regionShapes = [], regionLive = {};
+map.createPane("regions").style.zIndex = 350;  // under markers and routes
+const regionRenderer = L.canvas({ pane: "regions" });
+const RegionCtl = L.Control.extend({
+  options: { position: "bottomright" },
+  onAdd() {
+    const d = L.DomUtil.create("div", "radar-ctl");
+    L.DomEvent.disableClickPropagation(d);
+    d.onclick = (e) => { const m = e.target.dataset.mode; if (m) { S.regionMode = m; save(); renderRegions(); } };
+    return d;
+  },
+});
+const regionCtl = new RegionCtl();
+function regionFill(l) {
+  const m = S.regionMode;
+  if (m === "solar") return l?.solar?.cap ? [solarCol(l.solar.mw / l.solar.cap), l.solar.mw ? `${(l.solar.mw / 1000).toFixed(1)} GW ☀️` : "dark"] : ["#334155", "–"];
+  if (m === "agile") return l?.agile ? [agileCol(l.agile.now), `${l.agile.now.toFixed(1)}p`] : ["#334155", "–"];
+  return l?.carbon ? [CI_COL[l.carbon.index] || "#64748b", `${l.carbon.g} g`] : ["#334155", "–"];
+}
+function agileSpark(rates) {
+  if (!rates?.length) return "";
+  const hi = Math.max(35, ...rates.map(r => r[1])), lo = Math.min(0, ...rates.map(r => r[1]));
+  return `<div class="spark" title="Next ${rates.length / 2} hours, half-hourly">${rates.map(([t, p]) =>
+    `<i style="height:${Math.max(2, (p - lo) / (hi - lo) * 100)}%;background:${agileCol(p)}" title="${ukTime(t)} ${p}p"></i>`).join("")}</div>
+    <span class="muted" style="font-size:11px">${ukTime(rates[0][0])} → ${ukDay(rates.at(-1)[0])} ${ukTime(rates.at(-1)[0])}</span>`;
+}
+function regionPopup(r) {
+  const l = regionLive[r.pes] || {}, c = l.carbon, so = l.solar, a = l.agile;
+  return `<b>${esc(r.name)}</b> <span class="muted">${esc(r.dno)}</span>
+    ${c ? `<br>🌱 Carbon <b style="color:${CI_COL[c.index]}">${c.g} g/kWh</b> (${esc(c.index)})<br><span class="muted" style="font-size:11px">${c.mix.map(([f, p]) => `${esc(f)} ${p}%`).join(" · ")}</span>` : ""}
+    ${so ? `<br>☀️ Solar <b>${so.mw.toLocaleString()} MW</b> of ${so.cap.toLocaleString()} MW installed (${so.cap ? Math.round(so.mw / so.cap * 100) : 0}%)` : ""}
+    ${a ? `<br>⚡ Octopus Agile <b style="color:${agileCol(a.now)}">${a.now.toFixed(2)}p/kWh</b> now (region ${esc(r.letter)}, inc VAT)${agileSpark(a.rates)}` : ""}
+    <br><span class="muted" style="font-size:11px">NESO Carbon Intensity · Sheffield Solar PV_Live · Octopus Energy</span>`;
+}
+function renderRegions() {
+  G.grid_regions.clearLayers();
+  if (!S.layers.grid_regions) { regionCtl.remove(); return; }
+  regionCtl.addTo(map);
+  regionCtl.getContainer().innerHTML = Object.entries(REGION_MODES).map(([k, n]) => `<button data-mode="${k}" class="${S.regionMode === k ? "on" : ""}">${n}</button>`).join(" ");
+  for (const r of regionShapes) {
+    const [col, label] = regionFill(regionLive[r.pes]);
+    L.polygon(r.shapes, { renderer: regionRenderer, interactive: false, color: col, weight: 1, opacity: .8, fillColor: col, fillOpacity: .28 })
+      .bindTooltip(label, { permanent: true, direction: "center", className: "region-lbl" }).addTo(G.grid_regions);
+  }
+}
+// the marker canvas sits above the regions, so a region opens from a click on empty map
+const inRing = (la, lo, ring) => { let c = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [y1, x1] = ring[i], [y2, x2] = ring[j];
+    if ((y1 > la) !== (y2 > la) && lo < (x2 - x1) * (la - y1) / (y2 - y1) + x1) c = !c;
+  }
+  return c; };
+map.on("click", (e) => {
+  if (!S.layers.grid_regions) return;
+  const r = regionShapes.find(r => r.shapes.some(sh => inRing(e.latlng.lat, e.latlng.lng, sh)));
+  if (r) L.popup({ maxWidth: 320, minWidth: 240 }).setLatLng(e.latlng).setContent(regionPopup(r)).openOn(map);
+});
+
+const GEN_FUEL = { WIND: ["Wind", "#7dd3fc"], NUCLEAR: ["Nuclear", "#c084fc"], CCGT: ["Gas (CCGT)", "#fb923c"], OCGT: ["Gas (peaking)", "#f97316"],
+  BIOMASS: ["Biomass", "#a3e635"], PS: ["Pumped storage hydro", "#38bdf8"], NPSHYD: ["Hydro", "#22d3ee"], OIL: ["Oil", "#a8a29e"] };
+let lastPlants = [], genUpdated = null;
+const GLYPH_TURBINE = (dur) => `<svg viewBox="-10 -10 20 20"><path d="M-.7,0 L-.4,9 L.4,9 L.7,0 Z" fill="#0b1118"/><g class="blades" style="animation-duration:${dur}s">
+  <path d="M0,-1 L-.9,-9 L.9,-9 Z" fill="#0b1118"/><path d="M0,-1 L-.9,-9 L.9,-9 Z" fill="#0b1118" transform="rotate(120 0 -1)"/><path d="M0,-1 L-.9,-9 L.9,-9 Z" fill="#0b1118" transform="rotate(240 0 -1)"/></g>
+  <circle cy="-1" r="1.4" fill="#0b1118"/></svg>`;
+function genIcon(p) {
+  const [, col] = GEN_FUEL[p.fuel] || ["", "#94a3b8"], f = Math.max(0, Math.min(1, p.mw / (p.cap || 1)));
+  const size = Math.round(Math.min(34, 13 + Math.sqrt(p.cap) / 2.2));
+  const fill = `conic-gradient(${col} ${f * 360}deg, #475569 0)`;
+  const inner = p.fuel === "WIND" ? GLYPH_TURBINE(f < .03 ? 0 : (6 - 5 * f).toFixed(1)) : `<b style="font-size:${Math.round(size / 2.6)}px;color:#0b1118">${{ NUCLEAR: "☢", CCGT: "G", OCGT: "G", BIOMASS: "B", PS: "P", NPSHYD: "H", OIL: "O" }[p.fuel] || ""}</b>`;
+  return L.divIcon({ className: "", iconSize: [size, size], iconAnchor: [size / 2, size / 2],
+    html: `<div class="gen" style="width:${size}px;height:${size}px;background:${fill}">${inner}</div>` });
+}
+function genPopup(p) {
+  const [name, col] = GEN_FUEL[p.fuel] || [p.fuel, "#94a3b8"];
+  const out = p.mw < 0 ? `Pumping: using <b>${(-p.mw).toLocaleString()} MW</b>` : `<b style="color:${col}">${(p.mw ?? 0).toLocaleString()} MW</b> of ${p.cap.toLocaleString()} MW (${Math.round(Math.max(0, p.mw) / p.cap * 100)}%)`;
+  return `<b>${esc(p.name)}</b><br><span class="muted">${esc(name)}</span><br>${p.mw == null ? "No live figure" : out}
+    <br><span class="muted" style="font-size:11px">Planned output now (Elexon physical notifications)${genUpdated ? ` · ${ukTime(genUpdated)}` : ""}${p.approx ? "<br>Position approximate" : ""}</span>`;
+}
+function renderGen() {
+  G.windfarms.clearLayers(); G.plants.clearLayers();
+  counts.windfarms = lastPlants.filter(p => p.fuel === "WIND").length; counts.plants = lastPlants.length - counts.windfarms; renderCounts();
+  for (const p of lastPlants) {
+    const wind = p.fuel === "WIND";
+    if (!S.layers[wind ? "windfarms" : "plants"]) continue;
+    fav(L.marker([p.lat, p.lon], { icon: genIcon(p), zIndexOffset: wind ? 120 : 140 })
+      .bindPopup(() => genPopup(lastPlants.find(x => x.name === p.name) || p), { maxWidth: 300 })
+      .bindTooltip(`${esc(p.name)}: ${p.mw < 0 ? "pumping" : (p.mw ?? 0).toLocaleString() + " MW"}`, { direction: "top", offset: [0, -10] })
+      .addTo(G[wind ? "windfarms" : "plants"]), "plant", { ...p, id: p.name });
+  }
+}
+
+const CHARGER_MIN_ZOOM = 13;
+let chargerKey = null, chargerTimer = null;
+const chargerCol = (c) => !c.ok ? "#64748b" : c.kw >= 50 ? "#2563eb" : c.kw >= 7 ? "#16a34a" : "#a3a3a3";
+function chargerPopup(c) {
+  return `<b>🔌 ${esc(c.name)}</b>${c.operator ? `<br><span class="muted">${esc(c.operator)}</span>` : ""}
+    <br>${c.points ? `${c.points} point${c.points > 1 ? "s" : ""}` : ""}${c.kw ? ` · up to <b>${c.kw} kW</b>` : ""}${c.ok ? "" : ' · <b style="color:#f87171">not operational</b>'}
+    ${c.connectors?.length ? `<br><span class="muted" style="font-size:11px">${esc(c.connectors.join(", "))}</span>` : ""}
+    ${c.address ? `<br><span class="muted" style="font-size:11px">${esc(c.address)}</span>` : ""}${c.cost ? `<br><span style="font-size:11px">${esc(c.cost)}</span>` : ""}
+    <br><a href="${esc(c.url)}" target="_blank" rel="noopener">Open Charge Map ↗</a>`;
+}
+function refreshChargers() {
+  clearTimeout(chargerTimer);
+  if (!S.layers.chargers || map.getZoom() < CHARGER_MIN_ZOOM) { G.chargers.clearLayers(); chargerKey = null; counts.chargers = undefined; renderCounts(); return; }
+  const b = map.getBounds().pad(0.1);
+  const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(v => v.toFixed(2)).join(",");
+  if (bbox === chargerKey) return;
+  chargerTimer = setTimeout(async () => {
+    chargerKey = bbox;
+    const d = await getFeed("chargers", `?bbox=${bbox}`);
+    if (!d || !d.chargers || chargerKey !== bbox) return;
+    G.chargers.clearLayers();
+    for (const c of d.chargers)
+      fav(L.marker([c.lat, c.lon], { icon: L.divIcon({ className: "", iconSize: [16, 16], iconAnchor: [8, 8],
+        html: `<div class="ev" style="background:${chargerCol(c)}">⚡</div>` }), zIndexOffset: 160 })
+        .bindPopup(() => chargerPopup(c), { maxWidth: 300 }).bindTooltip(`${esc(c.name)}${c.kw ? ` · ${c.kw} kW` : ""}`, { direction: "top", offset: [0, -8] })
+        .addTo(G.chargers), "charger", c);
+    counts.chargers = d.chargers.length; renderCounts();
+  }, 500);
+}
+
 /* ------------------------------------------------------------ favourites */
 // ☆ in a popup saves the place. The list lives on the server, one per home (the link's token picks it),
 // so the HA panel, a phone and a wall display all share it.
@@ -1987,6 +2136,8 @@ const FAV_KINDS = {
   river: { icon: "〰️", name: "River level", popup: riverPopup, opts: {}, live: () => lastRivers },
   bathing: { icon: "🏖️", name: "Bathing water", popup: bathingPopup, opts: {}, live: () => lastBathing },
   fuel: { icon: "⛽", name: "Fuel", popup: fuelPopup, opts: {} },
+  plant: { icon: "🏭", name: "Generator", popup: (o) => genPopup(o), opts: { maxWidth: 300 }, live: () => lastPlants.map(p => ({ ...p, id: p.name })) },
+  charger: { icon: "🔌", name: "EV charger", popup: (o) => chargerPopup(o), opts: { maxWidth: 300 } },
 };
 let favs = [];
 const favMarkers = new Map();
@@ -2089,7 +2240,9 @@ const LAYER_UI = [
     ["rail_disruptions", "Rail disruptions (live)", "#e11d48"], ["rail_stations", "Rail stations & live departures (zoom 11+)", "#fda4af"],
     ["buses", "Live buses (zoom 12+)", "#f59e0b"], ["bus_stops", "Bus stops & timetables (zoom 15+)", "#fcd34d"], ["bus_disruptions", "Bus disruptions (zoom 9+)", "#d97706"],
     ["tfl", "TfL disruption (Info panel)", "#dc2626"]]],
-  ["Energy", [["cuts", "Power cuts (UKPN, SSEN)", "#fbbf24"], ["interconnectors", "Power interconnectors (flows)", "#e879f9"]]],
+  ["Energy", [["cuts", "Power cuts (UKPN, SSEN)", "#fbbf24"], ["interconnectors", "Power interconnectors (flows)", "#e879f9"],
+    ["grid_regions", "Regions: carbon, solar & Agile price", "#4ade80"], ["windfarms", "Wind farms (live output)", "#7dd3fc"],
+    ["plants", "Power stations (live output)", "#f472b6"], ["chargers", "EV chargers (zoom 13+)", "#22c55e"]]],
   ["Crime", [["crime", "Street crime, last month (zoom 14+)", "#c084fc"]]],
   ["Space & geological", [["quakes", "BGS earthquakes", "#f472b6"], ["meteors", "UK Meteor Network", "#a5b4fc"],
     ["iss", "ISS position & visible passes", "#e2e8f0"], ["allsky", "Allsky cameras (zoom in)", "#6366f1"],
@@ -2101,7 +2254,7 @@ function countFor(k) {
   return { ac_civil: a.civil, ac_military: a.military, ac_police: a.police, ac_hems: a.hems, ac_sar: a.sar,
     vs_special: counts.vessels?.special, vs_civil: counts.vessels?.total, floods: counts.floods, cuts: counts.cuts,
     quakes: counts.quakes, news: counts.news,
-    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, fuel: counts.fuel, allsky: counts.allsky, observatories: counts.observatories, rail_stations: counts.rail_stations, rail_disruptions: counts.rail_disruptions, buses: counts.buses, bus_stops: counts.bus_stops, bus_disruptions: counts.bus_disruptions, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length, favs: counts.favs }[k] ?? (k.startsWith("fire_") ? counts[k] : undefined);
+    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, fuel: counts.fuel, allsky: counts.allsky, observatories: counts.observatories, rail_stations: counts.rail_stations, rail_disruptions: counts.rail_disruptions, buses: counts.buses, bus_stops: counts.bus_stops, bus_disruptions: counts.bus_disruptions, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length, favs: counts.favs, windfarms: counts.windfarms, plants: counts.plants, chargers: counts.chargers }[k] ?? (k.startsWith("fire_") ? counts[k] : undefined);
 }
 function renderCounts() { for (const el of document.querySelectorAll("[data-count]")) { const n = countFor(el.dataset.count); el.textContent = n ?? ""; } }
 // Views: switch many layers at once. Anything not listed is turned off.
@@ -2118,11 +2271,13 @@ const VIEWS = {
   coast: ["Coast & sea", ["vs_special", "vs_civil", "ac_sar", "tides", "sea", "bathing", "sewage", "sewage_recent", "rnli",
     "warnings", "webcams"]],
   space: ["Space", ["iss", "meteors", "quakes", "allsky", "observatories"]],
+  energy: ["Energy", ["cuts", "interconnectors", "grid_regions", "windfarms", "plants", "chargers"]],
 };
 const allLayerKeys = () => Object.keys(DEFAULTS.layers);
+const OVERLAYS = ["satimg", "grid_regions"];  // whole-map shading: never switched on in bulk
 function viewLayers(v) {
   // views leave the home marker and favourites as they are (the Favourites view turns favourites on)
-  if (v === "everything") return Object.fromEntries(allLayerKeys().map(k => [k, k === "home" ? S.layers.home : k !== "satimg"]));
+  if (v === "everything") return Object.fromEntries(allLayerKeys().map(k => [k, k === "home" ? S.layers.home : !OVERLAYS.includes(k)]));
   const on = new Set(VIEWS[v][1]);
   return Object.fromEntries(allLayerKeys().map(k => [k, k === "home" ? S.layers.home : k === "favs" ? on.has(k) || S.layers.favs : on.has(k)]));
 }
@@ -2152,6 +2307,9 @@ function afterToggle(keys) {
   if (has(k => k === "bus_stops")) { busStopKey = null; refreshBusStops(); }
   if (has(k => k === "bus_disruptions")) renderBusDis();
   if (has(k => k === "satimg")) renderSatImg();
+  if (has(k => k === "grid_regions")) renderRegions();
+  if (has(k => k === "windfarms" || k === "plants")) renderGen();
+  if (has(k => k === "chargers")) { chargerKey = null; refreshChargers(); }
   if (has(k => k === "tfl" || k === "iss")) renderAlerts();
   syncGroupBoxes();
 }
@@ -2214,7 +2372,7 @@ function buildLeft() {
     const b = ev.target.closest("[data-bulk]");
     if (!b) return;
     if (!S.view || S.view === "custom") S.customLayers = { ...S.layers };
-    setLayers(Object.fromEntries(allLayerKeys().map(k => [k, b.dataset.bulk === "all" && k !== "satimg"])));
+    setLayers(Object.fromEntries(allLayerKeys().map(k => [k, b.dataset.bulk === "all" && !OVERLAYS.includes(k)])));
     S.view = "custom"; syncGroupBoxes(); save();
   });
   $("left").addEventListener("change", (ev) => {
@@ -2311,9 +2469,12 @@ const refresh = {
   sea: async () => renderSea(await getFeed("sea")),
   wind_grid: async () => renderWind(await getFeed("wind_grid")),
   radar: refreshRadar,
+  energy_regions: async () => { const d = await getFeed("energy_regions"); if (d?.regions) { regionShapes = d.regions; renderRegions(); } },
+  energy_live: async () => { const d = await getFeed("energy_live"); if (d?.regions) { regionLive = Object.fromEntries(d.regions.map(r => [r.pes, r])); renderRegions(); } },
+  generators: async () => { const d = await getFeed("generators"); if (d?.plants) { lastPlants = d.plants; genUpdated = d.updated; renderGen(); } },
 };
 const INTERVAL = { aircraft: 10, vessels: 30, weather_warnings: 600, floods: 600,
-  grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 1800, rnli: 180, fire: 900, webcams: 6 * 3600, allsky: 600, observatories: 6 * 3600, rail_stations: 86400, rail_disruptions: 300, bus_disruptions: 300, tide_stations: 86400, sewage: 600, home: 120, bathing: 3 * 3600, rivers: 600, lightning: 30, air_quality: 3600, fires: 1800, tfl: 300, iss: 30, wind_grid: 1800, radar: 300, city_weather: 1800 };
+  grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 1800, rnli: 180, fire: 900, webcams: 6 * 3600, allsky: 600, observatories: 6 * 3600, rail_stations: 86400, rail_disruptions: 300, bus_disruptions: 300, tide_stations: 86400, sewage: 600, home: 120, bathing: 3 * 3600, rivers: 600, lightning: 30, air_quality: 3600, fires: 1800, tfl: 300, iss: 30, wind_grid: 1800, radar: 300, city_weather: 1800, energy_regions: 86400, energy_live: 300, generators: 300 };
 
 function start() {
   drawBases(); buildLeft();
@@ -2332,7 +2493,7 @@ function start() {
   for (const [k, fn] of Object.entries(refresh)) { fn(); setInterval(fn, INTERVAL[k] * 1000); }
   setInterval(() => renderNews(), 60000);  // age out expired incidents
   map.on("zoomend", () => { renderAircraft(lastAircraft); renderVessels(); if (lastGrid) renderInterconnectors(lastGrid); });
-  const moved = () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderAllsky(); renderObs(); renderRailStations(); renderBusDis(); refreshBuses(); refreshBusStops(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); };
+  const moved = () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderAllsky(); renderObs(); renderRailStations(); renderBusDis(); refreshBuses(); refreshBusStops(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); refreshChargers(); };
   // redrawing a layer would close the popup that just auto-panned the map, so wait until it's closed
   let openPop = null, movedUnder = false;
   map.on("popupopen", (e) => { openPop = e.popup; });

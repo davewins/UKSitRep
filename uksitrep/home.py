@@ -27,7 +27,7 @@ _LOGGER = logging.getLogger("uksitrep")
 NOTIFY_EVERY_S = 300
 UK_TZ = ZoneInfo("Europe/London")
 NOTIFY_KINDS = ("warning", "flood", "river", "sewage", "fire", "road", "power", "rnli", "aircraft", "hems",
-                "lightning", "iss")
+                "lightning", "iss", "rail", "bus", "agile")
 SENT_KEEP_DAYS = 7
 SENT_FORMAT = "_keys:2"  # marks a sent store using the stable keys below
 POSTCODE_RE = re.compile(r"^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$")
@@ -251,6 +251,9 @@ class HomeArea:
                 "disruptions": [{k: d.get(k) for k in ("id", "summary", "text", "planned", "url", "end")}
                                 | {"lines": [x["line"] for x in d["lines"]][:6]} for d in bdis[:6]],
             }
+        energy = await safe(self.energy_home(h))
+        if energy:
+            out["energy"] = energy
         if cfg.bus_timetable_regions:
             stop = await safe(self.home_bus_stop(h))
             if stop:
@@ -321,6 +324,10 @@ class HomeArea:
         for d in s.get("bus", {}).get("disruptions", []):
             if not d.get("planned"):  # planned roadworks are known weeks ahead; tell me about the surprises
                 ev.append(("bus", f"busdis:{d['id']}", f"Bus disruption: {d['summary']}"[:120], d["text"][:200], {"url": d.get("url")}))
+        for run in s.get("energy", {}).get("agile", {}).get("negative", [])[:1]:
+            a, b = (datetime.fromisoformat(run[k]).astimezone(UK_TZ) for k in ("start", "end"))
+            ev.append(("agile", f"agile:neg:{a.date()}", "Agile prices go negative",
+                       f"{a:%a %H:%M}–{b:%H:%M}, down to {run['min']}p/kWh ({s['energy']['region']})", {}))
         return [e for e in ev if e[0] in h.notify_kinds]
 
     async def notify_loop(self, h: "Home") -> None:

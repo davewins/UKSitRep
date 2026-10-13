@@ -30,7 +30,7 @@ def _list(name: str, default: str = "") -> list[str]:
     return [x.strip() for x in os.environ.get(name, default).split(",") if x.strip()]
 
 
-DEFAULT_NOTIFY = "warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss,rail,bus"
+DEFAULT_NOTIFY = "warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss,rail,bus,agile"
 MAX_HOMES = 9
 BUS_REGIONS = ("north_east", "north_west", "yorkshire", "east_midlands", "west_midlands", "east_anglia",
                "south_east", "south_west", "london")  # the BODS GTFS regions
@@ -112,6 +112,7 @@ class Config:
     rail_ldb_key: str | None = None
     rail_disruptions_key: str | None = None
     bods_key: str | None = None
+    ocm_key: str | None = None
     bus_timetable_regions: list[str] = field(default_factory=list)
 
     def home(self, key: str | None = None) -> Home | None:
@@ -158,6 +159,7 @@ class Config:
             rail_ldb_key=os.environ.get("RAIL_LDB_KEY") or None,
             rail_disruptions_key=os.environ.get("RAIL_DISRUPTIONS_KEY") or None,
             bods_key=os.environ.get("BODS_API_KEY") or None,
+            ocm_key=os.environ.get("OCM_API_KEY") or None,
             bus_timetable_regions=_bus_regions(),
         )
 

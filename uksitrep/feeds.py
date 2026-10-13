@@ -28,6 +28,7 @@ from .home import HomeArea
 from .more_feeds import LightningRelay, MoreFeeds
 from .bus import Bus
 from .bustimes import BusTimes
+from .energy import Energy
 from .rail import Rail
 from .sky import SkyWatch
 from .hems_sites import HEMS_EXCLUDE_KM, HEMS_SITES
@@ -244,7 +245,7 @@ def _rnli_callouts(launches: list[dict]) -> list[dict]:
     return sorted(out, key=lambda l: l.get("time") or "", reverse=True)
 
 
-class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes):
+class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes, Energy):
     """All feed fetchers plus long-lived state (aircraft trails, AIS)."""
 
     def __init__(self, cfg: Config, session: aiohttp.ClientSession) -> None:
@@ -848,7 +849,8 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
             "air_quality": self.air_quality, "bathing": self.bathing, "fires": self.fires, "tfl": self.tfl, "fuel": self.fuel,
             "home": self.home_summary, "allsky": self.allsky, "observatories": self.observatories,
             "rail_stations": self.rail_stations, "rail_disruptions": self.rail_disruptions,
-            "bus_disruptions": self.bus_disruptions,
+            "bus_disruptions": self.bus_disruptions, "energy_regions": self.energy_regions,
+            "energy_live": self.energy_live, "generators": self.generators,
         }
 
     # ---------------------------------------------------------------- weather

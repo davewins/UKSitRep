@@ -16,7 +16,7 @@ browser (uksitrep/static/index.html: Leaflet, no build step)
 aiohttp server (uksitrep/server.py)
    │  auth middleware (ACCESS_TOKEN), routes, security headers
    ▼
-Situation (uksitrep/feeds.py) + mixins (more_feeds.py, fire_services.py, home.py, sky.py, rail.py, bus.py)
+Situation (uksitrep/feeds.py) + mixins (more_feeds.py, fire_services.py, home.py, sky.py, rail.py, bus.py, bustimes.py, energy.py)
    │  one async method per feed, each wrapped in a TTL Cache with per-key locks
    ▼
 fixed, allow-listed upstream URLs (never an open proxy)
@@ -30,13 +30,14 @@ fixed, allow-listed upstream URLs (never an open proxy)
 | `uksitrep/more_feeds.py` | `MoreFeeds` mixin: rivers, lightning relay, air quality, bathing water, ISS (sgp4), FIRMS, TfL, fuel, crime |
 | `uksitrep/home.py` | `HomeArea` mixin: the Near home summary (per `Home` in `cfg.homes`; each home's token picks it), Home Assistant notifications (`NOTIFY` kinds, sent-key store) and place search (postcodes.io) |
 | `uksitrep/bus.py` | `Bus` mixin: BODS live bus positions (SIRI-VM, per map view) and disruptions (SIRI-SX), operator names from Traveline NOC |
+| `uksitrep/energy.py` | `Energy` mixin: 14 grid regions (bundled outlines) with Carbon Intensity, PV_Live solar and Octopus Agile prices; generator live output from Elexon physical notifications mapped through `data/power_plants.json`; Open Charge Map EV chargers (per view); `energy_home` for Near home and the `agile` notification |
 | `uksitrep/bustimes.py` | `BusTimes` mixin: BODS regional GTFS timetables indexed in a child process (`python -m uksitrep.bustimes`) into `DATA_DIR/bustimes/<region>/` (meta.json + 6-byte departure records per stop); stop boards, live journeys matched by operator + line + start time |
 | `uksitrep/rail.py` | `Rail` mixin: Darwin departure boards and National Rail disruptions (Rail Data Marketplace keys), NaPTAN station positions, station names matched in disruption text |
 | `uksitrep/sky.py` | `SkyWatch` mixin: allsky cameras (Allsky map page, allsky-map.com for indi-allsky) and OSM observatories/telescopes/planetaria with a curated list of famous sites |
 | `uksitrep/fire_services.py` | `FireServices` mixin: fire & rescue feeds, text-to-place geocoding restricted to a bounding box |
 | `uksitrep/lookups.py` | Aircraft type names and ICAO-address-to-country tables, downloaded at startup (GPL, not bundled) |
 | `uksitrep/places.py`, `hems_sites.py` | Gazetteer for pinning news to places; hospital/base sites for air-ambulance "on scene" inference |
-| `uksitrep/data/` | Small bundled seeds, each refreshed in the background into `DATA_DIR`: lifeboat stations, OSM webcams, observatories, rail stations (NaPTAN), bus operator names (NOC) |
+| `uksitrep/data/` | Small bundled seeds, each refreshed in the background into `DATA_DIR`: lifeboat stations, OSM webcams, observatories, rail stations (NaPTAN), bus operator names (NOC). Two are static and rebuilt by hand with `tools/`: `energy_regions.json` (`build_energy_regions.py`) and `power_plants.json` (`build_power_plants.py`; new farms go in its `EXTRA`) |
 | `uksitrep/static/index.html` | The whole front end: settings, layers, renderers, refresh loop, views |
 | `config/cameras.json` | Hand-curated webcams |
 | `tools/smoke/` | jsdom smoke test (see Testing) |

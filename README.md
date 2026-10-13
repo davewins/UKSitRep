@@ -17,7 +17,7 @@ It runs as a ~70 MB distroless container with no shell, as a non-root user.
 | Emergency services | Air ambulance / coastguard helicopter "on scene" (inferred from landings away from bases and hospitals), RNLI lifeboat launches, and fire & rescue incidents from Avon, Buckinghamshire, Cheshire, Cleveland, Hampshire & IoW, Royal Berkshire and Shropshire, plus Devon & Somerset (optional), each with its own toggle |
 | Maritime | Live AIS ships (Royal Navy, RNLI, coastguard, police and government vessels and distress beacons highlighted), tide times, and sea state for the Shipping Forecast areas |
 | Weather | Met Office warnings, rain radar (animated), wind arrows, temperature grid, city weather, lightning |
-| Energy | Power cuts (UKPN, SSEN), electricity grid mix and demand, carbon intensity, interconnector flows to and from Europe and Ireland |
+| Energy | Power cuts (UKPN, SSEN), electricity grid mix and demand, interconnector flows to and from Europe and Ireland. The 14 grid regions shaded by carbon intensity, solar output or Octopus Agile price (tap one for its mix, solar and the next day's prices). Every wind farm and power station with its live output (wind turbines spin faster the harder they're working). EV chargers from zoom 13 (Open Charge Map, optional key). Near home shows the Agile price now, the cheapest and cleanest 3 hours ahead, and any negative prices |
 | Space & geology | BGS earthquakes, UK Meteor Network meteor tracks, NOAA Kp index, AuroraWatch UK, ISS position, ground track and visible passes from the map centre; when zoomed in, public allsky cameras (Allsky and indi-allsky) with their latest image, and observatories, radio telescopes and planetaria with links to their sites |
 | Water | Environment Agency flood warnings; river gauges for England (EA) and Scotland (SEPA) (against their normal range, with rising/falling trend); live sewage storm overflow status from all 11 water companies (discharging now, and stopped within the last 48 hours); bathing water classifications and daily pollution-risk forecasts, cross-referenced with nearby sewage |
 | Air & fire | Air quality and pollen (CAMS via Open-Meteo); NASA FIRMS satellite fire hotspots (optional key); NASA GIBS satellite image overlay |
@@ -48,11 +48,11 @@ Assistant panel, your phone and a wall display opened with the same link all sha
 ## Views
 
 The layer panel has a **View** menu that switches many layers at once: *Everything*,
-*Favourites*, *Military*, *Emergency*, *Travel & transport*, *Weather & water*, *Coast & sea* and
+*Favourites*, *Energy*, *Military*, *Emergency*, *Travel & transport*, *Weather & water*, *Coast & sea* and
 *Space*. *My layers* puts back the set you had before picking a view. Each group heading has
 its own checkbox, and *All on* / *All off* sit at the top.
 
-Add `?view=<name>` to the URL to open in a view (`favourites`, `military`, `emergency`, `transport`,
+Add `?view=<name>` to the URL to open in a view (`favourites`, `energy`, `military`, `emergency`, `transport`,
 `weather`, `coast`, `space`, `everything`), e.g. for a wall display:
 `https://<host>/k/<ACCESS_TOKEN>/?kiosk&view=military`.
 
@@ -117,13 +117,14 @@ Without Docker (Python 3.11+): `pip install -r requirements.txt && DATA_DIR=./da
 | `FUEL_FINDER_CLIENT_ID`, `FUEL_FINDER_CLIENT_SECRET` | *(none)* | GOV.UK Fuel Finder API credentials for live forecourt prices ([register](https://www.developer.fuel-finder.service.gov.uk/access-latest-fuelprices)) |
 | `RAIL_LDB_KEY` | *(none)* | Live departure boards: consumer key of the free **Live Departure Board** product on the [Rail Data Marketplace](https://raildata.org.uk) (Specification tab) |
 | `RAIL_DISRUPTIONS_KEY` | *(none)* | Live rail disruptions: consumer key of the **National Rail Disruptions** product on the Rail Data Marketplace |
+| `OCM_API_KEY` | *(none)* | EV chargers: a free API key from [Open Charge Map](https://openchargemap.org/site/develop/api) (My Profile → My Apps) |
 | `BODS_API_KEY` | *(none)* | Live buses and bus disruptions (England): API key from a free data-consumer account on the [Bus Open Data Service](https://data.bus-data.dft.gov.uk/account/signup/) |
 | `BUS_TIMETABLE_REGIONS` | *(none)* | Bus stops and timetabled departures for these Bus Open Data Service regions, e.g. `south_west` (also `north_east`, `north_west`, `yorkshire`, `east_midlands`, `west_midlands`, `east_anglia`, `south_east`, `london`). No key. Each is a ~250 MB weekly download, indexed in the background to ~40 MB; the first start takes a couple of minutes |
 | `RAIL_STATIONS` | the 2 nearest home | Your stations' 3-letter codes for the Near home panel and notifications, e.g. `TGM,NTA` |
 | `HOME_LAT`, `HOME_LON`, `HOME_NAME`, `HOME_RADIUS_KM` | *(none)*, `Home`, `25` | Your home area: shows a "Near home" panel (rivers, floods, sewage, beaches, fire, roads, power cuts, lifeboats, lightning, tide, cheapest fuel, ISS, air quality) and a radius ring |
 | `HA_WEBHOOK_URL` | *(none)* | Post new nearby events to a Home Assistant webhook (needs the home area), e.g. `http://<ha-ip>:8123/api/webhook/<id>` |
 | `HOME2_NAME`, `HOME2_LAT`, `HOME2_LON`, `HOME2_RADIUS_KM`, `HOME2_TOKEN`, `HOME2_WEBHOOK_URL`, `HOME2_RAIL_STATIONS`, `HOME2_NOTIFY` | *(none)* | A second home (and `HOME3_*` … `HOME9_*`). Each home has its own Near home panel, stations and notifications. `HOMEn_TOKEN` is an extra access token (needs `ACCESS_TOKEN` set) that opens the map on that home, so each household can have its own link; anyone can switch homes from the Near home title. `?home=<name>` also picks one |
-| `NOTIFY` | all | Which events to send: `warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss,rail,bus` (`rail`: cancellations and delays of 15 min+ at your stations, and disruptions nearby; `bus`: unplanned bus disruptions nearby) |
+| `NOTIFY` | all | Which events to send: `warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss,rail,bus,agile` (`agile`: once a day when your region's Octopus Agile price is going negative; `rail`: cancellations and delays of 15 min+ at your stations, and disruptions nearby; `bus`: unplanned bus disruptions nearby) |
 | `ENABLE_LIGHTNING` | `true` | Live lightning from Blitzortung.org (private, non-commercial use) |
 | `ENABLE_WORLDCAM` | `false` | Import the worldcam.eu directory (scraped; weekly refresh) |
 | `FIRE_SERVICES` | all seven | Fire & rescue services read from their public feeds: `avon,bucks,cheshire,cleveland,hants,rbfrs,shropshire`. Remove any you don't want |
