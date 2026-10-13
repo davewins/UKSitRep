@@ -82,7 +82,8 @@ def parse_allsky_pins(page: str) -> list[dict]:
         site, image = _http(p.get("website_url")), _http(p.get("image_url"))
         out.append({
             "id": f"tj{p.get('id')}", "name": (p.get("location") or "Allsky camera").strip(),
-            "owner": (p.get("owner") or "").strip(), "lat": lat, "lon": lon, "url": site,
+            # no website: an http:// image still works as a link, just not inline
+            "owner": (p.get("owner") or "").strip(), "lat": lat, "lon": lon, "url": site or image,
             # an http:// image would be blocked on an https page
             "image": image if image and image.startswith("https://") else None,
             "kit": ", ".join(x.strip() for x in (p.get("camera"), p.get("lens")) if x and x.strip()),

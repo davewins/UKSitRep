@@ -933,7 +933,8 @@ function allskyPopup(c) {
   const state = c.source === "indi-allsky" ? (c.online ? " · online" : ` · offline, last seen ${ago(c.seen)}`) : "";
   return `<div class="cam-pop"><b>${esc(c.name)}</b><br><span class="muted">${esc(c.source)} camera${c.owner ? ` · ${esc(c.owner)}` : ""}${state}</span>
     ${c.kit ? `<br><span class="muted" style="font-size:11px">${esc(c.kit)}</span>` : ""}${img || "<br>"}
-    ${linkOut(c.url, "Camera site")}${!c.image && c.source === "Allsky" ? '<br><span class="muted" style="font-size:11px">Live image on their site</span>' : ""}</div>`;
+    ${c.url ? linkOut(c.url, /\.(jpe?g|png)(\?|$)/i.test(c.url) ? "Open latest image" : "Camera site") + (!c.image && !/\.(jpe?g|png)/i.test(c.url) ? '<br><span class="muted" style="font-size:11px">Live image on their site</span>' : "")
+      : `<span class="muted" style="font-size:11px">The owner hasn't shared a website or image for this camera.</span><br>${linkOut("https://www.thomasjacquin.com/allsky-map/", "Allsky map")}`}</div>`;
 }
 const OBS_KIND = { optical: "Observatory / telescope", radio: "Radio telescope", planetarium: "Planetarium" };
 function obsPopup(o) {
@@ -951,7 +952,7 @@ function renderAllsky(d) {
   const b = map.getBounds().pad(0.3);
   for (const c of lastAllsky) {
     if (!b.contains([c.lat, c.lon])) continue;
-    L.marker([c.lat, c.lon], { icon: c.online === false ? SKY_ICONS.allsky_off : SKY_ICONS.allsky, zIndexOffset: 250 })
+    L.marker([c.lat, c.lon], { icon: c.online === false || (!c.url && !c.image) ? SKY_ICONS.allsky_off : SKY_ICONS.allsky, zIndexOffset: 250 })
       .bindPopup(() => allskyPopup(c), { maxWidth: 320, minWidth: 200 })
       .bindTooltip(esc(c.name), { direction: "top", offset: [0, -8] }).addTo(G.allsky);
   }
