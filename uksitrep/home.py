@@ -14,6 +14,7 @@ import logging
 import math
 import re
 import time
+from pathlib import Path
 from urllib.parse import quote
 from typing import Any
 
@@ -32,9 +33,18 @@ SENT_KEEP_DAYS = 7
 SENT_FORMAT = "_keys:2"  # marks a sent store using the stable keys below
 POSTCODE_RE = re.compile(r"^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$")
 OUTCODE_RE = re.compile(r"^[A-Z]{1,2}\d[A-Z\d]?$")
+PARTIAL_PC_RE = re.compile(r"^[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]?$")  # "GL20 5", "GL20 5T": still being typed
 SEARCH_RE = re.compile(r"^[\w\s'’,.()&-]{2,60}$")
 PLACE_RANK = {"City": 0, "Town": 1, "Village": 2, "Suburban Area": 3, "Hamlet": 4, "Other Settlement": 5}
+BIG_AREAS = ("Nation", "Region", "County", "National park")
+AREAS_FILE = Path(__file__).with_name("data") / "areas.json"
 PLACE_ZOOM = {"City": 12, "Town": 13, "Suburban Area": 14, "Village": 14, "Hamlet": 15, "Other Settlement": 15}
+
+
+def _norm(s: str) -> str:
+    """Lower case, '&' as 'and', no 'City of' or punctuation: 'Bristol, City of' -> 'bristol'."""
+    s = re.sub(r"\bcity of\b|\bcounty of\b|[^\w\s]", " ", s.lower().replace("&", " and "))
+    return re.sub(r"\s+", " ", s).strip()
 
 
 def _km(a: float, b: float, c: float, d: float) -> float:
@@ -58,11 +68,66 @@ def _age_min(iso: str | None) -> float:
 class HomeArea:
     """Mixin for Situation."""
 
+    # ------------------------------------------------------------ areas: nations, regions, counties, districts, parks
+    def _areas(self) -> list[dict]:
+        if not getattr(self, "_areas_static", None):
+            self._areas_static = json.loads(AREAS_FILE.read_text())["areas"]
+        return self._areas_static
+
+    @staticmethod
+    def _area_hit(a: dict) -> dict:
+        b = a["bbox"]
+        return {"id": a["id"], "name": a["name"], "alt": a.get("alt"), "kind": a["kind"],
+                "area": a.get("parent") or a.get("group"), "bbox": b, "lat": (b[0] + b[2]) / 2, "lon": (b[1] + b[3]) / 2}
+
+    async def areas(self) -> dict:
+        """Every area without its outline: the search box's drop-down."""
+        return {"areas": [{k: v for k, v in a.items() if k != "shapes"} for a in self._areas()]}
+
+    async def area(self, area_id: str) -> dict:
+        a = next((a for a in self._areas() if a["id"] == area_id), None)
+        return {**self._area_hit(a), "shapes": a["shapes"]} if a else {"error": "unknown area"}
+
+    def _match_areas(self, q: str) -> tuple[list[dict], list[dict]]:
+        """(exact, partial) name matches: 'gloucestershire', or 'glouc' / 'forest' as the start of a word."""
+        n = _norm(q)
+        exact, partial = [], []
+        if len(n) < 2:
+            return exact, partial
+        for a in self._areas():
+            names = [_norm(a["name"])] + ([_norm(a["alt"])] if a.get("alt") else [])
+            if n in names:
+                exact.append(a)
+            elif any(x.startswith(n) or (len(n) >= 3 and f" {n}" in f" {x}") for x in names):
+                partial.append(a)
+        rank = lambda a: (a["kind"] not in BIG_AREAS, BIG_AREAS.index(a["kind"]) if a["kind"] in BIG_AREAS else 0, a["name"])
+        return sorted(exact, key=rank), sorted(partial, key=rank)
+
     async def search(self, q: str) -> dict:
-        """Postcode, postcode district or place name -> map locations (postcodes.io, Great Britain)."""
+        """Postcode, place name or area -> map locations: postcodes.io (Great Britain) plus the ONS areas file."""
         q = re.sub(r"\s+", " ", q or "").strip()
         if not SEARCH_RE.match(q):
-            return {"results": [], "error": "Type a town or postcode"}
+            return {"results": [], "error": "Type a town, postcode or county"}
+        exact, partial = self._match_areas(q)
+        try:
+            d = await self._places(q)
+        except Exception as err:  # noqa: BLE001 - areas still work without postcodes.io
+            _LOGGER.debug("search %s failed: %s", q, err)
+            d = {"results": [], "error": "Place search unavailable"}
+        places = d.get("results") or []
+        if not exact and not partial:
+            return d
+        # big areas named exactly first, then exact towns, exact districts, then the near misses
+        hit = lambda a: self._area_hit(a)
+        big = [hit(a) for a in exact if a["kind"] in BIG_AREAS]
+        small = [hit(a) for a in exact if a["kind"] not in BIG_AREAS]
+        lq = q.lower()
+        same = [p for p in places if lq in (p["name"].lower(), (p.get("alt") or "").lower())]
+        rest = [p for p in places if p not in same]
+        out = big + same + small + [hit(a) for a in partial[:4]] + rest
+        return {"results": out[:10]}
+
+    async def _places(self, q: str) -> dict:
         pc = q.upper().replace(" ", "")
 
         async def fetch() -> dict:
@@ -83,6 +148,11 @@ class HomeArea:
                                          "lat": r["latitude"], "lon": r["longitude"], "zoom": 16 if full else 13}]}
                 if full:
                     return {"results": [], "error": f"Postcode {q.upper()} not found"}
+            if PARTIAL_PC_RE.match(q.upper()):
+                d = await self._json(f"{base}/postcodes", params={"q": q, "limit": "8"})
+                return {"results": [{"name": r["postcode"], "area": r.get("admin_district"), "kind": "Postcode",
+                                     "lat": r["latitude"], "lon": r["longitude"], "zoom": 16}
+                                    for r in d.get("result") or [] if r.get("latitude") is not None]}
             d = await self._json(f"{base}/places", params={"q": q, "limit": "40"})
             seen, out = set(), []
             for r in d.get("result") or []:

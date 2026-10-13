@@ -54,6 +54,8 @@
   #searchRes .r:hover, #searchRes .r.sel { background: #1e293b; }
   #searchRes .r .muted { font-size: 11px; text-align: right; }
   #searchRes .msg { padding: 6px 8px; color: var(--muted); font-size: 12px; }
+  #searchArea { width: 100%; margin-top: 6px; background: #111a24; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 7px; font: inherit; font-size: 13px; }
+  .area-lbl { font-weight: 600; }
   .found-pin { width: 22px; height: 22px; border-radius: 50%; border: 3px solid #f43f5e; box-shadow: 0 0 0 4px #f43f5e55; animation: foundPulse 1.6s ease-out infinite; }
   @keyframes foundPulse { 0% { box-shadow: 0 0 0 0 #f43f5eaa; } 100% { box-shadow: 0 0 0 18px #f43f5e00; } }
   /* side panels */
@@ -404,13 +406,13 @@
   <div id="clock"></div>
   <div id="chips"></div>
   <div id="feedList"></div>
-  <button id="btnSearch" title="Find a town or postcode (/)">🔍</button>
+  <button id="btnSearch" title="Find a town, postcode or county (/)">🔍</button>
   <button id="btnLayers">Layers</button>
   <button id="btnInfo">Info</button>
   <button id="btnPanels" title="Show/hide panels (P)">Panels</button>
   <button id="btnFs" title="Full screen (F)">⛶</button>
 </div>
-<div id="searchBox"><div class="sbar"><input id="searchQ" type="search" placeholder="Town, village or postcode" autocomplete="off" enterkeyhint="search" aria-label="Find a place"><button id="searchClear" title="Close and remove the pin">✕</button></div><div id="searchRes"></div></div>
+<div id="searchBox"><div class="sbar"><input id="searchQ" type="search" placeholder="Town, postcode or county" autocomplete="off" enterkeyhint="search" aria-label="Find a place"><button id="searchClear" title="Close and remove the pin">✕</button></div><select id="searchArea" aria-label="Choose an area"><option value="">…or choose a county, region or national park</option></select><div id="searchRes"></div></div>
 <div id="map"></div>
 <div id="left" class="panel"></div>
 <div id="right" class="panel">
@@ -2600,10 +2602,50 @@ function setTheme(key, picked = false) {
 let searchPin = null, searchHits = [], searchSel = 0, searchTimer = null, searchSeq = 0;
 function openSearch(show = true) {
   $("searchBox").classList.toggle("open", show);
+  if (show) loadAreas();
   if (show) { $("searchQ").focus(); $("searchQ").select(); }
 }
+let areaShape = null, areaList = null, areaSeq = 0;
+function clearFound() {
+  if (searchPin) { searchPin.remove(); searchPin = null; }
+  if (areaShape) { areaShape.remove(); areaShape = null; }
+}
+async function loadAreas() {  // the drop-down: regions and nations, then each one's counties with their districts indented
+  if (areaList) return;
+  areaList = [];
+  try { areaList = (await (await fetch(withToken(API + "areas"))).json()).areas || []; } catch { areaList = null; return; }
+  const opt = (a, pad = "") => `<option value="${esc(a.id)}">${pad}${esc(a.name)}</option>`;
+  const by = (k) => (a, b) => a[k].localeCompare(b[k]);
+  const top = areaList.filter((a) => a.kind === "Nation" || a.kind === "Region").sort((a, b) => (a.kind > b.kind) - (a.kind < b.kind) || a.name.localeCompare(b.name));
+  const groups = [...new Set(areaList.filter((a) => a.group && a.kind !== "National park").map((a) => a.group))]
+    .sort((a, b) => (["Wales", "Scotland", "Northern Ireland"].indexOf(a) - ["Wales", "Scotland", "Northern Ireland"].indexOf(b)) || a.localeCompare(b));
+  let html = `<option value="">…or choose a county, region or national park</option><optgroup label="Nations and English regions">${top.map((a) => opt(a)).join("")}</optgroup>`;
+  for (const g of groups) {
+    const inG = areaList.filter((a) => a.group === g && a.kind !== "National park");
+    const rows = inG.filter((a) => a.kind !== "District").sort(by("name")).map((a) => opt(a) +
+      inG.filter((d) => d.kind === "District" && d.parent === a.name).sort(by("name")).map((d) => opt(d, "\u00a0\u00a0\u00a0– ")).join(""));
+    html += `<optgroup label="${esc(g)}">${rows.join("")}</optgroup>`;
+  }
+  html += `<optgroup label="National parks">${areaList.filter((a) => a.kind === "National park").sort(by("name")).map((a) => opt(a)).join("")}</optgroup>`;
+  $("searchArea").innerHTML = html;
+}
+async function goToArea(r) {
+  clearFound();
+  const b = r.bbox;
+  map.flyToBounds([[b[0], b[1]], [b[2], b[3]]], { padding: [30, 30], duration: 1.2 });
+  searchHits = []; $("searchRes").innerHTML = ""; openSearch(false);
+  const seq = ++areaSeq;
+  let d;
+  try { d = await (await fetch(withToken(API + "area?id=" + encodeURIComponent(r.id)))).json(); } catch { return; }
+  if (seq !== areaSeq || !d.shapes) return;
+  if (areaShape) areaShape.remove();
+  areaShape = L.polygon(d.shapes, { color: "#f43f5e", weight: 2.5, dashArray: "6 5", fillColor: "#f43f5e", fillOpacity: 0.06, interactive: false })
+    .bindTooltip(`<span class="area-lbl">${esc(d.name)}</span> <span class="muted">${esc(d.kind)}</span>`, { permanent: true, direction: "center", className: "region-lbl" })
+    .addTo(map);
+}
 function goTo(r) {
-  if (searchPin) searchPin.remove();
+  if (r.id && r.bbox) return goToArea(r);
+  clearFound();
   searchPin = L.marker([r.lat, r.lon], { icon: L.divIcon({ className: "", html: '<div class="found-pin"></div>', iconSize: [22, 22], iconAnchor: [11, 11] }), zIndexOffset: 2000 })
     .bindTooltip(esc(r.name) + (r.area ? ` <span class="muted">${esc(r.area)}</span>` : ""), { permanent: true, direction: "top", offset: [0, -12] })
     .addTo(map);
@@ -2627,10 +2669,14 @@ async function runSearch(q, go) {
   if (seq !== searchSeq) return;  // a newer search has started
   const hits = d.results || [];
   if (go && hits.length) return goTo(hits[searchSel] || hits[0]);
-  showHits(hits, d.error || (hits.length ? "" : "No match in Great Britain"));
+  showHits(hits, d.error || (hits.length ? "" : "No match in the UK"));
 }
 $("btnSearch").onclick = () => openSearch(!$("searchBox").classList.contains("open"));
-$("searchClear").onclick = () => { if (searchPin) { searchPin.remove(); searchPin = null; } $("searchQ").value = ""; showHits([]); openSearch(false); };
+$("searchClear").onclick = () => { clearFound(); areaSeq++; $("searchQ").value = ""; $("searchArea").value = ""; showHits([]); openSearch(false); };
+$("searchArea").addEventListener("change", (e) => {
+  const a = (areaList || []).find((x) => x.id === e.target.value);
+  if (a) { $("searchQ").value = a.name; goTo({ ...a, lat: (a.bbox[0] + a.bbox[2]) / 2, lon: (a.bbox[1] + a.bbox[3]) / 2 }); }
+});
 $("searchQ").addEventListener("input", (e) => { clearTimeout(searchTimer); searchHits = []; const q = e.target.value; searchTimer = setTimeout(() => runSearch(q, false), 350); });
 $("searchQ").addEventListener("keydown", (e) => {
   if (e.key === "Escape") { openSearch(false); return; }

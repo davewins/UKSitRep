@@ -37,6 +37,7 @@ Each is subject to its own terms.
 | [Bus Open Data Service](https://data.bus-data.dft.gov.uk) (DfT) | Live bus positions and bus disruptions | OGL v3; requires your own key |
 | [NESO Carbon Intensity API](https://carbonintensity.org.uk) | Regional carbon intensity, mix and forecast | CC BY 4.0 |
 | [NESO Data Portal](https://www.neso.energy/data-portal/gis-boundaries-gb-dno-license-areas): GB DNO licence areas | Region outlines (simplified extract in `uksitrep/data/energy_regions.json`) | NESO Open Data Licence |
+| [ONS Open Geography Portal](https://geoportal.statistics.gov.uk): countries, regions, counties and unitary authorities, local authority districts, national parks (BUC) | Area search and outlines (simplified extract in `uksitrep/data/areas.json`) | OGL v3; contains OS data © Crown copyright and database right |
 | [Sheffield Solar PV_Live](https://www.solar.sheffield.ac.uk/pvlive/) | Regional solar generation estimates | Sheffield Solar terms (free, with attribution) |
 | [Octopus Energy API](https://developer.octopus.energy) | Agile half-hourly prices by region | Octopus public API |
 | [Elexon BMRS / Insights](https://bmrs.elexon.co.uk) | Physical notifications per generating unit; unit reference data | Elexon BMRS data licence (attribution) |

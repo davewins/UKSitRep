@@ -105,6 +105,8 @@ async def feed(request: web.Request) -> web.Response:
         return web.json_response(await sit.rail_board(request.query.get("crs", "")))
     if name == "search":
         return web.json_response(await sit.search(request.query.get("q", "")), headers={"Cache-Control": "max-age=3600"})
+    if name == "area":
+        return web.json_response(await sit.area(request.query.get("id", "")), headers={"Cache-Control": "max-age=86400"})
     if name == "tides":
         return web.json_response(await sit.tides(request.query.get("station", "")))
     if name == "home_info":  # just where the home is: instant, so the page can open there

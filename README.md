@@ -83,10 +83,14 @@ style, and radar and satellite imagery keep their real colours. Add `?theme=spy`
 
 ## Finding a place
 
-Press **🔍** (or `/`) and type a town, village, postcode (`TQ14 8AA`), postcode district
-(`GL20`) or coordinates (`51.5, -0.12`). Suggestions appear as you type; Enter or a click flies
-the map there and drops a pin, and ✕ removes it. Place names come from postcodes.io (OS Open
-Names, Great Britain only). Other keys: `P` panels, `F` full screen, `H` home, `U` whole UK.
+Press **🔍** (or `/`) and type a town, village, postcode (`TQ14 8AA`), part of one (`GL20 5`),
+postcode district (`GL20`), coordinates (`51.5, -0.12`), or an area: a county, unitary
+authority, district, English region, nation or national park (`Gloucestershire`, `Forest of Dean`,
+`South West`, `Dartmoor`). Suggestions appear as you type; Enter or a click flies the map there.
+A place gets a pin; an area is outlined and fills the screen. Or pick an area from the drop-down
+under the box: nations and regions first, then each region's counties with their districts
+indented. ✕ removes the pin or outline. Place names come from postcodes.io (OS Open Names, Great
+Britain); areas cover the whole UK. Other keys: `P` panels, `F` full screen, `H` home, `U` whole UK.
 
 ## Quick start
 

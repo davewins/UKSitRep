@@ -849,7 +849,7 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
             "air_quality": self.air_quality, "bathing": self.bathing, "fires": self.fires, "tfl": self.tfl, "fuel": self.fuel,
             "home": self.home_summary, "allsky": self.allsky, "observatories": self.observatories,
             "rail_stations": self.rail_stations, "rail_disruptions": self.rail_disruptions,
-            "bus_disruptions": self.bus_disruptions, "energy_regions": self.energy_regions,
+            "bus_disruptions": self.bus_disruptions, "energy_regions": self.energy_regions, "areas": self.areas,
             "energy_live": self.energy_live, "generators": self.generators,
         }
 
