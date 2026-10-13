@@ -129,6 +129,130 @@
   .radar-ctl button { background: #18212c; color: var(--text); border: 1px solid var(--line); border-radius: 4px; cursor: pointer; padding: 2px 7px; }
   .sea .lbl2 { font-size: 10px; color: #e2e8f0; text-shadow: 0 0 3px #000, 0 0 3px #000; white-space: nowrap; line-height: 1.1; }
   #btnLayers, #btnInfo, .sheet-close { display: none; }
+  /* ================= film themes (Style menu): body[data-theme] ================= */
+  #fx { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 450; overflow: hidden; display: none; }
+  body[data-theme] #fx { display: block; }
+  #fx > div { position: absolute; inset: 0; }
+  #fx .cap { inset: auto; top: 8px; left: 50%; transform: translateX(-50%); font: 600 11px/1 var(--font-head); letter-spacing: .3em;
+    white-space: nowrap; color: var(--cap, var(--accent)); text-shadow: 0 0 6px var(--cap, var(--accent)); opacity: .85; }
+  #fx .cap.b { top: auto; bottom: 8px; }
+  #boot { position: fixed; inset: 0; z-index: 5000; background: var(--bg); color: var(--accent); font: 18px/1.6 var(--font);
+    padding: 12vh 10vw; letter-spacing: .08em; text-shadow: 0 0 8px var(--glow); cursor: pointer; transition: opacity .6s; }
+  #boot.done { opacity: 0; pointer-events: none; }
+  #boot .cur::after { content: "█"; animation: blink 1s steps(1) infinite; margin-left: 4px; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  body[data-theme], body[data-theme] .leaflet-container { font-family: var(--font); }
+  /* only the base map and its labels: radar and imagery keep their real colours */
+  body[data-theme] .base-tiles { filter: var(--tile-filter); }
+  body[data-theme] .label-tiles { filter: var(--label-filter); }
+  body[data-theme] .panel h2, body[data-theme] #top h1 { font-family: var(--font-head); color: var(--accent); }
+  body[data-theme] .leaflet-popup-content-wrapper, body[data-theme] .leaflet-popup-tip { background: var(--popup); color: var(--text); box-shadow: 0 0 14px var(--glow); }
+  body[data-theme] .leaflet-popup-content-wrapper { border: 1px solid var(--line); }
+  body[data-theme] .leaflet-popup-content b { color: var(--accent-hi); }
+  body[data-theme] .leaflet-popup-content a, body[data-theme] .news .pin { color: var(--accent); }
+  body[data-theme] #ticker .lbl { background: var(--ticker-bg); color: var(--ticker-fg); }
+  body[data-theme] #top button, body[data-theme] select, body[data-theme] .bulk button, body[data-theme] #searchBox button,
+  body[data-theme] #searchQ, body[data-theme] .chip, body[data-theme] .radar-ctl button { background: var(--btn); border-color: var(--line); color: var(--text); font-family: inherit; }
+  body[data-theme] #searchBox, body[data-theme] #feedList, body[data-theme] .radar-ctl { background: var(--popup); border-color: var(--line); }
+  body[data-theme] .leaflet-tooltip.lbl { background: var(--popup); color: var(--text); }
+  body[data-theme] .leaflet-bar a { background: var(--btn); color: var(--accent); border-color: var(--line); }
+  body[data-theme] .leaflet-control-attribution { background: var(--panel); color: var(--muted); }
+  body[data-theme] .leaflet-control-attribution a { color: var(--muted); }
+  /* corner brackets (Spy HQ, The Expanse) */
+  body[data-theme="spy"] .panel, body[data-theme="expanse"] .panel, body[data-theme="spy"] #searchBox {
+    --bk: var(--accent); background-color: var(--panel); background-repeat: no-repeat;
+    background-image: linear-gradient(var(--bk), var(--bk)), linear-gradient(var(--bk), var(--bk)), linear-gradient(var(--bk), var(--bk)), linear-gradient(var(--bk), var(--bk)),
+      linear-gradient(var(--bk), var(--bk)), linear-gradient(var(--bk), var(--bk)), linear-gradient(var(--bk), var(--bk)), linear-gradient(var(--bk), var(--bk));
+    background-size: 16px 2px, 2px 16px, 16px 2px, 2px 16px, 16px 2px, 2px 16px, 16px 2px, 2px 16px;
+    background-position: 0 0, 0 0, 100% 0, 100% 0, 0 100%, 0 100%, 100% 100%, 100% 100%; }
+  /* emergency squawks get a target lock (Spy HQ, The Expanse, Tron) */
+  body[data-theme="spy"] .ac.pulse::before, body[data-theme="expanse"] .ac.pulse::before, body[data-theme="tron"] .ac.pulse::before {
+    content: ""; position: absolute; inset: -12px; --bk: #ef4444; background-repeat: no-repeat;
+    background-image: linear-gradient(var(--bk), var(--bk)), linear-gradient(var(--bk), var(--bk)), linear-gradient(var(--bk), var(--bk)), linear-gradient(var(--bk), var(--bk)),
+      linear-gradient(var(--bk), var(--bk)), linear-gradient(var(--bk), var(--bk)), linear-gradient(var(--bk), var(--bk)), linear-gradient(var(--bk), var(--bk));
+    background-size: 9px 2px, 2px 9px, 9px 2px, 2px 9px, 9px 2px, 2px 9px, 9px 2px, 2px 9px;
+    background-position: 0 0, 0 0, 100% 0, 100% 0, 0 100%, 0 100%, 100% 100%, 100% 100%; animation: lockon 1.1s ease-out infinite alternate; }
+  body[data-theme="spy"] .ac.pulse::after, body[data-theme="expanse"] .ac.pulse::after, body[data-theme="tron"] .ac.pulse::after {
+    content: "TARGET LOCK"; position: absolute; left: 50%; top: -28px; transform: translateX(-50%); font: 700 9px/1 var(--font);
+    letter-spacing: .2em; color: #ef4444; text-shadow: 0 0 4px #000; white-space: nowrap; }
+  @keyframes lockon { from { transform: scale(1.6) rotate(45deg); opacity: .2; } to { transform: none; opacity: 1; } }
+
+  /* --- Spy HQ: satellite in cold teal, grid, radar sweep, classification banners --- */
+  body[data-theme="spy"] {
+    --bg: #02080c; --panel: rgba(2,14,20,.86); --line: #0f4c5c; --text: #cfeff3; --muted: #5f9aa6; --accent: #2dd4bf; --accent-hi: #a5f3fc;
+    --glow: rgba(45,212,191,.25); --popup: rgba(3,18,26,.95); --btn: #052430; --ticker-bg: #7f1d1d; --ticker-fg: #fff; --cap: #f87171;
+    --font: "Share Tech Mono", ui-monospace, Menlo, Consolas, monospace; --font-head: var(--font);
+    --tile-filter: grayscale(1) sepia(1) hue-rotate(150deg) saturate(2.2) brightness(.9) contrast(1.3);
+    --label-filter: grayscale(1) sepia(1) hue-rotate(150deg) saturate(2.5) brightness(1.1); }
+  body[data-theme="spy"] .panel, body[data-theme="spy"] #top, body[data-theme="spy"] #ticker { border-radius: 0; }
+  body[data-theme="spy"] #fx .grid { background-image: linear-gradient(rgba(45,212,191,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(45,212,191,.08) 1px, transparent 1px);
+    background-size: 64px 64px; }
+  body[data-theme="spy"] #fx .rings { background: repeating-radial-gradient(circle at 50% 50%, transparent 0 139px, rgba(45,212,191,.13) 140px, transparent 141px); }
+  body[data-theme="spy"] #fx .sweep { inset: auto; left: 50%; bottom: 50%; width: 75vmax; height: 75vmax; transform-origin: 0 100%;
+    background: conic-gradient(from 0deg at 0 100%, rgba(45,212,191,.22), rgba(45,212,191,0) 40deg, transparent 90deg); animation: spin 9s linear infinite; }
+  body[data-theme="spy"] #fx .scan { background: repeating-linear-gradient(0deg, rgba(0,0,0,.12) 0 1px, transparent 1px 3px); }
+  body[data-theme="spy"] #fx .vig { background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.6) 100%); }
+
+  /* --- Nostromo (Alien): amber CRT, heavy scanlines, rolling bar --- */
+  body[data-theme="alien"] {
+    --bg: #000; --panel: rgba(10,6,0,.9); --line: #5c3a06; --text: #ffcf66; --muted: #b07a1e; --accent: #ffb000; --accent-hi: #ffe08a;
+    --glow: rgba(255,176,0,.3); --popup: rgba(14,8,0,.96); --btn: #1c1100; --ticker-bg: #ffb000; --ticker-fg: #000;
+    --font: "VT323", ui-monospace, monospace; --font-head: var(--font); font-size: 16px;
+    --tile-filter: grayscale(1) contrast(1.3) brightness(.85) sepia(1) saturate(4) hue-rotate(-12deg) brightness(.6);
+    --label-filter: grayscale(1) sepia(1) saturate(5) hue-rotate(-10deg) brightness(1.05); }
+  body[data-theme="alien"] .panel, body[data-theme="alien"] #top, body[data-theme="alien"] #ticker, body[data-theme="alien"] .leaflet-popup-content { text-shadow: 0 0 5px rgba(255,176,0,.45); }
+  body[data-theme="alien"] .panel { border-radius: 2px; }
+  body[data-theme="alien"] .panel h2 { font-size: 15px; }
+  body[data-theme="alien"] #fx .scan { background: repeating-linear-gradient(0deg, rgba(0,0,0,.35) 0 2px, transparent 2px 4px); }
+  body[data-theme="alien"] #fx .vig { background: radial-gradient(ellipse at center, rgba(255,176,0,.03) 40%, rgba(0,0,0,.75) 100%); }
+  body[data-theme="alien"] #fx .roll { bottom: auto; height: 22%; background: linear-gradient(transparent, rgba(255,190,60,.07), transparent); animation: roll 8s linear infinite; }
+  @keyframes roll { from { transform: translateY(-100%); } to { transform: translateY(460%); } }
+
+  /* --- The Grid (Tron): black, neon cyan lines and glow --- */
+  body[data-theme="tron"] {
+    --bg: #000; --panel: rgba(0,8,12,.85); --line: #00c8e0; --text: #c8faff; --muted: #4fb3c4; --accent: #00e5ff; --accent-hi: #fff;
+    --glow: rgba(0,229,255,.45); --popup: rgba(0,10,14,.95); --btn: #001a20; --ticker-bg: #ff9a00; --ticker-fg: #000;
+    --font: "Exo 2", system-ui, sans-serif; --font-head: "Orbitron", var(--font);
+    --tile-filter: grayscale(1) contrast(1.3) brightness(.8) sepia(1) hue-rotate(150deg) saturate(6) brightness(.55);
+    --label-filter: grayscale(1) sepia(1) hue-rotate(150deg) saturate(5) brightness(1.15); }
+  body[data-theme="tron"] .panel, body[data-theme="tron"] #searchBox { border-radius: 3px; box-shadow: 0 0 12px var(--glow), inset 0 0 14px rgba(0,229,255,.12); }
+  body[data-theme="tron"] #top, body[data-theme="tron"] #ticker { box-shadow: 0 0 12px var(--glow); }
+  body[data-theme="tron"] .panel h2, body[data-theme="tron"] #top h1 { text-shadow: 0 0 8px var(--accent); letter-spacing: .2em; }
+  body[data-theme="tron"] #fx .grid { background-image: linear-gradient(rgba(0,229,255,.16) 1px, transparent 1px), linear-gradient(90deg, rgba(0,229,255,.16) 1px, transparent 1px);
+    background-size: 48px 48px; }
+  body[data-theme="tron"] #fx .vig { background: radial-gradient(ellipse at 50% 120%, rgba(0,229,255,.10), transparent 60%), radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.6) 100%); }
+
+  /* --- Tactical (The Expanse): navy, blue with amber, cut corners, hex grid --- */
+  body[data-theme="expanse"] {
+    --bg: #01050d; --panel: rgba(4,12,28,.88); --line: #1e3a66; --text: #d6e6ff; --muted: #6f8bb3; --accent: #60a5fa; --accent-hi: #fbbf24;
+    --glow: rgba(96,165,250,.25); --popup: rgba(4,12,28,.96); --btn: #0a1a36; --ticker-bg: #f59e0b; --ticker-fg: #000; --cap: #fbbf24;
+    --font: "Oxanium", system-ui, sans-serif; --font-head: var(--font);
+    --tile-filter: grayscale(1) sepia(1) hue-rotate(180deg) saturate(2.6) brightness(.6) contrast(1.2);
+    --label-filter: grayscale(1) sepia(1) hue-rotate(175deg) saturate(2) brightness(1.15); }
+  body[data-theme="expanse"] .panel { border-radius: 0; clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }
+  body[data-theme="expanse"] .panel h2 { letter-spacing: .25em; }
+  body[data-theme="expanse"] #fx .grid { opacity: .5; background-size: 56px 97px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='97'%3E%3Cpath d='M28 0 56 16v32L28 64 0 48V16zM28 64v33M0 97V81M56 97V81' fill='none' stroke='%2360a5fa' stroke-opacity='.18'/%3E%3C/svg%3E"); }
+  body[data-theme="expanse"] #fx .scan { background: repeating-linear-gradient(0deg, rgba(0,0,0,.10) 0 1px, transparent 1px 3px); }
+  body[data-theme="expanse"] #fx .vig { background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.55) 100%); }
+
+  /* --- PreCrime (Minority Report): frosted glass, white and pale blue --- */
+  body[data-theme="minority"] {
+    --bg: #05090d; --panel: rgba(150,200,240,.08); --line: rgba(190,230,255,.32); --text: #e6f4ff; --muted: #8fb3cc; --accent: #9fd8ff; --accent-hi: #fff;
+    --glow: rgba(160,215,255,.3); --popup: rgba(20,34,48,.82); --btn: rgba(150,200,240,.10); --ticker-bg: rgba(159,216,255,.85); --ticker-fg: #04121e;
+    --font: "Exo 2", system-ui, sans-serif; --font-head: var(--font);
+    --tile-filter: grayscale(1) sepia(.7) hue-rotate(168deg) saturate(1.5) brightness(.75) contrast(1.05);
+    --label-filter: grayscale(1) sepia(.4) hue-rotate(168deg) saturate(1.5) brightness(1.2); font-weight: 300; }
+  body[data-theme="minority"] .panel, body[data-theme="minority"] #searchBox, body[data-theme="minority"] .leaflet-popup-content-wrapper {
+    border-radius: 14px; -webkit-backdrop-filter: blur(12px) saturate(1.2); backdrop-filter: blur(12px) saturate(1.2);
+    box-shadow: inset 0 0 30px rgba(140,200,255,.10), 0 0 18px rgba(140,200,255,.12); }
+  body[data-theme="minority"] #top, body[data-theme="minority"] #ticker { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); background: rgba(10,20,30,.6); }
+  body[data-theme="minority"] .panel h2 { letter-spacing: .35em; font-weight: 400; }
+  body[data-theme="minority"] #fx .grid { background-image: linear-gradient(rgba(190,230,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(190,230,255,.05) 1px, transparent 1px);
+    background-size: 120px 120px; }
+  body[data-theme="minority"] #fx .vig { background: linear-gradient(115deg, rgba(255,255,255,.06), transparent 30%, transparent 70%, rgba(160,215,255,.06)); }
+  @media (prefers-reduced-motion: reduce) { #fx *, #boot .cur::after, body[data-theme] .ac.pulse::before { animation: none !important; } }
   /* ---------- phone layout: panels become bottom sheets ---------- */
   @media (max-width: 760px) {
     :root { --sat: 0px; --sab: 0px; --top: calc(44px + var(--sat)); --bot: calc(26px + var(--sab)); }
@@ -212,7 +336,7 @@ const DEFAULTS = {
     ac_trails: true, mil_dest: true, airfields: true, army: true,
     vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
     cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, home: true, quakes: true, meteors: true, allsky: true, observatories: true, news: true },
-  basemap: "dark", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
+  basemap: "dark", theme: "standard", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
 };
 let S;
 try { S = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem("ukSit") || "{}"));
@@ -247,9 +371,9 @@ function setBasemap(key) {
   const b = BASEMAPS[key] || BASEMAPS.dark;
   if (baseLayer) baseLayer.remove();
   if (labelLayer) { labelLayer.remove(); labelLayer = null; }
-  baseLayer = L.tileLayer(b[1], { maxZoom: 19, maxNativeZoom: b[3], attribution: b[2] + DATA_ATTR }).addTo(map);
+  baseLayer = L.tileLayer(b[1], { maxZoom: 19, maxNativeZoom: b[3], attribution: b[2] + DATA_ATTR, className: "base-tiles" }).addTo(map);
   baseLayer.bringToBack();
-  if (b[4]) labelLayer = L.tileLayer(b[4], { maxZoom: 19, maxNativeZoom: b[3], pane: "shadowPane", opacity: .9 }).addTo(map);
+  if (b[4]) labelLayer = L.tileLayer(b[4], { maxZoom: 19, maxNativeZoom: b[3], pane: "shadowPane", opacity: .9, className: "label-tiles" }).addTo(map);
   return key;
 }
 S.basemap = setBasemap(S.basemap);
@@ -1673,6 +1797,7 @@ function buildLeft() {
     }
   });
   h += `<h2>Filters</h2>
+    <div class="row"><span>Style</span><select id="fTheme">${Object.entries(THEMES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join("")}</select></div>
     <div class="row"><span>Map</span><select id="fBase">${Object.entries(BASEMAPS).map(([k, b]) => `<option value="${k}">${b[0]}</option>`).join("")}</select></div>
     <div class="row"><span>Labels</span><select id="fLabels"><option value="off">Off</option><option value="special">Special only</option><option value="all">All</option></select></div>
     <div class="row"><span>Hide civil below</span><select id="fAlt"><option value="0">—</option><option value="5000">5,000 ft</option><option value="10000">10,000 ft</option><option value="20000">20,000 ft</option></select></div>
@@ -1680,9 +1805,9 @@ function buildLeft() {
     <div class="row"><span>Incident severity</span><select id="fNewsSev"><option value="1">All</option><option value="2">Medium +</option><option value="3">High only</option></select></div>
     <div class="row"><span>Quakes</span><select id="fQuake"><option value="1">24 h</option><option value="7">7 days</option><option value="30">30 days</option><option value="365">All</option></select></div>
     <div class="row"><span>Meteors</span><select id="fMeteor"><option value="12">12 h</option><option value="36">36 h</option><option value="72">3 nights</option></select></div>
-    <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>P</b> panels · <b>F</b> full screen · <b>H</b> home view<br>Add <code>?kiosk</code> to the URL for an always-on display, and <code>?view=military</code> (or emergency, transport, weather, coast, space, everything) to open in a view.</p>`;
+    <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>/</b> search · <b>P</b> panels · <b>F</b> full screen · <b>H</b> home view<br>Add <code>?kiosk</code> to the URL for an always-on display, and <code>?view=military</code> (or emergency, transport, weather, coast, space, everything) to open in a view, and <code>?theme=spy</code> (or alien, tron, expanse, minority) for a film style.</p>`;
   $("left").innerHTML = h + '<div class="sheet-close" data-close>Close</div>';
-  $("fBase").value = S.basemap; $("fLabels").value = S.labels; $("fAlt").value = S.minAltFt; $("fNewsH").value = S.newsHours; $("fNewsSev").value = S.newsMinSev; $("fQuake").value = S.quakeDays; $("fMeteor").value = S.meteorHours;
+  $("fTheme").value = S.theme || "standard"; $("fBase").value = S.basemap; $("fLabels").value = S.labels; $("fAlt").value = S.minAltFt; $("fNewsH").value = S.newsHours; $("fNewsSev").value = S.newsMinSev; $("fQuake").value = S.quakeDays; $("fMeteor").value = S.meteorHours;
   syncGroupBoxes();
   $("left").addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-bulk]");
@@ -1705,6 +1830,7 @@ function buildLeft() {
       afterToggle([t.dataset.layer]);
     }
     if (t.id === "fBase") { S.basemap = setBasemap(t.value); }
+    if (t.id === "fTheme") { setTheme(t.value, true); }
     if (t.id === "fLabels") { S.labels = t.value; renderAircraft(lastAircraft); refresh.vessels(); }
     if (t.id === "fAlt") { S.minAltFt = +t.value; renderAircraft(lastAircraft); }
     if (t.id === "fNewsH") { S.newsHours = +t.value; renderNews(); }
@@ -1787,6 +1913,8 @@ const INTERVAL = { aircraft: 10, vessels: 30, weather_warnings: 600, floods: 600
 
 function start() {
   drawBases(); buildLeft();
+  const pt = params.get("theme");  // ?theme=spy etc. for a wall display
+  setTheme(pt && THEMES[pt] ? pt : S.theme, !!pt);
   const pv = params.get("view");
   if (pv && (pv === "everything" || VIEWS[pv])) applyView(pv);
   syncLayers();
@@ -1800,6 +1928,71 @@ function start() {
     $("clock").textContent = n.toLocaleTimeString("en-GB") + " · " + n.toISOString().slice(11, 16) + "Z"; }, 1000);
   setTimeout(() => location.reload(), 6 * 3600 * 1000);  // keep a 24/7 display fresh
 }
+/* ------------------------------------------------------------ film themes (Style menu) */
+// Purely cosmetic: colours, fonts and overlays. Alert colours on markers are left alone.
+const THEMES = {
+  standard: { name: "Standard" },
+  spy: { name: "Spy HQ", base: "satellite", font: "family=Share+Tech+Mono", title: " SITREP // TOP SECRET",
+    caps: ["TOP SECRET // UK EYES ONLY", "TOP SECRET // UK EYES ONLY"], fx: ["grid", "rings", "sweep", "scan", "vig"],
+    boot: ["SECURE TERMINAL // ESTABLISHING LINK", "ENCRYPTION AES-256 ... HANDSHAKE OK", "RETINAL SCAN ... MATCH", "CLEARANCE LEVEL: TOP SECRET", "ACCESS GRANTED. GOOD EVENING."] },
+  alien: { name: "Nostromo (Alien)", base: "dark", font: "family=VT323", title: " // MU-TH-UR 6000",
+    caps: ["MU-TH-UR 6000 // INTERFACE 2037", "USCSS NOSTROMO // 180924609"], fx: ["scan", "roll", "vig"],
+    boot: ["MU-TH-UR 6000", "INTERFACE 2037 READY FOR INQUIRY", "> WHAT IS THE SITUATION, MOTHER?", "SCANNING SECTOR: UNITED KINGDOM", "DISPLAYING ALL DATA"] },
+  tron: { name: "The Grid (Tron)", base: "dark", font: "family=Orbitron:wght@500;700&family=Exo+2:wght@400;600", title: " // THE GRID",
+    caps: ["ENCOM OS-12 // SECTOR: UNITED KINGDOM"], fx: ["grid", "vig"],
+    boot: ["ENCOM OS-12", "CONNECTING TO THE GRID ...", "PROGRAM: SITREP // USER AUTHORISED", "END OF LINE."] },
+  expanse: { name: "Tactical (The Expanse)", base: "dark", font: "family=Oxanium:wght@400;600", title: " // UNN TACTICAL",
+    caps: ["UNN TACTICAL NETWORK // EARTH // UK SECTOR"], fx: ["grid", "scan", "vig"],
+    boot: ["UNN TACTICAL NETWORK", "LIDAR SWEEP: UK SECTOR ... COMPLETE", "TRANSPONDER CODES ... RECEIVED", "PDC STATUS: STANDBY", "TACTICAL DISPLAY ONLINE"] },
+  minority: { name: "PreCrime (Minority Report)", base: "dark", font: "family=Exo+2:wght@300;400;600", title: " // PRECRIME",
+    caps: ["PRECRIME // DIVISION UK"], fx: ["grid", "vig"],
+    boot: ["PRECRIME DIVISION", "PRECOG FEED ... SYNCHRONISED", "PREVISUALISATION ENGINE ONLINE", "NO RED BALLS. ALL QUIET."] },
+};
+const H1_HTML = document.querySelector("#top h1").innerHTML;
+const fx = L.DomUtil.create("div", "", map.createPane("fxPane"));  // inside the map so it sits under markers and popups
+fx.id = "fx";
+map.getPane("fxPane").style.zIndex = 450;
+function placeFx() {  // keep the overlay fixed to the screen while the map pane moves
+  const sz = map.getSize();
+  L.DomUtil.setPosition(fx, map.containerPointToLayerPoint([0, 0]));
+  fx.style.width = sz.x + "px"; fx.style.height = sz.y + "px";
+}
+map.on("move zoomend resize viewreset", placeFx);
+let bootTimer = null;
+function bootSequence(t) {
+  clearTimeout(bootTimer);
+  document.getElementById("boot")?.remove();
+  if (!t.boot) return;
+  const el = document.createElement("div");
+  el.id = "boot"; document.body.appendChild(el);
+  const done = () => { clearTimeout(bootTimer); el.classList.add("done"); setTimeout(() => el.remove(), 700); };
+  el.onclick = done;
+  let i = 0;
+  const next = () => {
+    el.innerHTML = t.boot.slice(0, i + 1).map((l, j) => `<div${j === i ? ' class="cur"' : ""}>${esc(l)}</div>`).join("");
+    bootTimer = setTimeout(++i < t.boot.length ? next : done, i < t.boot.length ? 450 : 900);
+  };
+  next();
+}
+function setTheme(key, picked = false) {
+  const t = THEMES[key] ? key : "standard", th = THEMES[t];
+  S.theme = t;
+  if ($("fTheme")) $("fTheme").value = t;
+  if (t === "standard") delete document.body.dataset.theme; else document.body.dataset.theme = t;
+  let link = document.getElementById("themeFont");
+  if (th.font) {
+    if (!link) { link = document.createElement("link"); link.id = "themeFont"; link.rel = "stylesheet"; document.head.appendChild(link); }
+    link.href = `https://fonts.googleapis.com/css2?${th.font}&display=swap`;
+  }
+  document.querySelector("#top h1").innerHTML = th.title ? `🇬🇧 UK<span class="full">${esc(th.title)}</span>` : H1_HTML;
+  fx.innerHTML = (th.fx || []).map(c => `<div class="${c}"></div>`).join("")
+    + (th.caps || []).map((c, i) => `<div class="cap${i ? " b" : ""}">${esc(c)}</div>`).join("");
+  placeFx();
+  if (picked && th.base && BASEMAPS[th.base]) { S.basemap = setBasemap(th.base); if ($("fBase")) $("fBase").value = S.basemap; }
+  if (picked || !params.has("kiosk")) bootSequence(th);
+  save();
+}
+
 /* ------------------------------------------------------------ place search (postcodes.io) */
 let searchPin = null, searchHits = [], searchSel = 0, searchTimer = null, searchSeq = 0;
 function openSearch(show = true) {

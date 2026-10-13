@@ -32,6 +32,7 @@ Each is subject to its own terms.
 | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov) *(optional key)*, [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) | Fire hotspots, satellite imagery | NASA open data; please acknowledge LANCE FIRMS / GIBS |
 | [Allsky camera map](https://www.thomasjacquin.com/allsky-map/) (Thomas Jacquin's Allsky project) | Locations, links and latest images of allsky cameras whose owners chose to show them on the map; images are loaded from the owners' own sites | Owners' content; links and images shown as published, not stored |
 | [allsky-map.com](https://allsky-map.com) ([TN-1/allsky-map](https://github.com/TN-1/allsky-map), for [indi-allsky](https://github.com/aaronwmorris/indi-allsky)) | indi-allsky camera locations, online status and latest image | Owners' content, served by allsky-map.com; not stored |
+| [Google Fonts](https://fonts.google.com) (Share Tech Mono, VT323, Orbitron, Exo 2, Oxanium) | Fonts for the optional film styles, loaded only when one is picked | SIL Open Font License |
 | [CelesTrak](https://celestrak.org) + [python-sgp4](https://pypi.org/project/sgp4/) | ISS orbit | CelesTrak terms; MIT |
 | [TfL Unified API](https://api.tfl.gov.uk) | Line status | Powered by TfL Open Data |
 | [GOV.UK Fuel Finder](https://www.developer.fuel-finder.service.gov.uk) *(optional credentials)* | Fuel prices | Motor Fuel Price (Open Data) Regulations 2025; Fuel Finder terms |

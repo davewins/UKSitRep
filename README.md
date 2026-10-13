@@ -37,6 +37,22 @@ Add `?view=<name>` to the URL to open in a view (`military`, `emergency`, `trans
 `weather`, `coast`, `space`, `everything`), e.g. for a wall display:
 `https://<host>/k/<ACCESS_TOKEN>/?kiosk&view=military`.
 
+## Film styles
+
+For fun, **Layers → Filters → Style** restyles the whole screen without changing any data:
+
+| Style | Look |
+|---|---|
+| **Spy HQ** | Satellite map in cold teal, grid, range rings and a radar sweep, typewriter font, "TOP SECRET // UK EYES ONLY" banners, target brackets on emergency squawks |
+| **Nostromo (Alien)** | Amber CRT: scanlines, a rolling refresh bar, VT323 terminal font, MU-TH-UR boot-up |
+| **The Grid (Tron)** | Black and neon cyan, glowing panels and grid |
+| **Tactical (The Expanse)** | Navy and blue with amber highlights, cut-corner panels, hex grid |
+| **PreCrime (Minority Report)** | Frosted-glass panels in white and pale blue |
+
+Each plays a short boot sequence (click to skip). Marker colours keep their meaning in every
+style, and radar and satellite imagery keep their real colours. Add `?theme=spy` (or `alien`,
+`tron`, `expanse`, `minority`) to the URL for a wall display. Fonts load from Google Fonts.
+
 ## Finding a place
 
 Press **🔍** (or `/`) and type a town, village, postcode (`TQ14 8AA`), postcode district
