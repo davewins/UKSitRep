@@ -16,7 +16,7 @@ browser (uksitrep/static/index.html: Leaflet, no build step)
 aiohttp server (uksitrep/server.py)
    │  auth middleware (ACCESS_TOKEN), routes, security headers
    ▼
-Situation (uksitrep/feeds.py) + mixins (more_feeds.py, fire_services.py)
+Situation (uksitrep/feeds.py) + mixins (more_feeds.py, fire_services.py, home.py, sky.py, rail.py, bus.py)
    │  one async method per feed, each wrapped in a TTL Cache with per-key locks
    ▼
 fixed, allow-listed upstream URLs (never an open proxy)
@@ -28,13 +28,14 @@ fixed, allow-listed upstream URLs (never an open proxy)
 | `uksitrep/config.py` | `Config.from_env()`: every environment variable |
 | `uksitrep/feeds.py` | `Cache`, `Situation`, core feeds (aircraft, AIS relay, weather, grid, roads, news, sewage, tides, webcams…) and the `handlers` map |
 | `uksitrep/more_feeds.py` | `MoreFeeds` mixin: rivers, lightning relay, air quality, bathing water, ISS (sgp4), FIRMS, TfL, fuel, crime |
+| `uksitrep/home.py` | `HomeArea` mixin: the Near home summary, Home Assistant notifications (`NOTIFY` kinds, sent-key store) and place search (postcodes.io) |
 | `uksitrep/bus.py` | `Bus` mixin: BODS live bus positions (SIRI-VM, per map view) and disruptions (SIRI-SX), operator names from Traveline NOC |
 | `uksitrep/rail.py` | `Rail` mixin: Darwin departure boards and National Rail disruptions (Rail Data Marketplace keys), NaPTAN station positions, station names matched in disruption text |
 | `uksitrep/sky.py` | `SkyWatch` mixin: allsky cameras (Allsky map page, allsky-map.com for indi-allsky) and OSM observatories/telescopes/planetaria with a curated list of famous sites |
 | `uksitrep/fire_services.py` | `FireServices` mixin: fire & rescue feeds, text-to-place geocoding restricted to a bounding box |
 | `uksitrep/lookups.py` | Aircraft type names and ICAO-address-to-country tables, downloaded at startup (GPL, not bundled) |
 | `uksitrep/places.py`, `hems_sites.py` | Gazetteer for pinning news to places; hospital/base sites for air-ambulance "on scene" inference |
-| `uksitrep/data/` | Small bundled seeds (lifeboat stations, an OSM webcam snapshot) |
+| `uksitrep/data/` | Small bundled seeds, each refreshed in the background into `DATA_DIR`: lifeboat stations, OSM webcams, observatories, rail stations (NaPTAN), bus operator names (NOC) |
 | `uksitrep/static/index.html` | The whole front end: settings, layers, renderers, refresh loop, views |
 | `config/cameras.json` | Hand-curated webcams |
 | `tools/smoke/` | jsdom smoke test (see Testing) |
@@ -54,7 +55,7 @@ Server side:
    Errors raised inside `fetch` are caught by the cache: viewers get the last good value or
    `{"error": ...}`. Return `{"error": "no_key", ...}` when an optional key isn't set.
 2. Add it to `Situation.handlers` (or special-case it in `server.feed` if it takes query
-   parameters, like `tides`, `crime`, `iss`, `fuel`).
+   parameters, like `tides`, `crime`, `iss`, `fuel`, `buses`, `rail_board`, `search`).
 3. New settings go in `Config` / `from_env()`, `docker-compose.yml` (`environment:` block),
    `.env.example`, the README configuration table, and `/healthz` features if it's a key.
 
@@ -63,10 +64,26 @@ Front end (`index.html`):
 5. A row in `LAYER_UI` (group, label, legend colour, optional nested children).
 6. A renderer `renderX(d)` that keeps `lastX`, clears `G.x`, draws markers, sets `counts.x`.
 7. An entry in `refresh` and `INTERVAL`; a chip name in `renderChips`; a count in `countFor`.
-8. Zoom-gated or bbox-driven layers re-render on `moveend` (see webcams, crime, fuel).
+8. Zoom-gated or bbox-driven layers re-render on `moveend` (see webcams, crime, fuel). Layers that
+   refresh often while popups may be open (buses) move existing markers instead of clearing them.
+   Popups that need a slow fetch load it on `popupopen` (rail departure boards).
+10. If it matters near home, add it to `_home_summary` / `renderHome`, and to `_home_events`
+   with a stable key (so a changing value doesn't re-notify) and a `NOTIFY` kind.
 9. Hook it into `afterToggle()` if toggling needs a redraw, and add it to `VIEWS` where it fits.
 
 Docs: README layer table, `NOTICE.md` (source, use, licence), version in `__init__.py`.
+
+## Film styles (themes)
+
+Styles are pure presentation: `THEMES` in `index.html` (name, default basemap, Google Fonts query,
+title suffix, banner captions (strings or functions), `fx` overlay layers, `boot` lines or a
+`crawl`) plus a `body[data-theme="key"]` CSS block that sets the colour variables, a
+`--tile-filter` / `--label-filter` for the base map, and any chrome. Rules:
+- Filters apply only to the `.base-tiles` and `.label-tiles` layers, so radar and imagery keep real colours.
+- Marker colours must keep their meaning; don't recolour layers.
+- The `#fx` overlay lives in the map's `fxPane` (under markers) and must stay `pointer-events: none`.
+- Respect `prefers-reduced-motion`; boot sequences are skippable and don't play in `?kiosk`.
+- Add the key to the README list and `?theme=` examples, with a screenshot in `docs/styles/`.
 
 ## Porting to another country
 
@@ -100,6 +117,8 @@ coverage for your country.
 | Admiralty EasyTide | National hydrographic office tide predictions |
 | BBC RSS (`BBC_FEEDS`, `NEWS_HIGH/MED`) | A national broadcaster's RSS; rewrite the keyword regexes and `places.py` gazetteer for your language |
 | postcodes.io (geocoding) | A national gazetteer API, or Nominatim (keep to 1 request/second and cache hard) |
+| Rail Data Marketplace (Darwin, disruptions), NaPTAN | National rail operator's open departure/disruption APIs and a stop register (GTFS stops work) |
+| Bus Open Data Service (SIRI-VM/SX), NOC | GTFS-Realtime vehicle positions and service alerts are the usual equivalents |
 | police.uk, TfL, Fuel Finder, RNLI, fire services | Each has a local equivalent, or none: drop the layer rather than fake it |
 
 **4. Aviation and military details**
@@ -133,9 +152,12 @@ compose file, README/NOTICE.
   validated parameters (ids matched by regex, lat/lon range-checked, bbox parsed as floats).
 - **Be a polite client.** Cache every feed (minutes to days). Identify with a User-Agent.
   Back off on 429 (see the adsb.lol handling) and honour documented limits (Fuel Finder: one
-  request at a time). Fetch large datasets once on the server and send viewers only their bbox.
+  request at a time). Fetch large datasets once on the server and send viewers only their bbox. If even one
+  fetch is huge (BODS for all England is 30 MB), ask upstream for the viewer's bbox instead,
+  snapped to a grid so nearby views share a cache entry.
 - **Never make viewers wait on a slow upstream.** Serve a saved copy and refresh in the
-  background (OSM webcams, WorldCam, river stations, fuel forecourts).
+  background (OSM webcams, WorldCam, river stations, fuel forecourts, observatories, rail
+  stations, bus operators). Ship a seed in `uksitrep/data/` so a fresh install works offline.
 - **Keys come only from environment variables.** Never commit them; `.env` is gitignored.
 - **Scraped or unofficial sources are off by default** and flagged in `NOTICE.md` (WorldCam, DSFRS).
   Prefer official open data; record every source and licence in `NOTICE.md`.
