@@ -250,6 +250,10 @@ class HomeArea:
                 "disruptions": [{k: d.get(k) for k in ("id", "summary", "text", "planned", "url", "end")}
                                 | {"lines": [x["line"] for x in d["lines"]][:6]} for d in bdis[:6]],
             }
+        if cfg.bus_timetable_regions:
+            stop = await safe(self.home_bus_stop(h))
+            if stop:
+                out.setdefault("bus", {})["stop"] = {**stop, "departures": stop["departures"][:4]}
         return out
 
     # ------------------------------------------------------------ notifications

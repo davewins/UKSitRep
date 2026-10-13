@@ -78,14 +78,15 @@ async def feed(request: web.Request) -> web.Response:
     if name == "aircraft_info":
         return web.json_response(await sit.aircraft_info(request.query.get("hex", ""), request.query.get("callsign", "")),
                                  headers={"Cache-Control": "max-age=3600"})
-    if name in ("fuel", "buses"):
+    if name in ("fuel", "buses", "bus_stops"):
         try:
             bbox = tuple(float(x) for x in request.query["bbox"].split(","))
             if len(bbox) != 4:
                 raise ValueError
         except (KeyError, ValueError):
             bbox = None
-        return web.json_response(await (sit.buses(bbox) if name == "buses" else sit.fuel(bbox)))
+        fn = {"buses": sit.buses, "bus_stops": sit.bus_stops, "fuel": sit.fuel}[name]
+        return web.json_response(await fn(bbox))
     if name in ("iss", "crime"):
         try:
             lat, lon = float(request.query["lat"]), float(request.query["lon"])
@@ -96,6 +97,8 @@ async def feed(request: web.Request) -> web.Response:
         if name == "crime":
             return web.json_response(await sit.crime(lat, lon))
         return web.json_response(await sit.iss(lat, lon))
+    if name == "bus_board":
+        return web.json_response(await sit.bus_board(request.query.get("stop", "")))
     if name == "rail_board":
         return web.json_response(await sit.rail_board(request.query.get("crs", "")))
     if name == "search":
@@ -141,6 +144,7 @@ async def healthz(request: web.Request) -> web.Response:
             "homes": [h.name for h in cfg.homes],
             "rail_departures": bool(cfg.rail_ldb_key),
             "buses": bool(cfg.bods_key),
+            "bus_timetables": cfg.bus_timetable_regions,
             "rail_disruptions": bool(cfg.rail_disruptions_key),
             "ha_notifications": [h.name for h in cfg.homes if h.webhook_url],
         },
@@ -160,6 +164,8 @@ async def _startup(app: web.Application) -> None:
         sit.spawn(sit.adsb_loop())
     if cfg.enable_lightning:
         sit.lightning_relay.start()
+    if cfg.bus_timetable_regions:
+        sit.bustimes_maintain()  # first start downloads and indexes the timetables in the background
     for h in cfg.homes:
         if h.webhook_url:
             sit.spawn(sit.notify_loop(h))

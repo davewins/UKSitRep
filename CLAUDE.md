@@ -30,6 +30,7 @@ fixed, allow-listed upstream URLs (never an open proxy)
 | `uksitrep/more_feeds.py` | `MoreFeeds` mixin: rivers, lightning relay, air quality, bathing water, ISS (sgp4), FIRMS, TfL, fuel, crime |
 | `uksitrep/home.py` | `HomeArea` mixin: the Near home summary (per `Home` in `cfg.homes`; each home's token picks it), Home Assistant notifications (`NOTIFY` kinds, sent-key store) and place search (postcodes.io) |
 | `uksitrep/bus.py` | `Bus` mixin: BODS live bus positions (SIRI-VM, per map view) and disruptions (SIRI-SX), operator names from Traveline NOC |
+| `uksitrep/bustimes.py` | `BusTimes` mixin: BODS regional GTFS timetables indexed in a child process (`python -m uksitrep.bustimes`) into `DATA_DIR/bustimes/<region>/` (meta.json + 6-byte departure records per stop); stop boards, live journeys matched by operator + line + start time |
 | `uksitrep/rail.py` | `Rail` mixin: Darwin departure boards and National Rail disruptions (Rail Data Marketplace keys), NaPTAN station positions, station names matched in disruption text |
 | `uksitrep/sky.py` | `SkyWatch` mixin: allsky cameras (Allsky map page, allsky-map.com for indi-allsky) and OSM observatories/telescopes/planetaria with a curated list of famous sites |
 | `uksitrep/fire_services.py` | `FireServices` mixin: fire & rescue feeds, text-to-place geocoding restricted to a bounding box |

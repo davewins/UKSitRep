@@ -424,7 +424,7 @@ const DEFAULTS = {
   layers: { ac_civil: true, ac_military: true, ac_police: true, ac_hems: true, ac_sar: true,
     ac_trails: true, mil_dest: true, airfields: true, army: true,
     vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
-    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, home: true, quakes: true, meteors: true, allsky: true, observatories: true, rail_stations: true, rail_disruptions: true, buses: true, bus_disruptions: true, news: true },
+    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, home: true, quakes: true, meteors: true, allsky: true, observatories: true, rail_stations: true, rail_disruptions: true, buses: true, bus_stops: true, bus_disruptions: true, news: true },
   basemap: "dark", theme: "standard", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
 };
 let S;
@@ -503,7 +503,7 @@ const FEED_NAMES = { aircraft: "ADS-B aircraft", vessels: "AIS ships", weather_w
   city_weather: "Open-Meteo weather", grid: "Electricity grid", roads: "National Highways", power_cuts: "Power cuts", space: "Space weather",
   quakes: "BGS earthquakes", news: "BBC news", meteors: "UK Meteor Network", sea: "Sea state", wind_grid: "Wind grid", radar: "Rain radar",
   rnli: "RNLI launches", fire: "Fire & rescue", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage overflows", bathing: "Bathing waters",
-  rivers: "River levels", lightning: "Lightning", air_quality: "Air quality", fires: "NASA fire hotspots", tfl: "TfL status", iss: "ISS", allsky: "Allsky cameras", observatories: "Observatories", rail_stations: "Rail stations", rail_disruptions: "Rail disruptions", buses: "Live buses", bus_disruptions: "Bus disruptions",
+  rivers: "River levels", lightning: "Lightning", air_quality: "Air quality", fires: "NASA fire hotspots", tfl: "TfL status", iss: "ISS", allsky: "Allsky cameras", observatories: "Observatories", rail_stations: "Rail stations", rail_disruptions: "Rail disruptions", buses: "Live buses", bus_stops: "Bus stops", bus_board: "Bus departures", bus_disruptions: "Bus disruptions",
   crime: "Street crime", fuel: "Fuel prices", home: "Near home" };
 // "off" = an optional feed with no key / switched off: not a fault
 const feedState = (v) => v.ok ? "ok" : /key|disabled/i.test(v.note || "") ? "off" : "err";
@@ -1029,6 +1029,45 @@ function refreshBuses(force) {
     counts.buses = d.buses.length; renderCounts();
   }, force ? 0 : 500);
 }
+const BUS_STOP_MIN_ZOOM = 15;
+let busStopKey = null, busStopTimer = null;
+function busBoard(st, d) {
+  const head = `<b>🚏 ${esc(st.name)}</b>${st.lines?.length ? ` <span class="muted">${esc(st.lines.join(", "))}</span>` : ""}`;
+  if (!d) return `${head}<br><span class="muted">Loading departures…</span>`;
+  if (d.error) return `${head}<br><span class="muted">Departures unavailable: ${esc(d.error)}</span>`;
+  const rows = d.departures.map(x => `<tr><td class="t">${ukTime(x.time)}</td><td class="t"><b>${esc(x.line)}</b></td>
+    <td>${esc(x.dest || "")}<small>${esc(x.operator || "")}</small></td>
+    <td class="t">${x.live ? `<span class="ok" title="A tracked bus is running this journey">🛰 ${x.live.km} km</span>` : ""}</td></tr>`).join("");
+  return `${head}${rows ? `<table class="rail-tbl">${rows}</table>` : '<br><span class="muted">No buses in the next three hours</span><br>'}
+    <span class="muted" style="font-size:11px">Timetabled times · 🛰 = bus being tracked now, distance from this stop</span>`;
+}
+async function loadBusBoard(st, popup) {
+  let d;
+  try { const r = await fetch(withToken(`${API}bus_board?stop=${encodeURIComponent(st.id)}`)); d = r.ok ? await r.json() : { error: r.status }; }
+  catch (err) { d = { error: String(err) }; }
+  popup.setContent(busBoard(st, d));
+}
+function refreshBusStops() {
+  clearTimeout(busStopTimer);
+  if (!S.layers.bus_stops || map.getZoom() < BUS_STOP_MIN_ZOOM) { G.bus_stops.clearLayers(); busStopKey = null; counts.bus_stops = undefined; renderCounts(); return; }
+  const b = map.getBounds().pad(0.2);
+  const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(v => v.toFixed(3)).join(",");
+  if (bbox === busStopKey) return;
+  busStopTimer = setTimeout(async () => {
+    busStopKey = bbox;
+    const d = await getFeed("bus_stops", `?bbox=${bbox}`);
+    if (!d || !d.stops || busStopKey !== bbox) return;
+    G.bus_stops.clearLayers();
+    for (const st of d.stops) {
+      const m = L.circleMarker([st.lat, st.lon], { radius: 5, color: "#78350f", weight: 2, fillColor: "#fcd34d", fillOpacity: 1 })
+        .bindPopup(busBoard(st), { maxWidth: 360, minWidth: 260 })
+        .bindTooltip(`${esc(st.name)}${st.lines.length ? ` <span class="muted">${esc(st.lines.join(", "))}</span>` : ""}`, { direction: "top", offset: [0, -6] })
+        .addTo(G.bus_stops);
+      m.on("popupopen", (e) => loadBusBoard(st, e.popup));
+    }
+    counts.bus_stops = d.stops.length; renderCounts();
+  }, 400);
+}
 function renderBusDis(d) {
   if (d) lastBusDis = d.disruptions || [];
   G.bus_disruptions.clearLayers();
@@ -1377,6 +1416,8 @@ function renderHome(d) {
     r.push(row("🚆", `<b>${esc(b.name)}</b> ${next || '<span class="muted">no departures soon</span>'}`, null));
   }
   for (const x of d0.rail?.disruptions || []) r.push(row("🚆", `<b style="color:#fb7185">${esc(x.text.slice(0, 120))}</b>`, null));
+  const bs = d0.bus?.stop;
+  if (bs) r.push(row("🚏", `<b>${esc(bs.name)}</b> ${bs.departures.map(x => `${ukTime(x.time)} <b>${esc(x.line)}</b> ${esc(x.dest || "")}${x.live ? " 🛰" : ""}`).join(" · ") || '<span class="muted">no buses soon</span>'}`, [bs.lat, bs.lon]));
   const nb = d0.bus?.near || [];
   if (nb.length) r.push(row("🚌", nb.slice(0, 4).map(b => `<b>${esc(b.line)}</b> to ${esc(b.dest || "?")} <span class="muted">${b.km} km</span>`).join(" · "), null));
   for (const x of d0.bus?.disruptions || []) r.push(row("🚌", `<b style="color:${x.planned ? "#fbbf24" : "#fb923c"}">${esc(x.summary)}</b>${x.lines.length ? ` <span class="muted">(${esc(x.lines.join(", "))})</span>` : ""}`, null));
@@ -1923,7 +1964,7 @@ const LAYER_UI = [
     ["tfl", "TfL disruption (Info panel)", "#dc2626"], ["fuel", "Fuel prices (zoom 11+)", "#22c55e"],
     ["interconnectors", "Power interconnectors (flows)", "#e879f9"]]],
   ["Rail", [["rail_disruptions", "Rail disruptions (live)", "#e11d48"], ["rail_stations", "Stations & live departures (zoom 11+)", "#fda4af"]]],
-  ["Buses", [["buses", "Live buses (zoom 12+)", "#f59e0b"], ["bus_disruptions", "Bus disruptions (zoom 9+)", "#d97706"]]],
+  ["Buses", [["buses", "Live buses (zoom 12+)", "#f59e0b"], ["bus_stops", "Stops & timetables (zoom 15+)", "#fcd34d"], ["bus_disruptions", "Bus disruptions (zoom 9+)", "#d97706"]]],
   ["Crime", [["crime", "Street crime, last month (zoom 14+)", "#c084fc"]]],
   ["Space & geological", [["quakes", "BGS earthquakes", "#f472b6"], ["meteors", "UK Meteor Network", "#a5b4fc"],
     ["iss", "ISS position & visible passes", "#e2e8f0"], ["allsky", "Allsky cameras (zoom in)", "#6366f1"],
@@ -1935,7 +1976,7 @@ function countFor(k) {
   return { ac_civil: a.civil, ac_military: a.military, ac_police: a.police, ac_hems: a.hems, ac_sar: a.sar,
     vs_special: counts.vessels?.special, vs_civil: counts.vessels?.total, floods: counts.floods, cuts: counts.cuts,
     quakes: counts.quakes, news: counts.news,
-    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, fuel: counts.fuel, allsky: counts.allsky, observatories: counts.observatories, rail_stations: counts.rail_stations, rail_disruptions: counts.rail_disruptions, buses: counts.buses, bus_disruptions: counts.bus_disruptions, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length }[k] ?? (k.startsWith("fire_") ? counts[k] : undefined);
+    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, fuel: counts.fuel, allsky: counts.allsky, observatories: counts.observatories, rail_stations: counts.rail_stations, rail_disruptions: counts.rail_disruptions, buses: counts.buses, bus_stops: counts.bus_stops, bus_disruptions: counts.bus_disruptions, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length }[k] ?? (k.startsWith("fire_") ? counts[k] : undefined);
 }
 function renderCounts() { for (const el of document.querySelectorAll("[data-count]")) { const n = countFor(el.dataset.count); el.textContent = n ?? ""; } }
 // Views: switch many layers at once. Anything not listed is turned off.
@@ -1945,7 +1986,7 @@ const VIEWS = {
   emergency: ["Emergency", ["ac_police", "ac_hems", "ac_sar", "ac_trails", "hems_scene", "rnli", "fire", ...FIRE_KIDS, "vs_special",
     "warnings", "floods", "roads_incidents", "news"]],
   transport: ["Transport & infrastructure", ["ac_civil", "ac_military", "ac_police", "ac_hems", "ac_sar", "vs_civil", "vs_special",
-    "roads_incidents", "roads_closures", "roads_works", "tfl", "rail_disruptions", "rail_stations", "buses", "bus_disruptions", "fuel", "cuts", "webcams"]],
+    "roads_incidents", "roads_closures", "roads_works", "tfl", "rail_disruptions", "rail_stations", "buses", "bus_stops", "bus_disruptions", "fuel", "cuts", "webcams"]],
   weather: ["Weather & water", ["warnings", "cityweather", "radar", "wind", "temps", "lightning", "floods", "rivers", "sea",
     "sewage", "air"]],
   coast: ["Coast & sea", ["vs_special", "vs_civil", "ac_sar", "tides", "sea", "bathing", "sewage", "sewage_recent", "rnli",
@@ -1982,6 +2023,7 @@ function afterToggle(keys) {
   if (has(k => k === "rail_stations")) renderRailStations();
   if (has(k => k === "rail_disruptions")) { renderRailDis(); renderAlerts(); }
   if (has(k => k === "buses")) refreshBuses(true);
+  if (has(k => k === "bus_stops")) { busStopKey = null; refreshBusStops(); }
   if (has(k => k === "bus_disruptions")) renderBusDis();
   if (has(k => k === "satimg")) renderSatImg();
   if (has(k => k === "tfl" || k === "iss")) renderAlerts();
@@ -2157,7 +2199,7 @@ function start() {
   for (const [k, fn] of Object.entries(refresh)) { fn(); setInterval(fn, INTERVAL[k] * 1000); }
   setInterval(() => renderNews(), 60000);  // age out expired incidents
   map.on("zoomend", () => { renderAircraft(lastAircraft); renderVessels(); if (lastGrid) renderInterconnectors(lastGrid); });
-  map.on("moveend", () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderAllsky(); renderObs(); renderRailStations(); renderBusDis(); refreshBuses(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); });
+  map.on("moveend", () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderAllsky(); renderObs(); renderRailStations(); renderBusDis(); refreshBuses(); refreshBusStops(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); });
   setInterval(() => { fuelKey = null; refreshFuel(); }, 30 * 60000);
   setInterval(() => { if (!document.hidden) refreshBuses(true); }, 20000);
   renderSatImg();

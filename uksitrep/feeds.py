@@ -27,6 +27,7 @@ from .fire_services import FireServices
 from .home import HomeArea
 from .more_feeds import LightningRelay, MoreFeeds
 from .bus import Bus
+from .bustimes import BusTimes
 from .rail import Rail
 from .sky import SkyWatch
 from .hems_sites import HEMS_EXCLUDE_KM, HEMS_SITES
@@ -243,7 +244,7 @@ def _rnli_callouts(launches: list[dict]) -> list[dict]:
     return sorted(out, key=lambda l: l.get("time") or "", reverse=True)
 
 
-class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus):
+class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes):
     """All feed fetchers plus long-lived state (aircraft trails, AIS)."""
 
     def __init__(self, cfg: Config, session: aiohttp.ClientSession) -> None:
@@ -273,6 +274,8 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus):
         self._crs_index: dict | None = None
         self.noc_task: asyncio.Task | None = None
         self.noc_retry_at = 0.0
+        self.bt_task: asyncio.Task | None = None
+        self.bt_retry_at = 0.0
         self._noc: tuple[float, dict] | None = None
         self.ais = AisRelay(self, cfg.ais_key) if cfg.ais_key else None
         self.lightning_relay = LightningRelay(self)
