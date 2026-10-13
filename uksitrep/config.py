@@ -36,6 +36,18 @@ BUS_REGIONS = ("north_east", "north_west", "yorkshire", "east_midlands", "west_m
                "south_east", "south_west", "london")  # the BODS GTFS regions
 
 
+def _bus_regions() -> list[str]:
+    """BUS_TIMETABLE_REGIONS, forgiving about case, spaces, hyphens and quotes."""
+    out = []
+    for raw in _list("BUS_TIMETABLE_REGIONS"):
+        r = re.sub(r"[\s-]+", "_", raw.strip("'\" ").lower())
+        if r in BUS_REGIONS:
+            out.append(r)
+        else:
+            _LOGGER.warning("BUS_TIMETABLE_REGIONS: unknown region %r (use one of %s)", raw, ", ".join(BUS_REGIONS))
+    return out
+
+
 @dataclass
 class Home:
     """A place the Near home panel and notifications are about. One deployment can serve several:
@@ -146,7 +158,7 @@ class Config:
             rail_ldb_key=os.environ.get("RAIL_LDB_KEY") or None,
             rail_disruptions_key=os.environ.get("RAIL_DISRUPTIONS_KEY") or None,
             bods_key=os.environ.get("BODS_API_KEY") or None,
-            bus_timetable_regions=[r for r in _list("BUS_TIMETABLE_REGIONS") if r in BUS_REGIONS],
+            bus_timetable_regions=_bus_regions(),
         )
 
     def curated_cams(self) -> list[dict]:

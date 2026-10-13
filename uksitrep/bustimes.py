@@ -250,7 +250,7 @@ class BusTimes:
 
     async def bus_stops(self, bbox: tuple[float, float, float, float] | None) -> dict:
         if not self.cfg.bus_timetable_regions:
-            return {"error": "no_key", "note": "Set BUS_TIMETABLE_REGIONS for bus stops and timetables"}
+            return {"error": "not set: BUS_TIMETABLE_REGIONS", "note": "disabled: set BUS_TIMETABLE_REGIONS (e.g. south_west)"}
         self.bustimes_maintain()
         regions = self._bt_regions()
         if not regions:
