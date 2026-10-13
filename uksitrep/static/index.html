@@ -140,6 +140,7 @@
   .radar-ctl button { background: #18212c; color: var(--text); border: 1px solid var(--line); border-radius: 4px; cursor: pointer; padding: 2px 7px; }
   .sea .lbl2 { font-size: 10px; color: #e2e8f0; text-shadow: 0 0 3px #000, 0 0 3px #000; white-space: nowrap; line-height: 1.1; }
   #btnLayers, #btnInfo, .sheet-close { display: none; }
+  @media (min-width: 761px) { body:not(.hide-panels):not(.kiosk) .leaflet-bottom.leaflet-left { left: 286px; } }
   /* ================= film themes (Style menu): body[data-theme] ================= */
   #fx { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 450; overflow: hidden; display: none; }
   body[data-theme] #fx { display: block; }
@@ -844,7 +845,7 @@ function renderRnli(d) {
   for (const l of lastRnli.filter(l => l.lat != null && l.time && ageMin(l.time) < 24 * 60)) {
     const m = ageMin(l.time);
     L.marker([l.lat, l.lon], { zIndexOffset: 600, opacity: m < 180 ? 1 : .55, icon: emIcon("#f97316", GLYPH_BOAT, m < 60) })
-      .bindPopup(`<b>RNLI ${esc(l.station)} launched</b><br>${esc(l.title || "")}<br>Lifeboat ${esc(l.lifeboat || "?")}<br>
+      .bindPopup(`<b>RNLI ${esc(l.station)} launched</b><br>${esc(l.title || "")}<br>${l.boats?.length > 1 ? "Lifeboats" : "Lifeboat"} ${esc(l.lifeboat || "?")}<br>
         ${new Date(l.time).toLocaleString("en-GB")} (${ago(l.time)})${l.link ? `<br><a href="${esc(l.link)}" target="_blank" rel="noopener">Station page ↗</a>` : ""}`)
       .addTo(G.rnli);
   }
@@ -1849,7 +1850,7 @@ function renderAlerts() {
   if (S.layers.rail_disruptions) for (const x of lastRailDis.filter(x => x.kind === "Disruption" && /^(No trains|Disruption|Major disruption|Lines? (are )?(closed|blocked)|Reduced service|Trains .*(cancelled|delayed))/i.test(x.text)).slice(0, 4))
     out.push({ cls: "info", ll: x.stations.length ? [x.stations[0].lat, x.stations[0].lon] : null, html: `🚆 ${esc(x.text.split(/(?<=\.)\s/)[0].slice(0, 140))}<small>${esc(x.operators.join(", ") || "National Rail")}</small>` });
   for (const l of lastRnli.filter(l => l.time && ageMin(l.time) < 60))
-    out.push({ cls: "info", ll: l.lat != null ? [l.lat, l.lon] : null, html: `🛟 RNLI ${esc(l.station)} lifeboat launched<small>${ago(l.time)}</small>` });
+    out.push({ cls: "info", ll: l.lat != null ? [l.lat, l.lon] : null, html: `🛟 RNLI ${esc(l.station)} ${l.boats?.length > 1 ? `${l.boats.length} lifeboats` : "lifeboat"} launched<small>${ago(l.time)}</small>` });
   for (const f of lastFire.filter(f => f.status === "Ongoing" && ageMin(f.time) < 1440))
     out.push({ cls: "amber", ll: [f.lat, f.lon], html: `🔥 ${esc(f.title)} — ${esc(f.location || f.area || "")}<small>DSFRS · ${ago(f.time)}</small>` });
   const severe = lastFloods.filter(f => f.level <= 2);

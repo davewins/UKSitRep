@@ -225,6 +225,24 @@ class Cache:
             return value
 
 
+def _rnli_callouts(launches: list[dict]) -> list[dict]:
+    """One entry per call-out: a station's launches within 30 min of each other are one shout
+    (the feed lists each boat, sometimes twice). Keeps the first launch's id and time."""
+    out: list[dict] = []
+    for l in sorted(launches, key=lambda l: l.get("time") or ""):
+        prev = next((o for o in reversed(out) if o["station"] == l["station"]), None)
+        if prev and prev["time"] and l["time"] and \
+                (datetime.fromisoformat(l["time"]) - datetime.fromisoformat(prev["last"])).total_seconds() <= 1800:
+            if l.get("lifeboat") and l["lifeboat"] not in prev["boats"]:
+                prev["boats"].append(l["lifeboat"])
+            prev["last"] = l["time"]
+            continue
+        out.append({**l, "boats": [l["lifeboat"]] if l.get("lifeboat") else [], "last": l["time"]})
+    for o in out:
+        o["lifeboat"] = ", ".join(o["boats"]) or None
+    return sorted(out, key=lambda l: l.get("time") or "", reverse=True)
+
+
 class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus):
     """All feed fetchers plus long-lived state (aircraft trails, AIS)."""
 
@@ -734,7 +752,7 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus):
                     "time": when, "lat": pos[0] if pos else None, "lon": pos[1] if pos else None,
                     "link": "https://" + l["website"] if l.get("website") else None,
                 })
-            return {"updated": datetime.now(timezone.utc).isoformat(), "launches": out}
+            return {"updated": datetime.now(timezone.utc).isoformat(), "launches": _rnli_callouts(out)}
 
         return await self.cache.get("rnli", 180, fetch)
 

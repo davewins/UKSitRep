@@ -53,13 +53,12 @@ For fun, **Layers → Filters → Style** restyles the whole screen without chan
 | **LCARS (Star Trek)** | Black with orange, lilac and blue pill buttons, elbow-framed panels, stardate banner, "Computer: working" |
 | **Imperial (Star Wars)** | Steel grey and Imperial red, a targeting reticle, and the opening crawl as the boot sequence |
 
-<table><tr>
-<td align="center"><img src="docs/styles/style-spy.png" width="160" alt="Spy HQ style"><br>Spy HQ</td>
-<td align="center"><img src="docs/styles/style-alien.png" width="160" alt="Nostromo style"><br>Nostromo</td>
-<td align="center"><img src="docs/styles/style-tron.png" width="160" alt="The Grid style"><br>The Grid</td>
-<td align="center"><img src="docs/styles/style-expanse.png" width="160" alt="Tactical style"><br>Tactical</td>
-<td align="center"><img src="docs/styles/style-minority.png" width="160" alt="PreCrime style"><br>PreCrime</td>
-</tr></table>
+<table>
+<tr><td align="center" width="50%"><img src="docs/styles/style-spy.webp" alt="Spy HQ style"><br>Spy HQ</td><td align="center" width="50%"><img src="docs/styles/style-alien.webp" alt="Nostromo (Alien) style"><br>Nostromo (Alien)</td></tr>
+<tr><td align="center" width="50%"><img src="docs/styles/style-tron.webp" alt="The Grid (Tron) style"><br>The Grid (Tron)</td><td align="center" width="50%"><img src="docs/styles/style-expanse.webp" alt="Tactical (The Expanse) style"><br>Tactical (The Expanse)</td></tr>
+<tr><td align="center" width="50%"><img src="docs/styles/style-minority.webp" alt="PreCrime (Minority Report) style"><br>PreCrime (Minority Report)</td><td align="center" width="50%"><img src="docs/styles/style-lcars.webp" alt="LCARS (Star Trek) style"><br>LCARS (Star Trek)</td></tr>
+<tr><td align="center" width="50%"><img src="docs/styles/style-imperial.webp" alt="Imperial (Star Wars) style"><br>Imperial (Star Wars)</td></tr>
+</table>
 
 Each plays a short boot sequence (click to skip). Marker colours keep their meaning in every
 style, and radar and satellite imagery keep their real colours. Add `?theme=spy` (or `alien`,
