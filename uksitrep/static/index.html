@@ -142,6 +142,13 @@
   .sea .lbl2 { font-size: 10px; color: #e2e8f0; text-shadow: 0 0 3px #000, 0 0 3px #000; white-space: nowrap; line-height: 1.1; }
   #btnLayers, #btnInfo, .sheet-close { display: none; }
   @media (min-width: 761px) { body:not(.hide-panels):not(.kiosk) .leaflet-bottom.leaflet-left { left: 286px; } }
+  .view-ctl a { font-weight: 700; font-size: 12px; }
+  .leaflet-popup.has-fav .leaflet-popup-content { margin-right: 40px; }
+  .leaflet-container a.fav-star { position: absolute; top: 3px; right: 24px; width: 20px; height: 20px; line-height: 20px; text-align: center;
+    font-size: 17px; color: #94a3b8; text-decoration: none; z-index: 2; }
+  .leaflet-container a.fav-star.on { color: #facc15; }
+  .fav-pin { width: 22px; height: 22px; border-radius: 50%; background: #111821; border: 2px solid #facc15; display: flex; align-items: center;
+    justify-content: center; font-size: 12px; box-shadow: 0 0 6px rgba(250,204,21,.6); }
   /* ================= film themes (Style menu): body[data-theme] ================= */
   #fx { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 450; overflow: hidden; display: none; }
   body[data-theme] #fx { display: block; }
@@ -396,6 +403,7 @@
 <div id="map"></div>
 <div id="left" class="panel"></div>
 <div id="right" class="panel">
+  <div id="favWrap" hidden><h2>Favourites</h2><div id="favlist" class="muted">—</div></div>
   <div id="nearWrap" hidden><h2 id="nearTitle">Near home</h2><div id="near" class="muted">—</div></div>
   <h2>Alerts</h2><div id="alerts"><div class="muted">Loading…</div></div>
   <h2>Emergency services</h2><div id="emerg" class="muted">—</div>
@@ -424,7 +432,7 @@ const DEFAULTS = {
   layers: { ac_civil: true, ac_military: true, ac_police: true, ac_hems: true, ac_sar: true,
     ac_trails: true, mil_dest: true, airfields: true, army: true,
     vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
-    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, home: true, quakes: true, meteors: true, allsky: true, observatories: true, rail_stations: true, rail_disruptions: true, buses: true, bus_stops: true, bus_disruptions: true, news: true },
+    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, home: true, favs: true, quakes: true, meteors: true, allsky: true, observatories: true, rail_stations: true, rail_disruptions: true, buses: true, bus_stops: true, bus_disruptions: true, news: true },
   basemap: "dark", theme: "standard", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
 };
 let S;
@@ -435,10 +443,33 @@ const save = () => { try { localStorage.setItem("ukSit", JSON.stringify(S)); } c
 
 /* ------------------------------------------------------------ map */
 const phone = matchMedia("(max-width: 760px)");
-const HOME = () => [[54.6, -3.2], phone.matches ? 5 : 6];
-const map = L.map("map", { zoomControl: false, preferCanvas: true, worldCopyJump: false, tap: true })
-  .setView(HOME()[0], params.get("z") ? +params.get("z") : HOME()[1]);
+const HOME_ZOOM = 12;
+const UK_VIEW = () => [[54.6, -3.2], phone.matches ? 5 : 6];
+// Open on the home (remembered from the last visit, else as soon as the home feed says where it is).
+// ?uk or ?z=6 opens on the whole country instead, as before.
+const startUK = params.has("uk") || params.has("z");
+let wantHome = !startUK;
+const map = L.map("map", { zoomControl: false, preferCanvas: true, worldCopyJump: false, tap: true });
+if (!startUK && S.homeAt) { map.setView(S.homeAt, HOME_ZOOM); wantHome = false; }
+else map.setView(UK_VIEW()[0], params.get("z") ? +params.get("z") : UK_VIEW()[1]);
+function goHome() {
+  const h = lastHome?.home;
+  if (h) map.flyTo([h.lat, h.lon], HOME_ZOOM, { duration: 1 }); else map.flyTo(...UK_VIEW(), { duration: 1 });
+}
 L.control.zoom({ position: "bottomleft" }).addTo(map);
+const ViewCtl = L.Control.extend({
+  options: { position: "bottomleft" },
+  onAdd() {
+    const d = L.DomUtil.create("div", "leaflet-bar view-ctl");
+    d.innerHTML = '<a href="#" role="button" title="Home (H)">⌂</a><a href="#" role="button" title="Whole UK (U)">UK</a>';
+    L.DomEvent.disableClickPropagation(d);
+    const [h, u] = d.querySelectorAll("a");
+    h.onclick = (e) => { e.preventDefault(); goHome(); };
+    u.onclick = (e) => { e.preventDefault(); map.flyTo(...UK_VIEW(), { duration: 1 }); };
+    return d;
+  },
+});
+new ViewCtl().addTo(map);
 // All keyless tile sources
 const DATA_ATTR = " | ADS-B: adsb.lol | AIS: aisstream.io | National Highways | UKMON | Met Office, EA, BGS, NOAA, Elexon, BBC";
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/";
@@ -502,7 +533,7 @@ function setStatus(feed, ok, note) { status[feed] = { ok, t: Date.now(), note };
 const FEED_NAMES = { aircraft: "ADS-B aircraft", vessels: "AIS ships", weather_warnings: "Met Office warnings", floods: "EA floods",
   city_weather: "Open-Meteo weather", grid: "Electricity grid", roads: "National Highways", power_cuts: "Power cuts", space: "Space weather",
   quakes: "BGS earthquakes", news: "BBC news", meteors: "UK Meteor Network", sea: "Sea state", wind_grid: "Wind grid", radar: "Rain radar",
-  rnli: "RNLI launches", fire: "Fire & rescue", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage overflows", bathing: "Bathing waters",
+  favourites: "Favourites", home_info: "Home location", rnli: "RNLI launches", fire: "Fire & rescue", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage overflows", bathing: "Bathing waters",
   rivers: "River levels", lightning: "Lightning", air_quality: "Air quality", fires: "NASA fire hotspots", tfl: "TfL status", iss: "ISS", allsky: "Allsky cameras", observatories: "Observatories", rail_stations: "Rail stations", rail_disruptions: "Rail disruptions", buses: "Live buses", bus_stops: "Bus stops", bus_board: "Bus departures", bus_disruptions: "Bus disruptions",
   crime: "Street crime", fuel: "Fuel prices", home: "Near home" };
 // "off" = an optional feed with no key / switched off: not a fault
@@ -925,10 +956,10 @@ function renderCams(d) {
   const b = map.getBounds().pad(0.3);
   for (const c of lastCams) {
     if (!b.contains([c.lat, c.lon])) continue;
-    L.marker([c.lat, c.lon], { icon: c.local ? coastCamIcon : c.source === "WorldCam" ? worldCamIcon : camIcon, zIndexOffset: 300 })
+    fav(L.marker([c.lat, c.lon], { icon: c.local ? coastCamIcon : c.source === "WorldCam" ? worldCamIcon : camIcon, zIndexOffset: 300 })
       .bindPopup(() => camPopup(c), { maxWidth: 320, minWidth: 200 })
       .bindTooltip(esc(c.name), { direction: "top", offset: [0, -8] })
-      .addTo(G.webcams);
+      .addTo(G.webcams), "webcam", c);
   }
 }
 
@@ -958,7 +989,7 @@ async function loadBoard(st, popup) {
   let d;
   try { const r = await fetch(withToken(`${API}rail_board?crs=${encodeURIComponent(st.crs)}`)); d = r.ok ? await r.json() : { error: r.status }; }
   catch (err) { d = { error: String(err) }; }
-  popup.setContent(railBoard(st, d));
+  if (popup.isOpen()) popup.setContent(railBoard(st, d));
 }
 function renderRailStations(d) {
   if (d) railStations = d.stations || [];
@@ -968,10 +999,10 @@ function renderRailStations(d) {
   const b = map.getBounds().pad(0.3);
   for (const st of railStations) {
     if (!b.contains([st.lat, st.lon])) continue;
-    const m = L.circleMarker([st.lat, st.lon], { radius: 5.5, color: "#4c0519", weight: 2, fillColor: "#fda4af", fillOpacity: 1 })
+    const m = fav(L.circleMarker([st.lat, st.lon], { radius: 5.5, color: "#4c0519", weight: 2, fillColor: "#fda4af", fillOpacity: 1 })
       .bindPopup(railBoard(st), { maxWidth: 360, minWidth: 280 })
       .bindTooltip(esc(st.name), { direction: "top", offset: [0, -6] })
-      .addTo(G.rail_stations);
+      .addTo(G.rail_stations), "rail", st);
     m.on("popupopen", (e) => loadBoard(st, e.popup));
   }
 }
@@ -1045,7 +1076,7 @@ async function loadBusBoard(st, popup) {
   let d;
   try { const r = await fetch(withToken(`${API}bus_board?stop=${encodeURIComponent(st.id)}`)); d = r.ok ? await r.json() : { error: r.status }; }
   catch (err) { d = { error: String(err) }; }
-  popup.setContent(busBoard(st, d));
+  if (popup.isOpen()) popup.setContent(busBoard(st, d));
 }
 function refreshBusStops() {
   clearTimeout(busStopTimer);
@@ -1059,10 +1090,10 @@ function refreshBusStops() {
     if (!d || !d.stops || busStopKey !== bbox) return;
     G.bus_stops.clearLayers();
     for (const st of d.stops) {
-      const m = L.circleMarker([st.lat, st.lon], { radius: 5, color: "#78350f", weight: 2, fillColor: "#fcd34d", fillOpacity: 1 })
+      const m = fav(L.circleMarker([st.lat, st.lon], { radius: 5, color: "#78350f", weight: 2, fillColor: "#fcd34d", fillOpacity: 1 })
         .bindPopup(busBoard(st), { maxWidth: 360, minWidth: 260 })
         .bindTooltip(`${esc(st.name)}${st.lines.length ? ` <span class="muted">${esc(st.lines.join(", "))}</span>` : ""}`, { direction: "top", offset: [0, -6] })
-        .addTo(G.bus_stops);
+        .addTo(G.bus_stops), "bus_stop", st);
       m.on("popupopen", (e) => loadBusBoard(st, e.popup));
     }
     counts.bus_stops = d.stops.length; renderCounts();
@@ -1123,9 +1154,9 @@ function renderAllsky(d) {
   const b = map.getBounds().pad(0.3);
   for (const c of lastAllsky) {
     if (!b.contains([c.lat, c.lon])) continue;
-    L.marker([c.lat, c.lon], { icon: c.online === false || (!c.url && !c.image) ? SKY_ICONS.allsky_off : SKY_ICONS.allsky, zIndexOffset: 250 })
+    fav(L.marker([c.lat, c.lon], { icon: c.online === false || (!c.url && !c.image) ? SKY_ICONS.allsky_off : SKY_ICONS.allsky, zIndexOffset: 250 })
       .bindPopup(() => allskyPopup(c), { maxWidth: 320, minWidth: 200 })
-      .bindTooltip(esc(c.name), { direction: "top", offset: [0, -8] }).addTo(G.allsky);
+      .bindTooltip(esc(c.name), { direction: "top", offset: [0, -8] }).addTo(G.allsky), "allsky", c);
   }
 }
 function renderObs(d) {
@@ -1136,9 +1167,9 @@ function renderObs(d) {
   const b = map.getBounds().pad(0.3);
   for (const o of lastObs) {
     if (!b.contains([o.lat, o.lon])) continue;
-    L.marker([o.lat, o.lon], { icon: SKY_ICONS[o.kind] || SKY_ICONS.optical, zIndexOffset: 200 })
+    fav(L.marker([o.lat, o.lon], { icon: SKY_ICONS[o.kind] || SKY_ICONS.optical, zIndexOffset: 200 })
       .bindPopup(() => obsPopup(o), { maxWidth: 300 })
-      .bindTooltip(esc(o.name), { direction: "top", offset: [0, -8] }).addTo(G.observatories);
+      .bindTooltip(esc(o.name), { direction: "top", offset: [0, -8] }).addTo(G.observatories), "obs", o);
   }
 }
 
@@ -1202,10 +1233,10 @@ function renderRivers(d) {
   const all = map.getZoom() >= RIVER_MIN_ZOOM, b = map.getBounds().pad(0.2);
   for (const g of all ? lastRivers : raised) {
     if (all && !b.contains([g.lat, g.lon])) continue;
-    L.circleMarker([g.lat, g.lon], { radius: g.state === "normal" || g.state === "low" ? 4 : 6, color: "#000", weight: 1,
+    fav(L.circleMarker([g.lat, g.lon], { radius: g.state === "normal" || g.state === "low" ? 4 : 6, color: "#000", weight: 1,
       fillColor: RIVER_COL[g.state], fillOpacity: .9 })
       .bindPopup(riverPopup(g)).bindTooltip(`${esc(g.river || g.name)} ${g.level.toFixed(2)} m ${g.trend > 0 ? "↑" : g.trend < 0 ? "↓" : ""}`)
-      .addTo(G.rivers);
+      .addTo(G.rivers), "river", g);
   }
   renderAlerts();
 }
@@ -1270,8 +1301,8 @@ function renderBathing(d) {
   for (const w of lastBathing) {
     if (!b.contains([w.lat, w.lon])) continue;
     const alert = w.risk && w.risk !== "normal";
-    L.marker([w.lat, w.lon], { icon: emIcon(BW_COL[w.classification] || "#64748b", GLYPH_SWIM, alert), zIndexOffset: 260 })
-      .bindPopup(() => bathingPopup(w)).bindTooltip(esc(w.name), { direction: "top", offset: [0, -10] }).addTo(G.bathing);
+    fav(L.marker([w.lat, w.lon], { icon: emIcon(BW_COL[w.classification] || "#64748b", GLYPH_SWIM, alert), zIndexOffset: 260 })
+      .bindPopup(() => bathingPopup(w)).bindTooltip(esc(w.name), { direction: "top", offset: [0, -10] }).addTo(G.bathing), "bathing", w);
   }
 }
 
@@ -1371,14 +1402,18 @@ document.addEventListener("change", async (e) => {
   S.home = e.target.value; save();
   const d = await getFeed("home", `?home=${encodeURIComponent(S.home)}`);
   renderHome(d);
-  if (d?.home) map.flyTo([d.home.lat, d.home.lon], 11, { duration: 1 });
+  if (d?.home) map.flyTo([d.home.lat, d.home.lon], HOME_ZOOM, { duration: 1 });
 });
 function renderHome(d) {
   if (d && !d.error) lastHome = d;
   G.home.clearLayers();
   const wrap = $("nearWrap");
   if (!lastHome) { if (String(d?.error || "").startsWith("disabled")) wrap.hidden = true; return; }
-  const h = lastHome.home, row = (icon, text, ll, right = "") =>
+  const h = lastHome.home;
+  if (wantHome) { map.setView([h.lat, h.lon], HOME_ZOOM); wantHome = false; }
+  if (S.homeAt?.[0] !== h.lat || S.homeAt?.[1] !== h.lon) { S.homeAt = [h.lat, h.lon]; save(); }
+  renderFavList();
+  const row = (icon, text, ll, right = "") =>
     `<div class="row" ${ll ? `style="cursor:pointer" data-ll="${ll[0]},${ll[1]}"` : ""}><span>${icon} ${text}</span><span class="muted">${right}</span></div>`;
   L.circle([h.lat, h.lon], { radius: h.radius_km * 1000, color: "#f8fafc", weight: 1, opacity: .5, fill: false, dashArray: "6 6", interactive: false }).addTo(G.home);
   L.marker([h.lat, h.lon], { icon: emIcon("#334155", GLYPH_HOUSE, false), zIndexOffset: 800 }).bindTooltip(esc(h.name)).addTo(G.home);
@@ -1494,12 +1529,12 @@ function refreshFuel() {
       const u = o.prices.E10, dsl = o.prices.B7_STANDARD;
       const col = o.closed || u == null ? "#64748b" : u <= q(1 / 3) ? "#16a34a" : u >= q(2 / 3) ? "#dc2626" : "#ca8a04";
       const br = fuelBrand(o);
-      L.marker([o.lat, o.lon], { zIndexOffset: 150, icon: L.divIcon({ className: "base", iconSize: [80, 42], iconAnchor: [40, 21],
+      fav(L.marker([o.lat, o.lon], { zIndexOffset: 150, icon: L.divIcon({ className: "base", iconSize: [80, 42], iconAnchor: [40, 21],
         html: `<div class="fuel-card" style="border-color:${col};opacity:${o.closed ? .6 : 1}">
           <div class="fuel-head">${fuelLogo(br, 13)}<span>${esc(br.name)}</span></div>
           <div class="fuel-p"><span>Unl</span><b style="color:${col === "#ca8a04" ? "#facc15" : col === "#16a34a" ? "#4ade80" : col === "#dc2626" ? "#f87171" : "#cbd5e1"}">${u != null ? u.toFixed(1) + "p" : "–"}</b></div>
           <div class="fuel-p"><span>Dsl</span><b>${dsl != null ? dsl.toFixed(1) + "p" : "–"}</b></div></div>` }) })
-        .bindPopup(() => fuelPopup(o)).bindTooltip(esc(o.name), { direction: "top", offset: [0, -22] }).addTo(G.fuel);
+        .bindPopup(() => fuelPopup(o)).bindTooltip(esc(o.name), { direction: "top", offset: [0, -22] }).addTo(G.fuel), "fuel", o);
     }
     counts.fuel = d.stations.length; renderCounts();
   }, 600);
@@ -1560,17 +1595,18 @@ function renderTides(d) {
   const b = map.getBounds().pad(0.3);
   for (const st of tideStations) {
     if (!b.contains([st.lat, st.lon])) continue;
-    const m = L.marker([st.lat, st.lon], { icon: tideIcon, zIndexOffset: 250 })
+    const m = fav(L.marker([st.lat, st.lon], { icon: tideIcon, zIndexOffset: 250 })
       .bindPopup(tidePopup(st), { maxWidth: 300, minWidth: 260 })
       .bindTooltip(esc(st.name), { direction: "top", offset: [0, -8] })
-      .addTo(G.tides);
-    m.on("popupopen", async (e) => {  // fetched per port on click; no status chip for these
-      let d;
-      try { const r = await fetch(withToken(`${API}tides?station=${encodeURIComponent(st.id)}`)); d = r.ok ? await r.json() : { error: r.status }; }
-      catch (err) { d = { error: String(err) }; }
-      e.popup.setContent(tidePopup(st, d));
-    });
+      .addTo(G.tides), "tide", st);
+    m.on("popupopen", (e) => loadTide(st, e.popup));
   }
+}
+async function loadTide(st, popup) {  // fetched per port on click; no status chip for these
+  let d;
+  try { const r = await fetch(withToken(`${API}tides?station=${encodeURIComponent(st.id)}`)); d = r.ok ? await r.json() : { error: r.status }; }
+  catch (err) { d = { error: String(err) }; }
+  if (popup.isOpen()) popup.setContent(tidePopup(st, d));
 }
 
 /* ------------------------------------------------------------ rain radar (RainViewer, keyless) */
@@ -1938,10 +1974,98 @@ function renderAlerts() {
     : '<div class="muted">All quiet ✓</div>';
 }
 
+/* ------------------------------------------------------------ favourites */
+// ☆ in a popup saves the place. The list lives on the server, one per home (the link's token picks it),
+// so the HA panel, a phone and a wall display all share it.
+const FAV_KINDS = {
+  rail: { icon: "🚆", name: "Station", popup: (o) => railBoard(o), load: loadBoard, opts: { maxWidth: 360, minWidth: 280 }, live: () => railStations },
+  bus_stop: { icon: "🚏", name: "Bus stop", popup: (o) => busBoard(o), load: loadBusBoard, opts: { maxWidth: 360, minWidth: 260 } },
+  webcam: { icon: "📷", name: "Webcam", popup: camPopup, opts: { maxWidth: 320, minWidth: 200 }, live: () => lastCams },
+  allsky: { icon: "🌌", name: "Allsky camera", popup: allskyPopup, opts: { maxWidth: 320, minWidth: 200 }, live: () => lastAllsky },
+  obs: { icon: "🔭", name: "Observatory", popup: obsPopup, opts: { maxWidth: 300 }, live: () => lastObs },
+  tide: { icon: "🌊", name: "Tides", popup: (o) => tidePopup(o), load: loadTide, opts: { maxWidth: 300, minWidth: 260 }, live: () => tideStations },
+  river: { icon: "〰️", name: "River level", popup: riverPopup, opts: {}, live: () => lastRivers },
+  bathing: { icon: "🏖️", name: "Bathing water", popup: bathingPopup, opts: {}, live: () => lastBathing },
+  fuel: { icon: "⛽", name: "Fuel", popup: fuelPopup, opts: {} },
+};
+let favs = [];
+const favMarkers = new Map();
+const favId = (o) => String(o.id ?? o.crs ?? `${o.name}@${(+o.lat).toFixed(4)},${(+o.lon).toFixed(4)}`);
+const isFav = (k, o) => favs.some(f => f.k === k && f.id === favId(o));
+const fav = (layer, k, o) => { layer.fav = [k, o]; return layer; };  // its popup gets a ☆
+// today's data when that layer has loaded it, else what was saved with the favourite
+const favObj = (f) => (FAV_KINDS[f.k].live?.() || []).find(o => favId(o) === f.id) || f.o;
+async function loadFavs() {
+  const d = await getFeed("favourites");
+  if (d?.items) favs = d.items.filter(f => FAV_KINDS[f.k]);
+  renderFavs();
+}
+async function saveFavs() {
+  try {
+    const r = await fetch(withToken(API + "favourites"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: favs }) });
+    if (!r.ok) throw new Error(r.status);
+    setStatus("favourites", true);
+  } catch (e) { setStatus("favourites", false, "not saved: " + e); }
+}
+function toggleFav(k, o) {
+  const id = favId(o), i = favs.findIndex(f => f.k === k && f.id === id);
+  if (i >= 0) favs.splice(i, 1);
+  else favs.push({ k, id, name: o.name || o.river || FAV_KINDS[k].name, lat: +o.lat, lon: +o.lon, o });
+  renderFavs(); saveFavs();
+}
+map.on("popupopen", (e) => {
+  const p = e.popup, t = p.fav || p._source?.fav, el = p.getElement();
+  if (!t || !el) return;
+  let b = el.querySelector(".fav-star");
+  if (!b) {
+    b = L.DomUtil.create("a", "fav-star", el); b.href = "#"; b.setAttribute("role", "button");
+    b.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation(); toggleFav(...b.fav); paint(); };
+    el.classList.add("has-fav");
+  }
+  const paint = () => { const on = isFav(...b.fav); b.textContent = on ? "★" : "☆"; b.classList.toggle("on", on); b.title = on ? "Remove from favourites" : "Add to favourites"; };
+  b.fav = t; paint();
+});
+const favIcon = (k) => L.divIcon({ className: "", iconSize: [22, 22], iconAnchor: [11, 11], html: `<div class="fav-pin">${FAV_KINDS[k].icon}</div>` });
+function renderFavs() {
+  G.favs.clearLayers(); favMarkers.clear();
+  for (const f of favs) {
+    const K = FAV_KINDS[f.k];
+    const m = fav(L.marker([f.lat, f.lon], { icon: favIcon(f.k), zIndexOffset: 900 })
+      .bindPopup(() => K.popup(favObj(f)), K.opts)
+      .bindTooltip(`★ ${esc(f.name)}`, { direction: "top", offset: [0, -12] }).addTo(G.favs), f.k, f.o);
+    if (K.load) m.on("popupopen", (e) => K.load(favObj(f), e.popup));
+    favMarkers.set(f.k + "|" + f.id, m);
+  }
+  counts.favs = favs.length; renderCounts();
+  renderFavList();
+}
+function renderFavList() {
+  const h = lastHome?.home, order = Object.keys(FAV_KINDS);
+  const list = [...favs].sort((a, b) => order.indexOf(a.k) - order.indexOf(b.k) || a.name.localeCompare(b.name));
+  $("favWrap").hidden = !favs.length && S.view !== "favourites";
+  $("favlist").innerHTML = list.map(f => `<div class="row" style="cursor:pointer" data-fav="${esc(f.k + "|" + f.id)}">
+    <span>${FAV_KINDS[f.k].icon} ${esc(f.name)}</span><span class="muted">${h ? distKm(h.lat, h.lon, f.lat, f.lon).toFixed(1) + " km" : esc(FAV_KINDS[f.k].name)}</span></div>`).join("")
+    || '<span class="muted">None yet: open a station, bus stop, webcam, allsky camera, tide station, river gauge, beach or fuel station and tap ☆ at the top of its popup.</span>';
+}
+function openFav(key) {
+  const f = favs.find(x => x.k + "|" + x.id === key);
+  if (!f) return;
+  if (phone.matches) closeSheets();
+  if (!S.layers.favs) { S.layers.favs = true; syncLayers(); const i = document.querySelector('#left input[data-layer="favs"]'); if (i) i.checked = true; save(); }
+  map.once("moveend", () => favMarkers.get(key)?.openPopup());
+  map.flyTo([f.lat, f.lon], Math.max(map.getZoom(), 14), { duration: 1 });
+}
+function fitFavs() {
+  if (!favs.length) return;
+  if (favs.length === 1) map.flyTo([favs[0].lat, favs[0].lon], 14, { duration: 1 });
+  else map.flyToBounds(L.latLngBounds(favs.map(f => [f.lat, f.lon])).pad(0.15), { maxZoom: 14, duration: 1 });
+}
+document.addEventListener("click", (ev) => { const el = ev.target.closest("[data-fav]"); if (el) openFav(el.dataset.fav); });
+
 /* ------------------------------------------------------------ left panel */
 const counts = {};
 const LAYER_UI = [
-  ["Home", [["home", "Home area (set HOME_LAT / HOME_LON)", "#f8fafc"]]],
+  ["Home & favourites", [["home", "Home area (set HOME_LAT / HOME_LON)", "#f8fafc"], ["favs", "Favourites (☆ in a popup)", "#facc15"]]],
   ["Aviation", [["ac_civil", "Civil aircraft", "--civil"], ["ac_military", "Military", "--military"], ["ac_police", "Police (NPAS)", "--police"],
     ["ac_hems", "Air ambulance", "--hems"], ["ac_sar", "Coastguard / SAR", "--sar"], ["ac_trails", "Trails", "#64748b"],
     ["mil_dest", "Military destination guess", "#22c55e"], ["airfields", "Military airfields", "#93c5fd"], ["army", "Army bases", "#86efac"]]],
@@ -1976,12 +2100,13 @@ function countFor(k) {
   return { ac_civil: a.civil, ac_military: a.military, ac_police: a.police, ac_hems: a.hems, ac_sar: a.sar,
     vs_special: counts.vessels?.special, vs_civil: counts.vessels?.total, floods: counts.floods, cuts: counts.cuts,
     quakes: counts.quakes, news: counts.news,
-    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, fuel: counts.fuel, allsky: counts.allsky, observatories: counts.observatories, rail_stations: counts.rail_stations, rail_disruptions: counts.rail_disruptions, buses: counts.buses, bus_stops: counts.bus_stops, bus_disruptions: counts.bus_disruptions, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length }[k] ?? (k.startsWith("fire_") ? counts[k] : undefined);
+    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, fuel: counts.fuel, allsky: counts.allsky, observatories: counts.observatories, rail_stations: counts.rail_stations, rail_disruptions: counts.rail_disruptions, buses: counts.buses, bus_stops: counts.bus_stops, bus_disruptions: counts.bus_disruptions, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length, favs: counts.favs }[k] ?? (k.startsWith("fire_") ? counts[k] : undefined);
 }
 function renderCounts() { for (const el of document.querySelectorAll("[data-count]")) { const n = countFor(el.dataset.count); el.textContent = n ?? ""; } }
 // Views: switch many layers at once. Anything not listed is turned off.
 const FIRE_KIDS = ["fire_dsfrs", "fire_avon", "fire_bucks", "fire_cheshire", "fire_cleveland", "fire_hants", "fire_rbfrs", "fire_shropshire"];
 const VIEWS = {
+  favourites: ["Favourites", ["favs"]],
   military: ["Military", ["ac_military", "ac_trails", "mil_dest", "airfields", "army", "vs_special"]],
   emergency: ["Emergency", ["ac_police", "ac_hems", "ac_sar", "ac_trails", "hems_scene", "rnli", "fire", ...FIRE_KIDS, "vs_special",
     "warnings", "floods", "roads_incidents", "news"]],
@@ -1995,10 +2120,10 @@ const VIEWS = {
 };
 const allLayerKeys = () => Object.keys(DEFAULTS.layers);
 function viewLayers(v) {
-  // views leave the home marker as it is
+  // views leave the home marker and favourites as they are (the Favourites view turns favourites on)
   if (v === "everything") return Object.fromEntries(allLayerKeys().map(k => [k, k === "home" ? S.layers.home : k !== "satimg"]));
   const on = new Set(VIEWS[v][1]);
-  return Object.fromEntries(allLayerKeys().map(k => [k, k === "home" ? S.layers.home : on.has(k)]));
+  return Object.fromEntries(allLayerKeys().map(k => [k, k === "home" ? S.layers.home : k === "favs" ? on.has(k) || S.layers.favs : on.has(k)]));
 }
 // Re-render whatever depends on the layers that changed
 function afterToggle(keys) {
@@ -2050,7 +2175,8 @@ function applyView(v) {
     if (!S.view || S.view === "custom") S.customLayers = { ...S.layers };  // remember the hand-picked set
     setLayers(viewLayers(v)); S.view = v;
   }
-  syncGroupBoxes(); save();
+  syncGroupBoxes(); save(); renderFavList();
+  if (v === "favourites") fitFavs();
 }
 function buildLeft() {
   let h = `<h2>View</h2>
@@ -2079,7 +2205,7 @@ function buildLeft() {
     <div class="row"><span>Incident severity</span><select id="fNewsSev"><option value="1">All</option><option value="2">Medium +</option><option value="3">High only</option></select></div>
     <div class="row"><span>Quakes</span><select id="fQuake"><option value="1">24 h</option><option value="7">7 days</option><option value="30">30 days</option><option value="365">All</option></select></div>
     <div class="row"><span>Meteors</span><select id="fMeteor"><option value="12">12 h</option><option value="36">36 h</option><option value="72">3 nights</option></select></div>
-    <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>/</b> search · <b>P</b> panels · <b>F</b> full screen · <b>H</b> home view<br>Add <code>?kiosk</code> to the URL for an always-on display, and <code>?view=military</code> (or emergency, transport, weather, coast, space, everything) to open in a view, and <code>?theme=spy</code> (or alien, tron, expanse, minority) for a film style.</p>`;
+    <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>/</b> search · <b>P</b> panels · <b>F</b> full screen · <b>H</b> home · <b>U</b> whole UK<br>Add <code>?kiosk</code> to the URL for an always-on display, <code>?uk</code> to open on the whole country, and <code>?view=military</code> (or favourites, emergency, transport, weather, coast, space, everything) to open in a view, and <code>?theme=spy</code> (or alien, tron, expanse, minority) for a film style.</p>`;
   $("left").innerHTML = h + '<div class="sheet-close" data-close>Close</div>';
   $("fTheme").value = S.theme || "standard"; $("fBase").value = S.basemap; $("fLabels").value = S.labels; $("fAlt").value = S.minAltFt; $("fNewsH").value = S.newsHours; $("fNewsSev").value = S.newsMinSev; $("fQuake").value = S.quakeDays; $("fMeteor").value = S.meteorHours;
   syncGroupBoxes();
@@ -2196,10 +2322,21 @@ function start() {
   const pv = params.get("view");
   if (pv && (pv === "everything" || VIEWS[pv])) applyView(pv);
   syncLayers();
+  if (pv === "favourites" && !startUK) wantHome = false;
+  if (wantHome) getFeed("home_info", S.home ? `?home=${encodeURIComponent(S.home)}` : "").then(d => {
+    if (wantHome && d?.home) { map.setView([d.home.lat, d.home.lon], HOME_ZOOM); S.homeAt = [d.home.lat, d.home.lon]; save(); }
+    wantHome = false;
+  });
+  loadFavs().then(() => { if (pv === "favourites" && !startUK) fitFavs(); });
   for (const [k, fn] of Object.entries(refresh)) { fn(); setInterval(fn, INTERVAL[k] * 1000); }
   setInterval(() => renderNews(), 60000);  // age out expired incidents
   map.on("zoomend", () => { renderAircraft(lastAircraft); renderVessels(); if (lastGrid) renderInterconnectors(lastGrid); });
-  map.on("moveend", () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderAllsky(); renderObs(); renderRailStations(); renderBusDis(); refreshBuses(); refreshBusStops(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); });
+  const moved = () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderAllsky(); renderObs(); renderRailStations(); renderBusDis(); refreshBuses(); refreshBusStops(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); };
+  // redrawing a layer would close the popup that just auto-panned the map, so wait until it's closed
+  let openPop = null, movedUnder = false;
+  map.on("popupopen", (e) => { openPop = e.popup; });
+  map.on("popupclose", (e) => { if (openPop === e.popup) openPop = null; if (movedUnder && !openPop) { movedUnder = false; setTimeout(moved, 0); } });
+  map.on("moveend", () => { if (openPop) movedUnder = true; else moved(); });
   setInterval(() => { fuelKey = null; refreshFuel(); }, 30 * 60000);
   setInterval(() => { if (!document.hidden) refreshBuses(true); }, 20000);
   renderSatImg();
@@ -2351,7 +2488,8 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "/" || e.key === "s" || e.key === "S") { e.preventDefault(); openSearch(true); return; }
   if (e.key === "p" || e.key === "P") $("btnPanels").click();
   if (e.key === "f" || e.key === "F") $("btnFs").click();
-  if (e.key === "h" || e.key === "H") map.flyTo(...HOME());
+  if (e.key === "h" || e.key === "H") goHome();
+  if (e.key === "u" || e.key === "U") map.flyTo(...UK_VIEW(), { duration: 1 });
 });
 start();
 </script>

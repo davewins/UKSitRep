@@ -24,7 +24,7 @@ fixed, allow-listed upstream URLs (never an open proxy)
 
 | File | What's in it |
 |---|---|
-| `uksitrep/server.py` | Routes, token auth (`?token=`, `/k/<token>/`, Bearer), `/healthz`, startup tasks |
+| `uksitrep/server.py` | Routes, token auth (`?token=`, `/k/<token>/`, Bearer), `/healthz`, startup tasks, the favourites store (`GET`/`POST /api/favourites`, one file per home) and `home_info` |
 | `uksitrep/config.py` | `Config.from_env()`: every environment variable |
 | `uksitrep/feeds.py` | `Cache`, `Situation`, core feeds (aircraft, AIS relay, weather, grid, roads, news, sewage, tides, webcams…) and the `handlers` map |
 | `uksitrep/more_feeds.py` | `MoreFeeds` mixin: rivers, lightning relay, air quality, bathing water, ISS (sgp4), FIRMS, TfL, fuel, crime |
@@ -67,7 +67,11 @@ Front end (`index.html`):
 7. An entry in `refresh` and `INTERVAL`; a chip name in `renderChips`; a count in `countFor`.
 8. Zoom-gated or bbox-driven layers re-render on `moveend` (see webcams, crime, fuel). Layers that
    refresh often while popups may be open (buses) move existing markers instead of clearing them.
-   Popups that need a slow fetch load it on `popupopen` (rail departure boards).
+   Popups that need a slow fetch load it on `popupopen` (rail departure boards), and only
+   `setContent` if `popup.isOpen()`. The `moveend` redraw waits while a popup is open (an
+   auto-pan would otherwise redraw the layer and close it) and runs when it closes.
+   Places worth saving: wrap the marker in `fav(marker, kind, obj)` and add the kind to
+   `FAV_KINDS` (icon, popup function, optional loader, live list) so its popup gets a ☆.
 10. If it matters near home, add it to `_home_summary` / `renderHome`, and to `_home_events`
    with a stable key (so a changing value doesn't re-notify) and a `NOTIFY` kind.
 9. Hook it into `afterToggle()` if toggling needs a redraw, and add it to `VIEWS` where it fits.
@@ -92,7 +96,7 @@ Work through these in order. Keep the generic machinery; replace the data.
 
 **1. Geography and defaults**
 - `feeds.py`: `BBOX` (S, W, N, E), `UK_TZ`, `ADSB_POINTS` (≤250 nm circles covering the country).
-- `index.html`: `HOME()` (centre and zoom), `BASEMAPS` if you want local styles.
+- `index.html`: `UK_VIEW()` (country centre and zoom), `HOME_ZOOM`, `BASEMAPS` if you want local styles.
 - `more_feeds.py`: `BLITZ_BOX`, `AIR_POINTS`, `FIRMS_BOX`; `sky.py`: `SKY_BOX`, `CURATED_SITES`.
 - `feeds.py`: `CITY_WEATHER`, `SEA_POINTS` (offshore points, one per sea area).
 

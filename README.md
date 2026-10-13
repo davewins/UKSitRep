@@ -28,14 +28,30 @@ It runs as a ~70 MB distroless container with no shell, as a non-root user.
 | Cameras | TfL JamCams, OpenStreetMap-tagged webcams, your own curated list, and the WorldCam directory (optional) |
 | News | BBC UK, nations and local feeds, pinned to the places they mention, filtered by severity and age, plus a scrolling ticker |
 
+## Opening position
+
+The map opens zoomed in on your home (the `HOME_*` for the link you use, or the home picked
+in Near home); zoom out as usual. The **⌂** and **UK** buttons under the zoom buttons (keys `H`
+and `U`) jump back to the home or out to the whole country. Add `?uk` to the URL to open on the
+whole country instead, e.g. for a wall display.
+
+## Favourites
+
+Open a station, bus stop, webcam, allsky camera, observatory, tide station, river gauge,
+bathing water or fuel station and tap **☆** at the top of its popup. Favourites get a gold pin
+on the map and a list in the Info panel (tap one to fly there and open it), and the
+*Favourites* view shows just them. The list is kept on the server, one per home, so the Home
+Assistant panel, your phone and a wall display opened with the same link all share it
+(`favourites.json` in `DATA_DIR`).
+
 ## Views
 
 The layer panel has a **View** menu that switches many layers at once: *Everything*,
-*Military*, *Emergency*, *Transport & infrastructure*, *Weather & water*, *Coast & sea* and
+*Favourites*, *Military*, *Emergency*, *Transport & infrastructure*, *Weather & water*, *Coast & sea* and
 *Space*. *My layers* puts back the set you had before picking a view. Each group heading has
 its own checkbox, and *All on* / *All off* sit at the top.
 
-Add `?view=<name>` to the URL to open in a view (`military`, `emergency`, `transport`,
+Add `?view=<name>` to the URL to open in a view (`favourites`, `military`, `emergency`, `transport`,
 `weather`, `coast`, `space`, `everything`), e.g. for a wall display:
 `https://<host>/k/<ACCESS_TOKEN>/?kiosk&view=military`.
 
@@ -69,7 +85,7 @@ style, and radar and satellite imagery keep their real colours. Add `?theme=spy`
 Press **🔍** (or `/`) and type a town, village, postcode (`TQ14 8AA`), postcode district
 (`GL20`) or coordinates (`51.5, -0.12`). Suggestions appear as you type; Enter or a click flies
 the map there and drops a pin, and ✕ removes it. Place names come from postcodes.io (OS Open
-Names, Great Britain only). Other keys: `P` panels, `F` full screen, `H` home view.
+Names, Great Britain only). Other keys: `P` panels, `F` full screen, `H` home, `U` whole UK.
 
 ## Quick start
 

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import json
 import logging
+import math
 from pathlib import Path
 
 import aiohttp
@@ -105,12 +107,65 @@ async def feed(request: web.Request) -> web.Response:
         return web.json_response(await sit.search(request.query.get("q", "")), headers={"Cache-Control": "max-age=3600"})
     if name == "tides":
         return web.json_response(await sit.tides(request.query.get("station", "")))
+    if name == "home_info":  # just where the home is: instant, so the page can open there
+        cfg = request.app[CFG]
+        h = cfg.home(request.query.get("home") or request.get("home"))
+        if not h:
+            return web.json_response({"error": "disabled: set HOME_LAT and HOME_LON"})
+        return web.json_response({"home": {"key": h.key, "name": h.name, "lat": h.lat, "lon": h.lon}})
     if name == "home":
         return web.json_response(await sit.home_summary(request.query.get("home") or request.get("home")))
     handler = sit.handlers.get(name)
     if not handler:
         return web.json_response({"error": "unknown feed"}, status=404)
     return web.json_response(await handler())
+
+
+FAV_MAX, FAV_MAX_BYTES = 300, 256 * 1024
+
+
+def _fav_store(request: web.Request) -> Path:
+    """One favourites list per home (picked by the token), shared by every browser using it."""
+    cfg = request.app[CFG]
+    h = cfg.home(request.get("home"))
+    return cfg.data_dir / ("favourites.json" if not h or h is cfg.homes[0] else f"favourites-{h.key}.json")
+
+
+def _clean_favs(items) -> list[dict]:
+    out, seen = [], set()
+    for f in items if isinstance(items, list) else []:
+        try:
+            k, i, lat, lon = str(f["k"])[:20], str(f["id"])[:200], float(f["lat"]), float(f["lon"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not (math.isfinite(lat) and math.isfinite(lon)) or (k, i) in seen:
+            continue
+        seen.add((k, i))
+        out.append({"k": k, "id": i, "name": str(f.get("name") or "")[:200], "lat": lat, "lon": lon,
+                    "o": f["o"] if isinstance(f.get("o"), dict) else {}})
+    return out[:FAV_MAX]
+
+
+async def favourites(request: web.Request) -> web.Response:
+    store = _fav_store(request)
+    if request.method == "POST":
+        if (request.content_length or 0) > FAV_MAX_BYTES:
+            return web.json_response({"error": "too big"}, status=413)
+        try:
+            items = _clean_favs((await request.json()).get("items"))
+        except (ValueError, AttributeError):
+            return web.json_response({"error": "bad json"}, status=400)
+        body = json.dumps({"items": items}, separators=(",", ":"))
+        if len(body) > FAV_MAX_BYTES:
+            return web.json_response({"error": "too big"}, status=413)
+        tmp = store.with_suffix(".tmp")
+        await asyncio.to_thread(lambda: (tmp.write_text(body), tmp.replace(store)))
+        return web.json_response({"items": items})
+    try:
+        items = await asyncio.to_thread(lambda: json.loads(store.read_text()).get("items", []))
+    except (OSError, ValueError):
+        items = []
+    return web.json_response({"items": items}, headers={"Cache-Control": "no-store"})
 
 
 async def lookup(request: web.Request) -> web.Response:
@@ -199,6 +254,8 @@ def make_app(cfg: Config) -> web.Application:
         app.router.add_get(pre + "/", index)
         app.router.add_get(pre + "/index.html", index)
         app.router.add_get(pre + "/icons/{name}", icon_file)
+        app.router.add_get(pre + "/api/favourites", favourites)
+        app.router.add_post(pre + "/api/favourites", favourites)
         app.router.add_get(pre + "/api/{feed}", feed)
         app.router.add_get(pre + "/{name:aircraft_types|icao_countries}.json", lookup)
     app.on_startup.append(_startup)
