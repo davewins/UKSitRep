@@ -29,7 +29,14 @@
     gap: 12px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); z-index: 1000; }
   #top h1 { font-size: 15px; margin: 0; letter-spacing: .08em; white-space: nowrap; }
   #clock { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
-  #chips { display: flex; gap: 6px; overflow: hidden; flex: 1; }
+  #chips { display: flex; gap: 6px; overflow: hidden; flex: 1; min-width: 0; }
+  #chips .chip.sum { cursor: pointer; background: #1e293b; color: var(--fg, #e2e8f0); }
+  .chip.off::before { content: "●"; color: #64748b; margin-right: 4px; }
+  #feedList { position: absolute; top: 40px; left: 12px; z-index: 2000; background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+    padding: 8px 10px; max-height: 70vh; overflow: auto; display: none; box-shadow: 0 6px 20px #000a; min-width: 300px; font-size: 12px; }
+  #feedList.open { display: block; }
+  #feedList .row { display: flex; gap: 10px; justify-content: space-between; padding: 2px 0; }
+  #feedList .row .muted { text-align: right; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .chip { padding: 2px 7px; border-radius: 10px; background: #18212c; color: var(--muted); font-size: 11px; white-space: nowrap; }
   .chip.ok::before { content: "●"; color: var(--ok); margin-right: 4px; }
   .chip.err::before { content: "●"; color: var(--red); margin-right: 4px; }
@@ -152,6 +159,7 @@
   <h1>🇬🇧 UK<span class="full"> SITREP</span></h1>
   <div id="clock"></div>
   <div id="chips"></div>
+  <div id="feedList"></div>
   <button id="btnLayers">Layers</button>
   <button id="btnInfo">Info</button>
   <button id="btnPanels" title="Show/hide panels (P)">Panels</button>
@@ -262,14 +270,32 @@ const angDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
 
 const status = {};
 function setStatus(feed, ok, note) { status[feed] = { ok, t: Date.now(), note }; renderChips(); }
+const FEED_NAMES = { aircraft: "ADS-B aircraft", vessels: "AIS ships", weather_warnings: "Met Office warnings", floods: "EA floods",
+  city_weather: "Open-Meteo weather", grid: "Electricity grid", roads: "National Highways", power_cuts: "Power cuts", space: "Space weather",
+  quakes: "BGS earthquakes", news: "BBC news", meteors: "UK Meteor Network", sea: "Sea state", wind_grid: "Wind grid", radar: "Rain radar",
+  rnli: "RNLI launches", fire: "Fire & rescue", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage overflows", bathing: "Bathing waters",
+  rivers: "River levels", lightning: "Lightning", air_quality: "Air quality", fires: "NASA fire hotspots", tfl: "TfL status", iss: "ISS",
+  crime: "Street crime", fuel: "Fuel prices" };
+// "off" = an optional feed with no key / switched off: not a fault
+const feedState = (v) => v.ok ? "ok" : /key|disabled/i.test(v.note || "") ? "off" : "err";
 function renderChips() {
-  const names = { aircraft: "ADS-B", vessels: "AIS", weather_warnings: "Met Office", floods: "EA floods",
-    city_weather: "Open-Meteo", grid: "Grid", roads: "Nat. Highways", power_cuts: "Power cuts", space: "Space wx", quakes: "BGS quakes", news: "BBC", meteors: "UKMON", sea: "Sea state", wind_grid: "Wind grid", radar: "Radar", rnli: "RNLI", fire: "DSFRS", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage", bathing: "Bathing", rivers: "Rivers", lightning: "Lightning", air_quality: "Air quality", fires: "FIRMS", tfl: "TfL", iss: "ISS", crime: "Crime", fuel: "Fuel" };
-  $("chips").innerHTML = Object.entries(status).map(([k, v]) => {
-    const cls = !v.ok ? "err" : "ok";
-    return `<span class="chip ${cls}" title="${esc(v.note || "")} · ${new Date(v.t).toLocaleTimeString()}">${names[k] || k}</span>`;
-  }).join("");
+  const entries = Object.entries(status);
+  const n = { ok: 0, off: 0, err: 0 };
+  for (const [, v] of entries) n[feedState(v)]++;
+  // compact bar: one summary chip plus any failing feeds; the full list opens on click
+  const failing = entries.filter(([, v]) => feedState(v) === "err");
+  $("chips").innerHTML = `<span class="chip sum ${n.err ? "stale" : "ok"}" id="feedSum" title="Show all data feeds">${n.ok} feeds live${n.err ? ` · ${n.err} failing` : ""} ▾</span>` +
+    failing.map(([k, v]) => `<span class="chip err" title="${esc(v.note || "")}">${esc(FEED_NAMES[k] || k)}</span>`).join("");
+  const order = { err: 0, ok: 1, off: 2 };
+  $("feedList").innerHTML = `<div class="muted" style="margin-bottom:4px">Data feeds: green = updated OK, red = last update failed, grey = needs a key or switched off</div>` +
+    entries.sort((a, b) => order[feedState(a[1])] - order[feedState(b[1])] || (FEED_NAMES[a[0]] || a[0]).localeCompare(FEED_NAMES[b[0]] || b[0]))
+      .map(([k, v]) => `<div class="row"><span class="chip ${feedState(v)}">${esc(FEED_NAMES[k] || k)}</span>
+        <span class="muted" title="${esc(v.note || "")}">${v.note ? esc(v.note) + " · " : ""}${new Date(v.t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span></div>`).join("");
 }
+document.addEventListener("click", (ev) => {
+  if (ev.target.closest("#feedSum")) { $("feedList").classList.toggle("open"); return; }
+  if (!ev.target.closest("#feedList")) $("feedList").classList.remove("open");
+});
 async function getFeed(feed, qs = "") {
   try {
     const r = await fetch(withToken(API + feed + qs), { cache: "no-store" });

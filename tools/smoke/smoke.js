@@ -4,7 +4,7 @@
 const { JSDOM, VirtualConsole } = require("jsdom");
 
 const base = process.argv[2] || "http://localhost:8080/";
-const [lat, lon, zoom] = (process.argv[3] || "").split(",").map(Number);
+const at = process.argv[3] ? process.argv[3].split(",").map(Number) : null;  // optional lat,lon,zoom
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
@@ -25,8 +25,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   });
   const w = dom.window;
   await wait(25000); // let the first round of feeds land
-  if (!Number.isNaN(lat)) {
-    w.eval(`map.invalidateSize(); map.setView([${lat}, ${lon}], ${zoom || 10}, { animate: false })`);
+  if (at) {
+    w.eval(`map.invalidateSize(); map.setView([${at[0]}, ${at[1]}], ${at[2] || 10}, { animate: false })`);
     await wait(10000);
   }
   const status = w.eval("JSON.stringify(status)");
