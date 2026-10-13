@@ -71,6 +71,9 @@ async def feed(request: web.Request) -> web.Response:
     name = request.match_info["feed"]
     if name == "vessels":
         return web.json_response(await sit.vessels(request.query.get("all") == "1"))
+    if name == "aircraft_info":
+        return web.json_response(await sit.aircraft_info(request.query.get("hex", ""), request.query.get("callsign", "")),
+                                 headers={"Cache-Control": "max-age=3600"})
     if name == "fuel":
         try:
             bbox = tuple(float(x) for x in request.query["bbox"].split(","))
@@ -125,6 +128,8 @@ async def healthz(request: web.Request) -> web.Response:
             "lightning": cfg.enable_lightning,
             "firms": bool(cfg.firms_key),
             "fuel_finder": bool(cfg.fuel_client_id and cfg.fuel_client_secret),
+            "home": cfg.home_lat is not None,
+            "ha_notifications": bool(cfg.ha_webhook_url and cfg.home_lat is not None),
         },
     })
 
@@ -142,6 +147,8 @@ async def _startup(app: web.Application) -> None:
         sit.spawn(sit.adsb_loop())
     if cfg.enable_lightning:
         sit.lightning_relay.start()
+    if cfg.ha_webhook_url and cfg.home_lat is not None:
+        sit.spawn(sit.notify_loop())
     if cfg.fuel_client_id and cfg.fuel_client_secret:
         sit.spawn(sit.fuel())  # warm the cache: a cold fetch is ~30 batched requests
     _LOGGER.info(

@@ -24,6 +24,7 @@ from zoneinfo import ZoneInfo
 import aiohttp
 from .config import Config
 from .fire_services import FireServices
+from .home import HomeArea
 from .more_feeds import LightningRelay, MoreFeeds
 from .hems_sites import HEMS_EXCLUDE_KM, HEMS_SITES
 from .places import PLACE_ORDER, PLACES
@@ -213,12 +214,15 @@ class Cache:
                 _LOGGER.warning("uk_situation feed %s failed: %s", key, err)
                 if hit:
                     return hit[1]
-                return {"error": str(err)}
+                # remember the failure briefly so a dead upstream isn't retried (and waited on) every call
+                failed = {"error": str(err) or type(err).__name__}
+                self._data[key] = (time.monotonic() - ttl + min(ttl, 120), failed)
+                return failed
             self._data[key] = (time.monotonic(), value)
             return value
 
 
-class Situation(MoreFeeds, FireServices):
+class Situation(MoreFeeds, FireServices, HomeArea):
     """All feed fetchers plus long-lived state (aircraft trails, AIS)."""
 
     def __init__(self, cfg: Config, session: aiohttp.ClientSession) -> None:
@@ -810,6 +814,7 @@ class Situation(MoreFeeds, FireServices):
             "fire": self.fire, "webcams": self.webcams, "tide_stations": self.tide_stations,
             "sewage": self.sewage, "rivers": self.rivers, "lightning": self.lightning,
             "air_quality": self.air_quality, "bathing": self.bathing, "fires": self.fires, "tfl": self.tfl, "fuel": self.fuel,
+            "home": self.home_summary,
         }
 
     # ---------------------------------------------------------------- weather
@@ -983,10 +988,15 @@ class Situation(MoreFeeds, FireServices):
     # ----------------------------------------------------------------- energy
     async def grid(self) -> dict:
         async def fetch() -> dict:
-            mix, ci, demand = await asyncio.gather(
+            since = (datetime.now(timezone.utc) - timedelta(minutes=45)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            mix, ci, demand, fuelinst = await asyncio.gather(
                 self._json("https://data.elexon.co.uk/bmrs/api/v1/generation/outturn/current"),
                 self._json("https://api.carbonintensity.org.uk/intensity"),
                 self._json("https://data.elexon.co.uk/bmrs/api/v1/demand/outturn/summary"),
+                # 5-minute FUELINST carries signed interconnector flows (negative = export);
+                # the "current" summary above reports them as 0
+                self._json("https://data.elexon.co.uk/bmrs/api/v1/datasets/FUELINST/stream",
+                           params={"publishDateTimeFrom": since}),
                 return_exceptions=True,
             )
             out: dict[str, Any] = {"updated": datetime.now(timezone.utc).isoformat()}
@@ -1001,6 +1011,13 @@ class Situation(MoreFeeds, FireServices):
                 out["carbon"] = ci["data"][0]["intensity"]
             if not isinstance(demand, Exception) and demand:
                 out["demand_mw"] = demand[-1].get("demand")
+            if not isinstance(fuelinst, Exception):
+                rows = fuelinst if isinstance(fuelinst, list) else fuelinst.get("data", [])
+                rows = [r for r in rows if str(r.get("fuelType", "")).startswith("INT")]
+                if rows:
+                    latest = max(r["startTime"] for r in rows)
+                    out["interconnectors"] = {r["fuelType"]: r["generation"] for r in rows if r["startTime"] == latest}
+                    out["interconnectors_time"] = latest
             return out
 
         return await self.cache.get("grid", 300, fetch)

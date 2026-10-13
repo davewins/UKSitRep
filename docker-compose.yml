@@ -16,6 +16,12 @@ services:
       FUEL_FINDER_CLIENT_ID: ${FUEL_FINDER_CLIENT_ID:-}
       FUEL_FINDER_CLIENT_SECRET: ${FUEL_FINDER_CLIENT_SECRET:-}
       ENABLE_LIGHTNING: ${ENABLE_LIGHTNING:-true}
+      HOME_LAT: ${HOME_LAT:-}
+      HOME_LON: ${HOME_LON:-}
+      HOME_NAME: ${HOME_NAME:-Home}
+      HOME_RADIUS_KM: ${HOME_RADIUS_KM:-25}
+      HA_WEBHOOK_URL: ${HA_WEBHOOK_URL:-}
+      NOTIFY: ${NOTIFY:-warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss}
       BBC_LOCAL_REGIONS: ${BBC_LOCAL_REGIONS:-}
       ENABLE_BACKGROUND_ADSB: ${ENABLE_BACKGROUND_ADSB:-true}
       ENABLE_WORLDCAM: ${ENABLE_WORLDCAM:-false}

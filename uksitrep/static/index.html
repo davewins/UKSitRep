@@ -168,6 +168,7 @@
 <div id="map"></div>
 <div id="left" class="panel"></div>
 <div id="right" class="panel">
+  <div id="nearWrap" hidden><h2 id="nearTitle">Near home</h2><div id="near" class="muted">—</div></div>
   <h2>Alerts</h2><div id="alerts"><div class="muted">Loading…</div></div>
   <h2>Emergency services</h2><div id="emerg" class="muted">—</div>
   <h2>Military watch</h2><div id="milwatch" class="muted">—</div>
@@ -195,7 +196,7 @@ const DEFAULTS = {
   layers: { ac_civil: true, ac_military: true, ac_police: true, ac_hems: true, ac_sar: true,
     ac_trails: true, mil_dest: true, airfields: true, army: true,
     vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
-    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, quakes: true, meteors: true, news: true },
+    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, home: true, quakes: true, meteors: true, news: true },
   basemap: "dark", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
 };
 let S;
@@ -275,7 +276,7 @@ const FEED_NAMES = { aircraft: "ADS-B aircraft", vessels: "AIS ships", weather_w
   quakes: "BGS earthquakes", news: "BBC news", meteors: "UK Meteor Network", sea: "Sea state", wind_grid: "Wind grid", radar: "Rain radar",
   rnli: "RNLI launches", fire: "Fire & rescue", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage overflows", bathing: "Bathing waters",
   rivers: "River levels", lightning: "Lightning", air_quality: "Air quality", fires: "NASA fire hotspots", tfl: "TfL status", iss: "ISS",
-  crime: "Street crime", fuel: "Fuel prices" };
+  crime: "Street crime", fuel: "Fuel prices", home: "Near home" };
 // "off" = an optional feed with no key / switched off: not a fault
 const feedState = (v) => v.ok ? "ok" : /key|disabled/i.test(v.note || "") ? "off" : "err";
 function renderChips() {
@@ -393,8 +394,35 @@ function acPopup(a) {
     Alt ${a.alt ?? "?"} ft · ${a.gs != null ? Math.round(a.gs) + " kt" : "?"} · hdg ${a.track != null ? Math.round(a.track) + "°" : "?"}
     ${a.vrate ? ` · ${a.vrate > 0 ? "▲" : "▼"}${Math.abs(a.vrate)} fpm` : ""}<br>
     Squawk ${esc(a.squawk || "—")} · hex ${esc(a.hex)}<br>
+    <div class="ac-extra" data-hex="${esc(a.hex)}">${acInfo[a.hex] ? acExtra(acInfo[a.hex], a) : ""}</div>
     <a href="https://globe.adsb.lol/?icao=${esc(a.hex)}" target="_blank" rel="noopener">Track on adsb.lol ↗</a>`;
 }
+// photo + scheduled route, fetched when a popup opens and remembered for the session
+const acInfo = {};
+function acExtra(d, a) {
+  const r = d.route || {}, p = d.photo || {};
+  const apName = (x) => x ? `${esc(x.city || x.name)}${x.iata ? ` (${esc(x.iata)})` : ""}` : "?";
+  // airline route databases are keyed by callsign and can be stale: say "scheduled"
+  const route = r.origin && r.destination && a.cls === "civil"
+    ? `<div style="margin:3px 0">🛫 ${apName(r.origin)} → ${apName(r.destination)}${r.airline ? ` <span class="muted">· ${esc(r.airline)}</span>` : ""}<br><span class="muted" style="font-size:11px">Scheduled route for this callsign (adsbdb)</span></div>` : "";
+  const photo = p.src ? `<a href="${esc(p.link || p.src)}" target="_blank" rel="noopener"><img src="${esc(p.src)}" alt="Aircraft photo" style="display:block;width:260px;max-width:70vw;border-radius:4px;margin:4px 0 1px" onerror="this.closest('a').remove()"></a><span class="muted" style="font-size:10px">${esc(p.credit || "")}</span><br>` : "";
+  const owner = p.owner ? `<span class="muted" style="font-size:11px">Registered owner: ${esc(p.owner)}</span><br>` : "";
+  return route + photo + owner;
+}
+map.on("popupopen", async (e) => {
+  const el = e.popup.getElement()?.querySelector(".ac-extra");
+  if (!el || el.childElementCount) return;
+  const hex = el.dataset.hex, a = acMarkers.get(hex)?.a || { cls: "civil" };
+  if (!acInfo[hex]) {
+    try {
+      const r = await fetch(withToken(`${API}aircraft_info?hex=${encodeURIComponent(hex)}&callsign=${encodeURIComponent((a.flight || "").trim())}`));
+      if (!r.ok) return;
+      acInfo[hex] = await r.json();
+    } catch (err) { return; }
+  }
+  el.innerHTML = acExtra(acInfo[hex], a);
+  e.popup.update();
+});
 
 /* Military destination prediction: score airfields roughly ahead of the aircraft. */
 function predictDest(a) {
@@ -723,7 +751,9 @@ function riverPopup(g) {
   return `<b>${esc(g.river || "River")} at ${esc(g.name)}</b><br><span class="muted">${esc(g.town || "")}</span><br>
     Level <b>${g.level.toFixed(2)} m</b>, ${trend}<br>Typical range ${g.low ?? "?"} to ${g.high ?? "?"} m${pct != null ? ` (${pct}% of range)` : ""}<br>
     <b style="color:${RIVER_COL[g.state]}">${{ record: "At or above highest recent level", high: "Above normal range", normal: "Normal range", low: "Below normal range" }[g.state]}</b><br>
-    <span class="muted">${ukDT(g.time)}</span>${g.rloi ? `<br><a href="https://check-for-flooding.service.gov.uk/station/${encodeURIComponent(g.rloi)}" target="_blank" rel="noopener">Check for flooding ↗</a>` : ""}`;
+    <span class="muted">${ukDT(g.time)} · ${g.source === "SEPA" ? "SEPA (range: long-term monthly min/max)" : "Environment Agency"}</span>
+    ${g.rloi ? `<br><a href="https://check-for-flooding.service.gov.uk/station/${encodeURIComponent(g.rloi)}" target="_blank" rel="noopener">Check for flooding ↗</a>` : ""}
+    ${g.url ? `<br><a href="${esc(g.url)}" target="_blank" rel="noopener">SEPA water levels ↗</a>` : ""}`;
 }
 function renderRivers(d) {
   if (d) lastRivers = d.gauges || [];
@@ -893,6 +923,52 @@ function refreshCrime() {
     }
     counts.crime = total; renderCounts();
   }, 600);
+}
+
+/* ------------------------------------------------------------ home area ("near me") */
+const GLYPH_HOUSE = '<path d="M0,-6 L6.5,0 L4.5,0 L4.5,5.5 L-4.5,5.5 L-4.5,0 L-6.5,0 Z" fill="#fff"/><rect x="-1.5" y="1.5" width="3" height="4" fill="#0f172a"/>';
+let lastHome = null;
+function renderHome(d) {
+  if (d && !d.error) lastHome = d;
+  G.home.clearLayers();
+  const wrap = $("nearWrap");
+  if (!lastHome) { if (String(d?.error || "").startsWith("disabled")) wrap.hidden = true; return; }
+  const h = lastHome.home, row = (icon, text, ll, right = "") =>
+    `<div class="row" ${ll ? `style="cursor:pointer" data-ll="${ll[0]},${ll[1]}"` : ""}><span>${icon} ${text}</span><span class="muted">${right}</span></div>`;
+  L.circle([h.lat, h.lon], { radius: h.radius_km * 1000, color: "#f8fafc", weight: 1, opacity: .5, fill: false, dashArray: "6 6", interactive: false }).addTo(G.home);
+  L.marker([h.lat, h.lon], { icon: emIcon("#334155", GLYPH_HOUSE, false), zIndexOffset: 800 }).bindTooltip(esc(h.name)).addTo(G.home);
+  const r = [], d0 = lastHome;
+  for (const w of d0.warnings || []) r.push(row("⚠️", esc(w.title), null));
+  for (const f of d0.floods || []) r.push(row("🌊", `${esc(f.severity)}: ${esc(f.area)}`, [f.lat, f.lon], `${f.km} km`));
+  const rv = d0.rivers || {};
+  if (rv.raised?.length) for (const g of rv.raised) r.push(row("📈", `<b style="color:#f97316">${esc(g.river || g.name)} high</b> ${g.level} m ${g.trend > 0 ? "↑" : g.trend < 0 ? "↓" : ""}`, [g.lat, g.lon], `${g.km} km`));
+  else if (rv.nearest?.length) r.push(row("〰️", "Rivers normal: " + rv.nearest.slice(0, 2).map(g => `${esc(g.river || g.name)} ${g.level} m${g.trend > 0 ? "↑" : g.trend < 0 ? "↓" : ""}`).join(", "), [rv.nearest[0].lat, rv.nearest[0].lon]));
+  const sw = d0.sewage || {};
+  for (const o of sw.active || []) r.push(row("🟤", `<b style="color:#d97706">Sewage discharging</b> into ${esc(o.water)}`, [o.lat, o.lon], `${o.km} km`));
+  if (sw.recent?.length) r.push(row("🟤", `${sw.recent.length} overflow${sw.recent.length > 1 ? "s" : ""} stopped in 48 h · nearest ${esc(sw.recent[0].water)} (${ago(sw.recent[0].end)})`, null, `${sw.recent[0].km} km`));
+  const bw = (d0.bathing || []).slice(0, 2);
+  if (bw.length) r.push(row("🏖️", bw.map(b => `${esc(b.name)} <span style="color:${BW_COL[b.classification] || "inherit"}">${esc(b.classification || "?")}</span>${b.risk && b.risk !== "normal" ? ` <b style="color:#dc2626">risk ${esc(b.risk)}</b>` : ""}${b.sewage_near ? " 🟤" : ""}`).join(" · "), null));
+  for (const f of (d0.fire || []).slice(0, 2)) r.push(row("🔥", `${esc(f.title)} · ${esc(f.location || "")}`, null, ago(f.time)));
+  const closures = (d0.roads || []).filter(e => e.closure);
+  if (closures.length) r.push(row("🚧", `${closures.length} road closure${closures.length > 1 ? "s" : ""}: ${esc((closures[0].roads || []).join(", ") || closures[0].type)}`, null, `${closures[0].km} km`));
+  if (d0.power?.length) r.push(row("🔌", `${d0.power.length} power cut${d0.power.length > 1 ? "s" : ""} (${esc(d0.power[0].type)})`, null, `${d0.power[0].km} km`));
+  for (const x of (d0.rnli || []).slice(0, 2)) r.push(row("🛟", `RNLI ${esc(x.station)} launched`, null, ago(x.time)));
+  const ac = d0.aircraft || {};
+  for (const a of ac.emergencies || []) r.push(row("✈️", `<b style="color:var(--emerg)">Squawk ${esc(a.squawk)}</b> ${esc(a.flight || a.hex)}`, null, `${a.km} km`));
+  for (const e of ac.hems || []) r.push(row("🚁", `${esc(e.flight || e.hex)} on scene?`, null, `${e.km} km`));
+  const lt = d0.lightning || {};
+  if (lt.count_30min) r.push(row("⚡", `<b style="color:#facc15">${lt.count_30min} lightning strikes</b> in 30 min`, null, `nearest ${lt.nearest_km} km`));
+  if (d0.tide?.next?.length) r.push(row("🌊", `${esc(d0.tide.station)}: ` + d0.tide.next.slice(0, 2).map(e => `${e.type === "HW" ? "High" : "Low"} ${ukTime(e.time)}`).join(", "), null));
+  const fu = d0.fuel || {};
+  if (fu.E10 || fu.B7_STANDARD) r.push(row("⛽", [fu.E10 && `Unl ${fu.E10.price.toFixed(1)}p ${esc(fu.E10.brand || "")}`, fu.B7_STANDARD && `Dsl ${fu.B7_STANDARD.price.toFixed(1)}p ${esc(fu.B7_STANDARD.brand || "")}`].filter(Boolean).join(" · "),
+    fu.E10 ? [fu.E10.lat, fu.E10.lon] : [fu.B7_STANDARD.lat, fu.B7_STANDARD.lon], "cheapest"));
+  const pass = d0.iss?.passes?.[0];
+  if (pass) r.push(row("🛰️", `ISS ${ukDay(pass.start)} ${ukTime(pass.start)}, max ${pass.max_el}°`, null));
+  if (d0.air) r.push(row("🌬️", `Air quality ${d0.air.aqi} (${aqiBand(d0.air.aqi)[2]})${Object.keys(d0.air.pollen || {}).length ? " · pollen: " + Object.keys(d0.air.pollen).join(", ") : ""}`, null));
+  if (ac.overhead != null) r.push(row("✈️", `${ac.overhead} aircraft within 10 km`, null));
+  $("nearTitle").textContent = `Near ${h.name} (${h.radius_km} km)`;
+  $("near").innerHTML = r.join("") || '<span class="muted">All quiet</span>';
+  wrap.hidden = false;
 }
 
 /* ------------------------------------------------------------ fuel prices (GOV.UK Fuel Finder) */
@@ -1136,12 +1212,15 @@ function renderSea(d) {
 /* ------------------------------------------------------------ energy */
 const FUEL_COL = { WIND: "#38bdf8", CCGT: "#f97316", OCGT: "#fb923c", NUCLEAR: "#a78bfa", BIOMASS: "#84cc16", COAL: "#78716c",
   NPSHYD: "#06b6d4", PS: "#0ea5e9", OIL: "#a8a29e", OTHER: "#94a3b8" };
+let lastGrid = null;
 function renderGrid(d) {
   if (!d) return;
   const mix = (d.mix || []).filter(m => m.mw > 0);
   const imports = mix.filter(m => m.fuel.startsWith("INT"));
   const domestic = mix.filter(m => !m.fuel.startsWith("INT"));
-  const impMw = imports.reduce((s, m) => s + m.mw, 0);
+  const ic = Object.values(d.interconnectors || {});
+  const impMw = ic.length ? ic.filter(v => v > 0).reduce((a, b) => a + b, 0) : imports.reduce((s, m) => s + m.mw, 0);
+  const expMw = -ic.filter(v => v < 0).reduce((a, b) => a + b, 0);
   const total = d.generation_mw || 1;
   const rows = domestic.slice(0, 7).map(m => `
     <div class="row"><span style="width:62px">${esc(m.fuel)}</span>
@@ -1153,7 +1232,44 @@ function renderGrid(d) {
     <div class="row"><span>Demand</span><b>${d.demand_mw ? (d.demand_mw / 1000).toFixed(1) + " GW" : "—"}</b></div>
     <div class="row"><span>Carbon intensity</span><b style="color:${ciCol}">${ci.actual ?? ci.forecast ?? "—"} g/kWh · ${esc(ci.index || "")}</b></div>
     ${rows}
-    <div class="row"><span style="width:62px">Imports</span><div class="bar" style="flex:1;align-self:center"><i style="width:${impMw / total * 100}%;background:#e879f9"></i></div><span class="muted" style="width:70px;text-align:right">${(impMw / 1000).toFixed(1)} GW</span></div>`;
+    <div class="row"><span style="width:62px">Imports</span><div class="bar" style="flex:1;align-self:center"><i style="width:${impMw / total * 100}%;background:#e879f9"></i></div><span class="muted" style="width:70px;text-align:right">${(impMw / 1000).toFixed(1)} GW</span></div>
+    ${expMw ? `<div class="row"><span style="width:62px">Exports</span><div class="bar" style="flex:1;align-self:center"><i style="width:${expMw / total * 100}%;background:#22d3ee"></i></div><span class="muted" style="width:70px;text-align:right">${(expMw / 1000).toFixed(1)} GW</span></div>` : ""}`;
+  renderInterconnectors(d);
+}
+// GB landing point -> far end, nominal capacity (MW). FUELINST flow: positive = import to GB.
+const INTERCONNECTORS = {
+  INTFR: ["IFA", "France", [51.10, 1.00], [50.89, 1.78], 2000],
+  INTIFA2: ["IFA2", "France", [50.81, -1.20], [49.25, -0.30], 1000],
+  INTELEC: ["ElecLink", "France", [51.09, 1.15], [50.93, 1.81], 1000],
+  INTNED: ["BritNed", "Netherlands", [51.45, 0.70], [51.96, 4.03], 1000],
+  INTNEM: ["Nemo Link", "Belgium", [51.30, 1.34], [51.30, 3.22], 1000],
+  INTVKL: ["Viking Link", "Denmark", [52.93, -0.20], [55.50, 8.40], 1400],
+  INTNSL: ["North Sea Link", "Norway", [55.14, -1.52], [59.00, 5.80], 1400],
+  INTIRL: ["Moyle", "Northern Ireland", [55.07, -4.98], [54.84, -5.77], 500],
+  INTEW: ["East West", "Ireland", [53.22, -3.06], [53.52, -6.20], 500],
+  INTGRNL: ["Greenlink", "Ireland", [51.68, -4.99], [52.20, -6.60], 500],
+};
+function renderInterconnectors(d) {
+  G.interconnectors.clearLayers();
+  const flows = d?.interconnectors || {};
+  for (const [k, [name, country, gb, far, cap]] of Object.entries(INTERCONNECTORS)) {
+    const mw = flows[k];
+    if (mw == null) continue;
+    const imp = mw > 0, idle = Math.abs(mw) < 20, col = idle ? "#64748b" : imp ? "#e879f9" : "#22d3ee";
+    const [from, to] = imp ? [far, gb] : [gb, far];
+    const line = L.polyline([from, to], { color: col, weight: idle ? 1.5 : 2 + Math.abs(mw) / 350, opacity: .85, dashArray: idle ? "4 4" : null })
+      .bindPopup(`<b>${name}</b> (GB ↔ ${country})<br>${idle ? "Idle" : `${imp ? "Importing" : "Exporting"} <b>${Math.abs(mw).toLocaleString()} MW</b>`}
+        · ${Math.round(Math.abs(mw) / cap * 100)}% of ${cap.toLocaleString()} MW<br><span class="muted">${d.interconnectors_time ? ukDT(d.interconnectors_time) : ""} · Elexon FUELINST</span>`)
+      .bindTooltip(`${name} ${idle ? "idle" : `${Math.abs(mw)} MW ${imp ? "→ GB" : "→ " + country}`}`, { sticky: true });
+    line.addTo(G.interconnectors);
+    if (!idle) {  // arrowhead at the receiving end
+      const p1 = map.latLngToLayerPoint(from), p2 = map.latLngToLayerPoint(to);
+      const ang = Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI + 90;
+      L.marker(to, { interactive: false, icon: L.divIcon({ className: "base", iconSize: [16, 16], iconAnchor: [8, 8],
+        html: `<svg width="16" height="16" viewBox="-8 -8 16 16"><path d="M0,-7 L6,6 L0,2.5 L-6,6 Z" fill="${col}" stroke="#0f172a" stroke-width="1" transform="rotate(${ang})"/></svg>` }) })
+        .addTo(G.interconnectors);
+    }
+  }
 }
 function renderCuts(d) {
   G.cuts.clearLayers();
@@ -1365,6 +1481,7 @@ function renderAlerts() {
 /* ------------------------------------------------------------ left panel */
 const counts = {};
 const LAYER_UI = [
+  ["Home", [["home", "Home area (set HOME_LAT / HOME_LON)", "#f8fafc"]]],
   ["Aviation", [["ac_civil", "Civil aircraft", "--civil"], ["ac_military", "Military", "--military"], ["ac_police", "Police (NPAS)", "--police"],
     ["ac_hems", "Air ambulance", "--hems"], ["ac_sar", "Coastguard / SAR", "--sar"], ["ac_trails", "Trails", "#64748b"],
     ["mil_dest", "Military destination guess", "#22c55e"], ["airfields", "Military airfields", "#93c5fd"], ["army", "Army bases", "#86efac"]]],
@@ -1384,7 +1501,8 @@ const LAYER_UI = [
     ["bathing", "Bathing waters (zoom in)", "#2563eb"]]],
   ["Infrastructure", [["cuts", "Power cuts (UKPN, SSEN)", "#fbbf24"], ["roads_incidents", "Road incidents (live)", "#ef4444"],
     ["roads_closures", "Road closures (planned)", "#f59e0b"], ["roads_works", "Lane restrictions", "#94a3b8"],
-    ["tfl", "TfL disruption (Info panel)", "#dc2626"], ["fuel", "Fuel prices (zoom 11+)", "#22c55e"]]],
+    ["tfl", "TfL disruption (Info panel)", "#dc2626"], ["fuel", "Fuel prices (zoom 11+)", "#22c55e"],
+    ["interconnectors", "Power interconnectors (flows)", "#e879f9"]]],
   ["Crime", [["crime", "Street crime, last month (zoom 14+)", "#c084fc"]]],
   ["Space & geological", [["quakes", "BGS earthquakes", "#f472b6"], ["meteors", "UK Meteor Network", "#a5b4fc"],
     ["iss", "ISS position & visible passes", "#e2e8f0"]]],
@@ -1414,9 +1532,10 @@ const VIEWS = {
 };
 const allLayerKeys = () => Object.keys(DEFAULTS.layers);
 function viewLayers(v) {
-  if (v === "everything") return Object.fromEntries(allLayerKeys().map(k => [k, k !== "satimg"]));
+  // views leave the home marker as it is
+  if (v === "everything") return Object.fromEntries(allLayerKeys().map(k => [k, k === "home" ? S.layers.home : k !== "satimg"]));
   const on = new Set(VIEWS[v][1]);
-  return Object.fromEntries(allLayerKeys().map(k => [k, on.has(k)]));
+  return Object.fromEntries(allLayerKeys().map(k => [k, k === "home" ? S.layers.home : on.has(k)]));
 }
 // Re-render whatever depends on the layers that changed
 function afterToggle(keys) {
@@ -1557,6 +1676,7 @@ const refresh = {
     if (!d || !d.cams || !d.cams.length) setTimeout(refresh.webcams, 60000);  // don't wait 6 h after a failed first load
   },
   sewage: async () => renderSewage(await getFeed("sewage")),
+  home: async () => renderHome(await getFeed("home")),
   bathing: async () => renderBathing(await getFeed("bathing")),
   rivers: async () => renderRivers(await getFeed("rivers")),
   lightning: async () => renderLightning(await getFeed("lightning")),
@@ -1573,7 +1693,7 @@ const refresh = {
   weather_warnings: async () => renderWarnings(await getFeed("weather_warnings")),
   floods: async () => renderFloods(await getFeed("floods")),
   city_weather: async () => renderCityWeather(await getFeed("city_weather")),
-  grid: async () => renderGrid(await getFeed("grid")),
+  grid: async () => { lastGrid = await getFeed("grid"); renderGrid(lastGrid); },
   power_cuts: async () => renderCuts(await getFeed("power_cuts")),
   space: async () => renderSpace(await getFeed("space")),
   quakes: async () => renderQuakes(await getFeed("quakes")),
@@ -1585,7 +1705,7 @@ const refresh = {
   radar: refreshRadar,
 };
 const INTERVAL = { aircraft: 10, vessels: 30, weather_warnings: 600, floods: 600,
-  grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 1800, rnli: 180, fire: 900, webcams: 6 * 3600, tide_stations: 86400, sewage: 600, bathing: 3 * 3600, rivers: 600, lightning: 30, air_quality: 3600, fires: 1800, tfl: 300, iss: 30, wind_grid: 1800, radar: 300, city_weather: 1800 };
+  grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 1800, rnli: 180, fire: 900, webcams: 6 * 3600, tide_stations: 86400, sewage: 600, home: 120, bathing: 3 * 3600, rivers: 600, lightning: 30, air_quality: 3600, fires: 1800, tfl: 300, iss: 30, wind_grid: 1800, radar: 300, city_weather: 1800 };
 
 function start() {
   drawBases(); buildLeft();
@@ -1594,7 +1714,7 @@ function start() {
   syncLayers();
   for (const [k, fn] of Object.entries(refresh)) { fn(); setInterval(fn, INTERVAL[k] * 1000); }
   setInterval(() => renderNews(), 60000);  // age out expired incidents
-  map.on("zoomend", () => { renderAircraft(lastAircraft); renderVessels(); });
+  map.on("zoomend", () => { renderAircraft(lastAircraft); renderVessels(); if (lastGrid) renderInterconnectors(lastGrid); });
   map.on("moveend", () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); });
   setInterval(() => { fuelKey = null; refreshFuel(); }, 30 * 60000);
   renderSatImg();

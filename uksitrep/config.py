@@ -47,6 +47,12 @@ class Config:
     enable_lightning: bool = True
     fuel_client_id: str | None = None
     fire_services: set[str] = field(default_factory=set)
+    home_lat: float | None = None
+    home_lon: float | None = None
+    home_name: str = "Home"
+    home_radius_km: float = 25.0
+    ha_webhook_url: str | None = None
+    notify_kinds: set[str] = field(default_factory=set)
     fuel_client_secret: str | None = None
 
     @classmethod
@@ -60,6 +66,10 @@ class Config:
             for r in _list("BBC_LOCAL_REGIONS")
         }
         cams = os.environ.get("CAMERAS_FILE")
+        try:
+            home_lat, home_lon = float(os.environ["HOME_LAT"]), float(os.environ["HOME_LON"])
+        except (KeyError, ValueError):
+            home_lat = home_lon = None
         return cls(
             host=os.environ.get("HOST", "0.0.0.0"),
             port=int(os.environ.get("PORT", "8080")),
@@ -78,6 +88,11 @@ class Config:
             enable_lightning=_bool("ENABLE_LIGHTNING", True),
             fuel_client_id=os.environ.get("FUEL_FINDER_CLIENT_ID") or None,
             fire_services=set(_list("FIRE_SERVICES", "avon,bucks,cheshire,cleveland,hants,rbfrs,shropshire")),
+            home_lat=home_lat, home_lon=home_lon,
+            home_name=os.environ.get("HOME_NAME") or "Home",
+            home_radius_km=float(os.environ.get("HOME_RADIUS_KM") or 25),
+            ha_webhook_url=os.environ.get("HA_WEBHOOK_URL") or None,
+            notify_kinds=set(_list("NOTIFY", "warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss")),
             fuel_client_secret=os.environ.get("FUEL_FINDER_CLIENT_SECRET") or None,
         )
 

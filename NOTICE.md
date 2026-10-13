@@ -33,6 +33,9 @@ Each is subject to its own terms.
 | [CelesTrak](https://celestrak.org) + [python-sgp4](https://pypi.org/project/sgp4/) | ISS orbit | CelesTrak terms; MIT |
 | [TfL Unified API](https://api.tfl.gov.uk) | Line status | Powered by TfL Open Data |
 | [GOV.UK Fuel Finder](https://www.developer.fuel-finder.service.gov.uk) *(optional credentials)* | Fuel prices | Motor Fuel Price (Open Data) Regulations 2025; Fuel Finder terms |
+| [adsbdb](https://www.adsbdb.com), [Planespotters.net](https://www.planespotters.net/photo/api), airport-data.com | Aircraft routes and photos (fetched when a popup opens) | adsbdb terms; photos © their photographers, credited and linked |
+| [SEPA](https://timeseriesdoc.sepa.org.uk) KiWIS | Scottish river levels | OGL v3 |
+| [Elexon BMRS FUELINST](https://bmrs.elexon.co.uk) | Interconnector flows | Elexon licence |
 | [data.police.uk](https://data.police.uk) | Street-level crime | OGL v3 |
 | [Admiralty EasyTide](https://easytide.admiralty.co.uk) (UKHO) | Tide times. Fetched per port when a popup is opened, cached 6 h | Crown copyright. Not for navigation |
 | worldcam.eu *(optional)* | Webcam directory | Scraped. Check their terms before enabling |

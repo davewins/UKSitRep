@@ -14,6 +14,7 @@ import io
 import json
 import logging
 import math
+import re
 import time
 from typing import Any
 
@@ -22,6 +23,8 @@ import aiohttp
 _LOGGER = logging.getLogger("uksitrep")
 
 EA_FLOOD = "https://environment.data.gov.uk/flood-monitoring"
+SEPA_KIWIS = "https://timeseries.sepa.org.uk/KiWIS/KiWIS"
+SEPA_BASE = {"service": "kisters", "type": "queryServices", "datasource": "0", "format": "json"}
 
 # Lightning: Blitzortung.org volunteer network (private, non-commercial use)
 BLITZ_HOSTS = ("ws1", "ws7", "ws8", "ws5")
@@ -52,6 +55,10 @@ FUEL_API = "https://www.fuel-finder.service.gov.uk/api/v1"
 FUEL_TYPES = ("E10", "E5", "B7_STANDARD", "B7_PREMIUM", "B10", "HVO")
 
 CRIME_MIN_PER_MONTH = 10  # fewer than this within a mile usually means the force didn't submit
+
+PHOTO_UA = {"User-Agent": "UKSitRep/1.5 (+https://github.com/davewins/UKSitRep)"}  # Planespotters requires a contact URL
+HEX_RE = re.compile(r"^[0-9a-f]{6}$")
+CALLSIGN_RE = re.compile(r"^[A-Z0-9]{3,8}$")
 
 ISS_TLE = "https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE"
 
@@ -278,9 +285,88 @@ class MoreFeeds:
                 elif s["low"] is not None and v < s["low"]:
                     state = "low"
                 out.append({**s, "level": round(v, 3), "time": r["dateTime"], "trend": trend, "state": state})
+            try:
+                out.extend(await self._sepa_gauges())
+            except Exception as err:  # noqa: BLE001 - England still useful without Scotland
+                _LOGGER.warning("SEPA river levels failed: %s", err)
             return {"updated": now.isoformat(), "gauges": out}
 
         return await self.cache.get("rivers", 600, fetch)
+
+    async def _sepa(self, **params) -> list[list]:
+        return await self._json(SEPA_KIWIS, params={**SEPA_BASE, **params}, timeout=aiohttp.ClientTimeout(total=60))
+
+    async def _sepa_gauges(self) -> list[dict]:
+        """Scottish gauges (SEPA KiWIS). 'Typical range' comes from SEPA's long-term
+        monthly min/max for the current month; SEPA also publishes rising/falling."""
+        async def meta() -> dict:
+            async def fetch() -> dict:
+                rows = await self._sepa(request="getTimeseriesList", stationparameter_name="Level",
+                                        returnfields="station_no,station_name,station_latitude,station_longitude,ts_id,ts_name")
+                head, rows = rows[0], [dict(zip(rows[0], r)) for r in rows[1:]]
+                rivers = await self._sepa(request="getStationList", returnfields="station_no,river_name")
+                river = {r[0]: r[1] for r in rivers[1:]}
+                st: dict[str, dict] = {}
+                for r in rows:
+                    s_ = st.setdefault(r["station_no"], {"name": r["station_name"], "river": river.get(r["station_no"]),
+                                                         "lat": r["station_latitude"], "lon": r["station_longitude"]})
+                    s_[r["ts_name"]] = r["ts_id"]
+                st = {k: v for k, v in st.items() if "15minute" in v and v["lat"] and v["lon"]}
+                # this month's long-term max/min (the series hold one value per calendar month)
+                now = datetime.now(timezone.utc)
+                frm = now.strftime("%Y-%m-01")
+                lt_ids = [v[n] for v in st.values() for n in ("LongTermValue.Month.Max", "LongTermValue.Month.Min") if n in v]
+                lt: dict[str, float] = {}
+                for i in range(0, len(lt_ids), 300):
+                    vals = await self._sepa(request="getTimeseriesValues", ts_id=",".join(lt_ids[i:i + 300]),
+                                            **{"from": frm, "to": frm + "T23:59:59", "returnfields": "Timestamp,Value"})
+                    for v in vals:
+                        if v.get("data"):
+                            lt[str(v["ts_id"])] = v["data"][0][1]
+                for v in st.values():
+                    v["high"] = lt.get(v.get("LongTermValue.Month.Max"))
+                    v["low"] = lt.get(v.get("LongTermValue.Month.Min"))
+                return st
+            return await self.cache.get("sepa_meta", 86400, fetch)
+
+        st = await meta()
+        if "error" in st and len(st) == 1:
+            raise RuntimeError(st["error"])
+        level_ids = {v["15minute"]: k for k, v in st.items()}
+        trend_ids = {v["15m.RisingFalling.Cmd"]: k for k, v in st.items() if "15m.RisingFalling.Cmd" in v}
+        ids, vals = [*level_ids, *trend_ids], []
+        for i in range(0, len(ids), 350):  # KiWIS rejects very long id lists
+            vals += await self._sepa(request="getTimeseriesValueLayer", ts_id=",".join(ids[i:i + 350]),
+                                     returnfields="ts_id,timestamp,ts_value")
+        now = datetime.now(timezone.utc)
+        level: dict[str, tuple[str, float]] = {}
+        trend: dict[str, int] = {}
+        for v in vals:
+            tid, val = str(v.get("ts_id")), v.get("ts_value")
+            if val is None:
+                continue
+            if tid in level_ids:
+                level[level_ids[tid]] = (v["timestamp"], float(val))
+            elif tid in trend_ids:
+                trend[trend_ids[tid]] = int(round(float(val)))
+        out = []
+        for no, (ts, val) in level.items():
+            try:
+                if (now - datetime.fromisoformat(ts.replace("Z", "+00:00"))).total_seconds() > 6 * 3600:
+                    continue
+            except ValueError:
+                continue
+            s_ = st[no]
+            high, low = s_.get("high"), s_.get("low")
+            state = "high" if high is not None and val > high else "low" if low is not None and val < low else "normal"
+            out.append({
+                "id": no, "name": s_["name"], "river": s_.get("river"), "town": None,
+                "lat": float(s_["lat"]), "lon": float(s_["lon"]), "rloi": None,
+                "low": round(low, 3) if low is not None else None, "high": round(high, 3) if high is not None else None,
+                "record": None, "level": round(val, 3), "time": ts.replace(".000Z", "Z"), "trend": trend.get(no, 0),
+                "state": state, "source": "SEPA", "url": f"https://waterlevels.sepa.org.uk/Station/{no}",
+            })
+        return out
 
     # ------------------------------------------------------------ lightning
     async def lightning(self) -> dict:
@@ -430,6 +516,54 @@ class MoreFeeds:
                 if len(passes) >= 5:
                     break
         return passes
+
+    # ------------------------------------------------------------ aircraft photo + route
+    async def aircraft_info(self, hexid: str, callsign: str) -> dict:
+        """Photo (Planespotters, else adsbdb/airport-data) and scheduled route (adsbdb) for one aircraft."""
+        hexid, callsign = hexid.strip().lower(), callsign.strip().upper()
+        if not HEX_RE.match(hexid):
+            return {"error": "bad hex"}
+
+        async def photo() -> dict:
+            async def fetch() -> dict:
+                try:
+                    d = await self._json(f"https://api.planespotters.net/pub/photos/hex/{hexid}", headers=PHOTO_UA)
+                    p = (d.get("photos") or [None])[0]
+                    if p:
+                        return {"src": (p.get("thumbnail_large") or p.get("thumbnail") or {}).get("src"),
+                                "link": p.get("link"), "credit": f"© {p.get('photographer') or 'unknown'} / Planespotters.net"}
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug("planespotters %s: %s", hexid, err)
+                try:
+                    d = await self._json(f"https://api.adsbdb.com/v0/aircraft/{hexid}", headers=PHOTO_UA)
+                    a = (d.get("response") or {}).get("aircraft") or {}
+                    if a.get("url_photo_thumbnail"):
+                        return {"src": a["url_photo_thumbnail"], "link": a.get("url_photo"), "credit": "airport-data.com",
+                                "owner": a.get("registered_owner")}
+                    return {"owner": a.get("registered_owner")} if a else {}
+                except Exception:  # noqa: BLE001 - adsbdb answers 404 for unknown airframes
+                    return {}
+            return await self.cache.get(f"acphoto:{hexid}", 86400, fetch)
+
+        async def route() -> dict:
+            if not CALLSIGN_RE.match(callsign):
+                return {}
+
+            async def fetch() -> dict:
+                try:
+                    d = await self._json(f"https://api.adsbdb.com/v0/callsign/{callsign}", headers=PHOTO_UA)
+                except Exception:  # noqa: BLE001 - unknown callsign
+                    return {}
+                r = (d.get("response") or {}).get("flightroute") or {}
+                def ap(x: dict | None) -> dict | None:
+                    return {"name": x.get("name"), "iata": x.get("iata_code"), "icao": x.get("icao_code"),
+                            "city": x.get("municipality"), "country": x.get("country_name")} if x else None
+                return {"airline": (r.get("airline") or {}).get("name"), "origin": ap(r.get("origin")),
+                        "destination": ap(r.get("destination"))} if r else {}
+            return await self.cache.get(f"acroute:{callsign}", 6 * 3600, fetch)
+
+        p, r = await asyncio.gather(photo(), route())
+        return {"photo": p, "route": r}
 
     # ------------------------------------------------------------ satellite fire hotspots
     async def fires(self) -> dict:
