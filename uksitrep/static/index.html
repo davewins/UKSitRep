@@ -47,7 +47,7 @@
   #searchBox { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); width: min(380px, calc(100vw - 32px));
     z-index: 2000; background: #0f172a; border: 1px solid #334155; border-radius: 8px; box-shadow: 0 6px 20px #000a; padding: 6px; display: none; }
   #searchBox.open { display: block; }
-  #searchBox .bar { display: flex; gap: 6px; }
+  #searchBox .sbar { display: flex; gap: 6px; }
   #searchQ { flex: 1; min-width: 0; background: #111a24; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; font: inherit; font-size: 14px; }
   #searchBox button { background: #18212c; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: inherit; }
   #searchRes .r { padding: 6px 8px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; }
@@ -264,6 +264,11 @@
     #chips, #btnFs, #btnPanels { display: none; }
     #btnLayers, #btnInfo { display: inline-block; padding: 6px 10px; }
     #btnInfo.alerting { border-color: var(--red); color: #fca5a5; }
+    #top button { white-space: nowrap; flex: none; }
+    #btnSearch { padding: 6px 8px; }
+    #clock .z { display: none; }
+    #searchBox { top: calc(var(--top) + 6px); }
+    #searchQ { font-size: 16px; }  /* iOS zooms the page into inputs under 16px */
     #clock { font-size: 11px; margin-right: auto; }
     #map { top: var(--top); bottom: var(--bot); }
     #ticker { height: var(--bot); padding-bottom: var(--sab); font-size: 12px; }
@@ -303,7 +308,7 @@
   <button id="btnPanels" title="Show/hide panels (P)">Panels</button>
   <button id="btnFs" title="Full screen (F)">⛶</button>
 </div>
-<div id="searchBox"><div class="bar"><input id="searchQ" type="search" placeholder="Town, village or postcode" autocomplete="off" enterkeyhint="search" aria-label="Find a place"><button id="searchClear" title="Close and remove the pin">✕</button></div><div id="searchRes"></div></div>
+<div id="searchBox"><div class="sbar"><input id="searchQ" type="search" placeholder="Town, village or postcode" autocomplete="off" enterkeyhint="search" aria-label="Find a place"><button id="searchClear" title="Close and remove the pin">✕</button></div><div id="searchRes"></div></div>
 <div id="map"></div>
 <div id="left" class="panel"></div>
 <div id="right" class="panel">
@@ -1925,7 +1930,7 @@ function start() {
   setInterval(() => { fuelKey = null; refreshFuel(); }, 30 * 60000);
   renderSatImg();
   setInterval(() => { const n = new Date();
-    $("clock").textContent = n.toLocaleTimeString("en-GB") + " · " + n.toISOString().slice(11, 16) + "Z"; }, 1000);
+    $("clock").innerHTML = n.toLocaleTimeString("en-GB") + `<span class="z"> · ${n.toISOString().slice(11, 16)}Z</span>`; }, 1000);
   setTimeout(() => location.reload(), 6 * 3600 * 1000);  // keep a 24/7 display fresh
 }
 /* ------------------------------------------------------------ film themes (Style menu) */
