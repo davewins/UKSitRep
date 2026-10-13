@@ -37,6 +37,13 @@ Add `?view=<name>` to the URL to open in a view (`military`, `emergency`, `trans
 `weather`, `coast`, `space`, `everything`), e.g. for a wall display:
 `https://<host>/k/<ACCESS_TOKEN>/?kiosk&view=military`.
 
+## Finding a place
+
+Press **🔍** (or `/`) and type a town, village, postcode (`TQ14 8AA`), postcode district
+(`GL20`) or coordinates (`51.5, -0.12`). Suggestions appear as you type; Enter or a click flies
+the map there and drops a pin, and ✕ removes it. Place names come from postcodes.io (OS Open
+Names, Great Britain only). Other keys: `P` panels, `F` full screen, `H` home view.
+
 ## Quick start
 
 ```bash

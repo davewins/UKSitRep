@@ -92,6 +92,8 @@ async def feed(request: web.Request) -> web.Response:
         if name == "crime":
             return web.json_response(await sit.crime(lat, lon))
         return web.json_response(await sit.iss(lat, lon))
+    if name == "search":
+        return web.json_response(await sit.search(request.query.get("q", "")), headers={"Cache-Control": "max-age=3600"})
     if name == "tides":
         return web.json_response(await sit.tides(request.query.get("station", "")))
     handler = sit.handlers.get(name)

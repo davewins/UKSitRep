@@ -12,7 +12,9 @@ from datetime import datetime, timedelta, timezone
 import json
 import logging
 import math
+import re
 import time
+from urllib.parse import quote
 from typing import Any
 
 import aiohttp
@@ -25,6 +27,11 @@ UK_TZ = ZoneInfo("Europe/London")
 NOTIFY_KINDS = ("warning", "flood", "river", "sewage", "fire", "road", "power", "rnli", "aircraft", "hems",
                 "lightning", "iss")
 SENT_KEEP_DAYS = 7
+POSTCODE_RE = re.compile(r"^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$")
+OUTCODE_RE = re.compile(r"^[A-Z]{1,2}\d[A-Z\d]?$")
+SEARCH_RE = re.compile(r"^[\w\s'’,.()&-]{2,60}$")
+PLACE_RANK = {"City": 0, "Town": 1, "Village": 2, "Suburban Area": 3, "Hamlet": 4, "Other Settlement": 5}
+PLACE_ZOOM = {"City": 12, "Town": 13, "Suburban Area": 14, "Village": 14, "Hamlet": 15, "Other Settlement": 15}
 
 
 def _km(a: float, b: float, c: float, d: float) -> float:
@@ -47,6 +54,55 @@ def _age_min(iso: str | None) -> float:
 
 class HomeArea:
     """Mixin for Situation."""
+
+    async def search(self, q: str) -> dict:
+        """Postcode, postcode district or place name -> map locations (postcodes.io, Great Britain)."""
+        q = re.sub(r"\s+", " ", q or "").strip()
+        if not SEARCH_RE.match(q):
+            return {"results": [], "error": "Type a town or postcode"}
+        pc = q.upper().replace(" ", "")
+
+        async def fetch() -> dict:
+            base = "https://api.postcodes.io"
+            if POSTCODE_RE.match(pc) or OUTCODE_RE.match(pc):
+                full = bool(POSTCODE_RE.match(pc))
+                try:
+                    r = (await self._json(f"{base}/{'postcodes' if full else 'outcodes'}/{quote(pc)}"))["result"]
+                except aiohttp.ClientResponseError as err:
+                    if err.status != 404:
+                        raise
+                    r = None
+                if r and r.get("latitude") is not None:
+                    area = r.get("admin_district")
+                    area = ", ".join(area[:3]) if isinstance(area, list) else area
+                    return {"results": [{"name": r.get("postcode") or r.get("outcode"), "area": area,
+                                         "kind": "Postcode" if full else "Postcode district",
+                                         "lat": r["latitude"], "lon": r["longitude"], "zoom": 16 if full else 13}]}
+                if full:
+                    return {"results": [], "error": f"Postcode {q.upper()} not found"}
+            d = await self._json(f"{base}/places", params={"q": q, "limit": "40"})
+            seen, out = set(), []
+            for r in d.get("result") or []:
+                if r.get("latitude") is None:
+                    continue
+                n1, n2 = r.get("name_1") or "", r.get("name_2") or ""
+                # Welsh and Gaelic places come back under their local name first
+                name = n2 if n2 and r.get("name_1_lang") and r.get("name_2_lang") == "eng" else n1
+                alt = n1 if name != n1 else (n2 or None)
+                area = r.get("district_borough") or r.get("county_unitary") or r.get("region")
+                key = (name.lower(), area)
+                if key in seen:
+                    continue
+                seen.add(key)
+                exact = q.lower() in (n1.lower(), n2.lower())
+                out.append(((not exact, PLACE_RANK.get(r.get("local_type"), 9)), {
+                    "name": name, "alt": alt, "area": area, "region": r.get("region") or r.get("country"),
+                    "kind": r.get("local_type") or "Place", "lat": r["latitude"], "lon": r["longitude"],
+                    "zoom": PLACE_ZOOM.get(r.get("local_type"), 14)}))
+            out.sort(key=lambda x: x[0])
+            return {"results": [x[1] for x in out[:8]]}
+
+        return await self.cache.get(f"search:{q.lower()}", 86400, fetch)
 
     def _near(self, items: list[dict], radius: float | None = None, lat: str = "lat", lon: str = "lon") -> list[dict]:
         h = self.cfg

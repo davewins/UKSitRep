@@ -43,6 +43,19 @@
   .chip.stale::before { content: "●"; color: var(--amber); margin-right: 4px; }
   #top button { background: #18212c; color: var(--text); border: 1px solid var(--line); border-radius: 6px;
     padding: 4px 9px; cursor: pointer; font: inherit; }
+  /* place search */
+  #searchBox { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); width: min(380px, calc(100vw - 32px));
+    z-index: 2000; background: #0f172a; border: 1px solid #334155; border-radius: 8px; box-shadow: 0 6px 20px #000a; padding: 6px; display: none; }
+  #searchBox.open { display: block; }
+  #searchBox .bar { display: flex; gap: 6px; }
+  #searchQ { flex: 1; min-width: 0; background: #111a24; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; font: inherit; font-size: 14px; }
+  #searchBox button { background: #18212c; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  #searchRes .r { padding: 6px 8px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; }
+  #searchRes .r:hover, #searchRes .r.sel { background: #1e293b; }
+  #searchRes .r .muted { font-size: 11px; text-align: right; }
+  #searchRes .msg { padding: 6px 8px; color: var(--muted); font-size: 12px; }
+  .found-pin { width: 22px; height: 22px; border-radius: 50%; border: 3px solid #f43f5e; box-shadow: 0 0 0 4px #f43f5e55; animation: foundPulse 1.6s ease-out infinite; }
+  @keyframes foundPulse { 0% { box-shadow: 0 0 0 0 #f43f5eaa; } 100% { box-shadow: 0 0 0 18px #f43f5e00; } }
   /* side panels */
   .panel { position: absolute; top: 48px; bottom: 38px; width: 270px; background: var(--panel);
     border: 1px solid var(--line); border-radius: 8px; z-index: 900; overflow-y: auto; padding: 8px 10px; }
@@ -160,11 +173,13 @@
   <div id="clock"></div>
   <div id="chips"></div>
   <div id="feedList"></div>
+  <button id="btnSearch" title="Find a town or postcode (/)">🔍</button>
   <button id="btnLayers">Layers</button>
   <button id="btnInfo">Info</button>
   <button id="btnPanels" title="Show/hide panels (P)">Panels</button>
   <button id="btnFs" title="Full screen (F)">⛶</button>
 </div>
+<div id="searchBox"><div class="bar"><input id="searchQ" type="search" placeholder="Town, village or postcode" autocomplete="off" enterkeyhint="search" aria-label="Find a place"><button id="searchClear" title="Close and remove the pin">✕</button></div><div id="searchRes"></div></div>
 <div id="map"></div>
 <div id="left" class="panel"></div>
 <div id="right" class="panel">
@@ -1785,10 +1800,58 @@ function start() {
     $("clock").textContent = n.toLocaleTimeString("en-GB") + " · " + n.toISOString().slice(11, 16) + "Z"; }, 1000);
   setTimeout(() => location.reload(), 6 * 3600 * 1000);  // keep a 24/7 display fresh
 }
+/* ------------------------------------------------------------ place search (postcodes.io) */
+let searchPin = null, searchHits = [], searchSel = 0, searchTimer = null, searchSeq = 0;
+function openSearch(show = true) {
+  $("searchBox").classList.toggle("open", show);
+  if (show) { $("searchQ").focus(); $("searchQ").select(); }
+}
+function goTo(r) {
+  if (searchPin) searchPin.remove();
+  searchPin = L.marker([r.lat, r.lon], { icon: L.divIcon({ className: "", html: '<div class="found-pin"></div>', iconSize: [22, 22], iconAnchor: [11, 11] }), zIndexOffset: 2000 })
+    .bindTooltip(esc(r.name) + (r.area ? ` <span class="muted">${esc(r.area)}</span>` : ""), { permanent: true, direction: "top", offset: [0, -12] })
+    .addTo(map);
+  map.flyTo([r.lat, r.lon], r.zoom || 13, { duration: 1.2 });
+  searchHits = []; $("searchRes").innerHTML = ""; openSearch(false);
+}
+function showHits(hits, msg) {
+  searchHits = hits; searchSel = 0;
+  $("searchRes").innerHTML = hits.length ? hits.map((r, i) => `<div class="r${i ? "" : " sel"}" data-i="${i}"><span><b>${esc(r.name)}</b>${r.alt ? ` <span class="muted">(${esc(r.alt)})</span>` : ""}</span>
+    <span class="muted">${esc(r.kind)}${r.area ? ` · ${esc(r.area)}` : ""}</span></div>`).join("") : msg ? `<div class="msg">${esc(msg)}</div>` : "";
+}
+async function runSearch(q, go) {
+  q = q.trim();
+  const ll = q.match(/^(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/);  // "51.5, -0.12"
+  if (ll) { const r = { name: q, lat: +ll[1], lon: +ll[2], zoom: 14, kind: "Coordinates" }; return go ? goTo(r) : showHits([r]); }
+  if (q.length < 2) return showHits([]);
+  const seq = ++searchSeq;
+  let d;
+  try { d = await (await fetch(withToken(API + "search?q=" + encodeURIComponent(q)))).json(); }
+  catch { d = { results: [], error: "Search unavailable" }; }
+  if (seq !== searchSeq) return;  // a newer search has started
+  const hits = d.results || [];
+  if (go && hits.length) return goTo(hits[searchSel] || hits[0]);
+  showHits(hits, d.error || (hits.length ? "" : "No match in Great Britain"));
+}
+$("btnSearch").onclick = () => openSearch(!$("searchBox").classList.contains("open"));
+$("searchClear").onclick = () => { if (searchPin) { searchPin.remove(); searchPin = null; } $("searchQ").value = ""; showHits([]); openSearch(false); };
+$("searchQ").addEventListener("input", (e) => { clearTimeout(searchTimer); searchHits = []; const q = e.target.value; searchTimer = setTimeout(() => runSearch(q, false), 350); });
+$("searchQ").addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { openSearch(false); return; }
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if (!searchHits.length) return;
+    searchSel = (searchSel + (e.key === "ArrowDown" ? 1 : searchHits.length - 1)) % searchHits.length;
+    document.querySelectorAll("#searchRes .r").forEach((el, i) => el.classList.toggle("sel", i === searchSel));
+  }
+  if (e.key === "Enter") { e.preventDefault(); clearTimeout(searchTimer); searchHits.length ? goTo(searchHits[searchSel]) : runSearch(e.target.value, true); }
+});
+$("searchRes").addEventListener("click", (e) => { const el = e.target.closest(".r"); if (el) goTo(searchHits[+el.dataset.i]); });
 $("btnPanels").onclick = () => document.body.classList.toggle("hide-panels");
 $("btnFs").onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
 document.addEventListener("keydown", (e) => {
   if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
+  if (e.key === "/" || e.key === "s" || e.key === "S") { e.preventDefault(); openSearch(true); return; }
   if (e.key === "p" || e.key === "P") $("btnPanels").click();
   if (e.key === "f" || e.key === "F") $("btnFs").click();
   if (e.key === "h" || e.key === "H") map.flyTo(...HOME());
