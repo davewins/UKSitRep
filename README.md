@@ -17,11 +17,12 @@ It runs as a ~70 MB distroless container with no shell, as a non-root user.
 | Emergency services | Air ambulance / coastguard helicopter "on scene" (inferred from landings away from bases and hospitals), RNLI lifeboat launches, and fire & rescue incidents from Avon, Buckinghamshire, Cheshire, Cleveland, Hampshire & IoW, Royal Berkshire and Shropshire, plus Devon & Somerset (optional), each with its own toggle |
 | Maritime | Live AIS ships (Royal Navy, RNLI, coastguard, police and government vessels and distress beacons highlighted), tide times, and sea state for the Shipping Forecast areas |
 | Weather | Met Office warnings, rain radar (animated), wind arrows, temperature grid, city weather, lightning |
-| Infrastructure | Power cuts (UKPN, SSEN), electricity grid mix and demand, carbon intensity, interconnector flows to and from Europe and Ireland, National Highways closures and live incidents |
+| Energy | Power cuts (UKPN, SSEN), electricity grid mix and demand, carbon intensity, interconnector flows to and from Europe and Ireland |
 | Space & geology | BGS earthquakes, UK Meteor Network meteor tracks, NOAA Kp index, AuroraWatch UK, ISS position, ground track and visible passes from the map centre; when zoomed in, public allsky cameras (Allsky and indi-allsky) with their latest image, and observatories, radio telescopes and planetaria with links to their sites |
 | Water | Environment Agency flood warnings; river gauges for England (EA) and Scotland (SEPA) (against their normal range, with rising/falling trend); live sewage storm overflow status from all 11 water companies (discharging now, and stopped within the last 48 hours); bathing water classifications and daily pollution-risk forecasts, cross-referenced with nearby sewage |
 | Air & fire | Air quality and pollen (CAMS via Open-Meteo); NASA FIRMS satellite fire hotspots (optional key); NASA GIBS satellite image overlay |
-| Transport & crime | Live forecourt fuel prices with brand logos (GOV.UK Fuel Finder, optional credentials) from zoom 11; TfL line disruption in the Info panel; police.uk street crime around the map centre (zoom 14+), falling back to the latest month a force has published |
+| Travel & transport | National Highways closures, lane restrictions and live incidents; live forecourt fuel prices with brand logos (GOV.UK Fuel Finder, optional credentials) from zoom 11; TfL line disruption in the Info panel; plus rail and buses below |
+| Crime | police.uk street crime around the map centre (zoom 14+), falling back to the latest month a force has published |
 | Rail | Live disruptions pinned to the stations affected (National Rail, optional key), and from zoom 11 every station with its live departure board: times, platforms, delays, cancellations and reasons (Darwin, optional key). Near home shows your stations' next trains |
 | Buses | From zoom 12, every bus in England moving live with its route number and direction; tap for destination, operator and vehicle. From zoom 9, operators' disruption notices (diversions, closed roads and stops) pinned to the stops affected. From zoom 15, bus stops: tap one for its next departures, with 🛰 and the distance when a tracked bus is running that journey. Near home shows your nearest stop's next buses, the buses passing nearby and local disruptions (Bus Open Data Service: live buses need a key; timetables need `BUS_TIMETABLE_REGIONS`) |
 | Tides | High and low water times, heights and a 30-hour curve for about 700 UK and Irish ports (Admiralty EasyTide), shown when zoomed in |
@@ -47,7 +48,7 @@ Assistant panel, your phone and a wall display opened with the same link all sha
 ## Views
 
 The layer panel has a **View** menu that switches many layers at once: *Everything*,
-*Favourites*, *Military*, *Emergency*, *Transport & infrastructure*, *Weather & water*, *Coast & sea* and
+*Favourites*, *Military*, *Emergency*, *Travel & transport*, *Weather & water*, *Coast & sea* and
 *Space*. *My layers* puts back the set you had before picking a view. Each group heading has
 its own checkbox, and *All on* / *All off* sit at the top.
 
