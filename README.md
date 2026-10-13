@@ -152,8 +152,11 @@ automation:
           message: "{{ trigger.json.message }}"
 ```
 
-The service checks every 5 minutes and sends each new event once (it remembers what it sent in
-`/data/notified.json`). On first start it records what's already happening instead of sending it.
+The service checks every 5 minutes and sends each thing once: a given sewage overflow, river
+gauge, fire incident, road closure or power cut is not sent again for 7 days, however often it
+stops and restarts, unless it gets worse (a flood alert becoming a warning, a river going from
+high to record). Lightning is once a day. It remembers what it sent in `/data/notified.json`; on
+first start it records what's already happening instead of sending it.
 
 With several homes, each posts to its own `HOMEn_WEBHOOK_URL` (it can be a different Home Assistant),
 and the payload's `home` field says which home it's about.

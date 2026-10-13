@@ -29,6 +29,7 @@ UK_TZ = ZoneInfo("Europe/London")
 NOTIFY_KINDS = ("warning", "flood", "river", "sewage", "fire", "road", "power", "rnli", "aircraft", "hems",
                 "lightning", "iss")
 SENT_KEEP_DAYS = 7
+SENT_FORMAT = "_keys:2"  # marks a sent store using the stable keys below
 POSTCODE_RE = re.compile(r"^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$")
 OUTCODE_RE = re.compile(r"^[A-Z]{1,2}\d[A-Z\d]?$")
 SEARCH_RE = re.compile(r"^[\w\s'’,.()&-]{2,60}$")
@@ -260,6 +261,9 @@ class HomeArea:
     def _home_events(self, s: dict, h: "Home") -> list[tuple[str, str, str, str, dict]]:
         """(kind, key, title, message, extra) for everything currently notable near home."""
         ev: list[tuple[str, str, str, str, dict]] = []
+        # Keys name the thing, not when it happened: once sent, the same overflow, gauge or incident
+        # stays quiet for SENT_KEEP_DAYS (overflows stop and start all through a wet night).
+        # Only a real escalation (flood level, river high -> record) gets a new key.
         day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         for w in s.get("warnings", []):
             if w["level"] in ("amber", "red"):
@@ -268,15 +272,15 @@ class HomeArea:
             ev.append(("flood", f"flood:{f['id']}:{f['level']}", f"{f['severity']}", f"{f['area']} ({f['km']} km)",
                        {"lat": f["lat"], "lon": f["lon"]}))
         for g in s.get("rivers", {}).get("raised", []):
-            ev.append(("river", f"river:{g['id']}:{g['state']}:{day}", f"River {g['river'] or g['name']} high",
+            ev.append(("river", f"river:{g['id']}:{g['state']}", f"River {g['river'] or g['name']} high",
                        f"{g['name']}: {g['level']} m, above its normal range ({g['km']} km away)",
                        {"lat": g["lat"], "lon": g["lon"]}))
         for o in s.get("sewage", {}).get("active", []):
-            ev.append(("sewage", f"sewage:{o['id']}:{o['start']}", "Sewage discharge nearby",
+            ev.append(("sewage", f"sewage:{o['id']}", "Sewage discharge nearby",
                        f"{o['company']} storm overflow into {o['water']} ({o['km']} km)", {"lat": o["lat"], "lon": o["lon"]}))
         for f in s.get("fire", []):
             if _age_min(f.get("time")) < 180:
-                ev.append(("fire", f"fire:{f.get('link') or f.get('title')}:{f.get('time')}", f"Fire service: {f['title']}",
+                ev.append(("fire", f"fire:{f.get('link') or f.get('title')}", f"Fire service: {f['title']}",
                            f"{f.get('location') or ''} ({f['km']} km) · {f.get('service') or ''}", {"url": f.get("link")}))
         for e in s.get("roads", []):
             if e.get("kind") == "unplanned" and e.get("closure"):
@@ -297,7 +301,7 @@ class HomeArea:
                        f"{h.get('flight') or h['hex']} landed {h['km']} km away", {}))
         lt = s.get("lightning", {})
         if lt.get("count_15min"):
-            ev.append(("lightning", f"lightning:{datetime.now(timezone.utc).strftime('%Y-%m-%dT%H')}", "Lightning nearby",
+            ev.append(("lightning", f"lightning:{day}", "Lightning nearby",
                        f"{lt['count_15min']} strikes in 15 min, nearest {lt['nearest_km']} km", {}))
         for p in s.get("iss", {}).get("passes", []):
             mins = -_age_min(p["start"])
@@ -325,7 +329,8 @@ class HomeArea:
         store = cfg.data_dir / ("notified.json" if h is cfg.homes[0] else f"notified-{h.key}.json")
         try:
             sent: dict[str, float] = json.loads(store.read_text())
-            first_run = False
+            # a store from before the stable keys: start again from what's happening now
+            first_run = SENT_FORMAT not in sent
         except (OSError, ValueError):
             sent, first_run = {}, True
         await asyncio.sleep(60)  # let the feeds warm up
@@ -348,7 +353,7 @@ class HomeArea:
                     sent[key] = now
                     _LOGGER.info("notified %s: %s - %s", h.name, title, message)
                 cutoff = now - SENT_KEEP_DAYS * 86400
-                sent = {k: v for k, v in sent.items() if v > cutoff}
+                sent = {k: v for k, v in sent.items() if v > cutoff} | {SENT_FORMAT: now}
                 await asyncio.to_thread(lambda: store.write_text(json.dumps(sent)))
             except asyncio.CancelledError:
                 raise
