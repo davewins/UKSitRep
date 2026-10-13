@@ -120,6 +120,12 @@
   .fuel-p span { color: #94a3b8; font-weight: 500; }
   .tide-tbl { border-collapse: collapse; width: 100%; font-size: 12px; margin-bottom: 4px; }
   .tide-tbl td { padding: 1px 6px 1px 0; }
+  .bus { position: relative; width: 26px; height: 26px; }
+  .bus .dir { position: absolute; inset: 0; }
+  .bus .dir::before { content: ""; position: absolute; left: 50%; top: -2px; margin-left: -4px; border: 4px solid transparent; border-top: 0; border-bottom: 6px solid #f59e0b; }
+  .bus .no { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: #f59e0b; color: #111; font: 700 10px/1 system-ui, sans-serif;
+    padding: 3px 4px; border-radius: 4px; border: 1px solid #000; white-space: nowrap; min-width: 12px; text-align: center; }
+  .bus.old { opacity: .5; }
   .rail-tbl { border-collapse: collapse; width: 100%; font-size: 12px; margin: 4px 0; }
   .rail-tbl td { padding: 2px 6px 2px 0; vertical-align: top; }
   .rail-tbl td.t { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -416,7 +422,7 @@ const DEFAULTS = {
   layers: { ac_civil: true, ac_military: true, ac_police: true, ac_hems: true, ac_sar: true,
     ac_trails: true, mil_dest: true, airfields: true, army: true,
     vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
-    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, home: true, quakes: true, meteors: true, allsky: true, observatories: true, rail_stations: true, rail_disruptions: true, news: true },
+    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, home: true, quakes: true, meteors: true, allsky: true, observatories: true, rail_stations: true, rail_disruptions: true, buses: true, bus_disruptions: true, news: true },
   basemap: "dark", theme: "standard", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
 };
 let S;
@@ -495,7 +501,7 @@ const FEED_NAMES = { aircraft: "ADS-B aircraft", vessels: "AIS ships", weather_w
   city_weather: "Open-Meteo weather", grid: "Electricity grid", roads: "National Highways", power_cuts: "Power cuts", space: "Space weather",
   quakes: "BGS earthquakes", news: "BBC news", meteors: "UK Meteor Network", sea: "Sea state", wind_grid: "Wind grid", radar: "Rain radar",
   rnli: "RNLI launches", fire: "Fire & rescue", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage overflows", bathing: "Bathing waters",
-  rivers: "River levels", lightning: "Lightning", air_quality: "Air quality", fires: "NASA fire hotspots", tfl: "TfL status", iss: "ISS", allsky: "Allsky cameras", observatories: "Observatories", rail_stations: "Rail stations", rail_disruptions: "Rail disruptions",
+  rivers: "River levels", lightning: "Lightning", air_quality: "Air quality", fires: "NASA fire hotspots", tfl: "TfL status", iss: "ISS", allsky: "Allsky cameras", observatories: "Observatories", rail_stations: "Rail stations", rail_disruptions: "Rail disruptions", buses: "Live buses", bus_disruptions: "Bus disruptions",
   crime: "Street crime", fuel: "Fuel prices", home: "Near home" };
 // "off" = an optional feed with no key / switched off: not a fault
 const feedState = (v) => v.ok ? "ok" : /key|disabled/i.test(v.note || "") ? "off" : "err";
@@ -983,6 +989,63 @@ function renderRailDis(d) {
   }
 }
 
+/* ------------------------------------------------------------ buses (Bus Open Data Service) */
+const BUS_MIN_ZOOM = 12, BUS_DIS_MIN_ZOOM = 9;
+let busKey = null, busTimer = null, lastBusDis = [];
+const busMarkers = new Map();
+const GLYPH_BUS = '<rect x="-5" y="-6.5" width="10" height="11" rx="2" fill="#fff"/><rect x="-3.6" y="-4.8" width="7.2" height="4" fill="#92400e"/><circle cx="-2.5" cy="2" r=".9" fill="#92400e"/><circle cx="2.5" cy="2" r=".9" fill="#92400e"/><path d="M-3.4,4.5 v2.2 M3.4,4.5 v2.2" stroke="#fff" stroke-width="1.6"/>';
+const busIcon = (b) => L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13],
+  html: `<div class="bus${Date.now() - new Date(b.at) > 180000 ? " old" : ""}">${b.bearing != null ? `<div class="dir" style="transform:rotate(${b.bearing}deg)"></div>` : ""}<div class="no">${esc(b.line || "?")}</div></div>` });
+function busPopup(b) {
+  return `<b>🚌 ${esc(b.line)}</b> to <b>${esc(b.dest || "?")}</b><br><span class="muted">${b.from ? `from ${esc(b.from)} · ` : ""}${esc(b.operator)}</span>
+    <br><span class="muted" style="font-size:11px">Vehicle ${esc(b.vehicle || "?")} · position ${ago(b.at)}${b.dep ? ` · left ${ukTime(b.dep)}` : ""}</span>
+    ${b.site ? `<br><a href="${esc(b.site)}" target="_blank" rel="noopener">${esc(b.operator)} ↗</a>` : ""}`;
+}
+function clearBuses() { G.buses.clearLayers(); busMarkers.clear(); busKey = null; counts.buses = undefined; renderCounts(); }
+function refreshBuses(force) {
+  clearTimeout(busTimer);
+  if (!S.layers.buses || map.getZoom() < BUS_MIN_ZOOM) { if (busMarkers.size || busKey) clearBuses(); return; }
+  const b = map.getBounds().pad(0.15);
+  const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(v => v.toFixed(2)).join(",");
+  if (bbox === busKey && !force) return;
+  busTimer = setTimeout(async () => {
+    busKey = bbox;
+    const d = await getFeed("buses", `?bbox=${bbox}`);
+    if (!d || !d.buses || busKey !== bbox) return;
+    // move the markers we already have (keeps an open popup open), add new ones, drop the rest
+    const seen = new Set();
+    for (const x of d.buses) {
+      seen.add(x.id);
+      let m = busMarkers.get(x.id);
+      if (m) { m.setLatLng([x.lat, x.lon]); m.setIcon(busIcon(x)); m.bus = x; continue; }
+      m = L.marker([x.lat, x.lon], { icon: busIcon(x), zIndexOffset: 250 });
+      m.bus = x;
+      m.bindPopup(() => busPopup(m.bus), { maxWidth: 300 }).bindTooltip(() => `${esc(m.bus.line)} to ${esc(m.bus.dest || "?")}`, { direction: "top", offset: [0, -12] }).addTo(G.buses);
+      busMarkers.set(x.id, m);
+    }
+    for (const [id, m] of busMarkers) if (!seen.has(id)) { m.remove(); busMarkers.delete(id); }
+    counts.buses = d.buses.length; renderCounts();
+  }, force ? 0 : 500);
+}
+function renderBusDis(d) {
+  if (d) lastBusDis = d.disruptions || [];
+  G.bus_disruptions.clearLayers();
+  counts.bus_disruptions = lastBusDis.length; renderCounts();
+  if (!S.layers.bus_disruptions || map.getZoom() < BUS_DIS_MIN_ZOOM) return;
+  const icon = emIcon("#d97706", GLYPH_BUS, false), view = map.getBounds().pad(0.3);
+  for (const x of lastBusDis) {
+    const pop = `<b>🚌 ${esc(x.summary || "Bus disruption")}</b><br>${esc(x.text)}
+      ${x.lines.length ? `<br><span class="muted">${esc([...new Set(x.lines.map(l => l.op))].join(", "))}: ${esc(x.lines.map(l => l.line).join(", "))}</span>` : ""}
+      <br><span class="muted">${x.planned ? "Planned" : "Unplanned"}${x.reason ? " · " + esc(x.reason.replace(/([A-Z])/g, " $1").toLowerCase()) : ""}${x.end ? ` · until ${ukDay(x.end)} ${ukTime(x.end)}` : ""}</span>
+      ${x.url ? `<br><a href="${esc(x.url)}" target="_blank" rel="noopener">Details ↗</a>` : ""}`;
+    for (const st of x.stops.slice(0, 4)) {
+      if (!view.contains([st.lat, st.lon])) continue;
+      L.marker([st.lat, st.lon], { icon, zIndexOffset: 380 }).bindPopup(pop, { maxWidth: 320 })
+        .bindTooltip(`${esc(st.name)}: ${esc(x.summary)}`, { direction: "top", offset: [0, -10] }).addTo(G.bus_disruptions);
+    }
+  }
+}
+
 /* ------------------------------------------------------------ allsky cameras and observatories */
 const SKY_MIN_ZOOM = 9;
 let lastAllsky = [], lastObs = [];
@@ -1305,6 +1368,9 @@ function renderHome(d) {
     r.push(row("🚆", `<b>${esc(b.name)}</b> ${next || '<span class="muted">no departures soon</span>'}`, null));
   }
   for (const x of d0.rail?.disruptions || []) r.push(row("🚆", `<b style="color:#fb7185">${esc(x.text.slice(0, 120))}</b>`, null));
+  const nb = d0.bus?.near || [];
+  if (nb.length) r.push(row("🚌", nb.slice(0, 4).map(b => `<b>${esc(b.line)}</b> to ${esc(b.dest || "?")} <span class="muted">${b.km} km</span>`).join(" · "), null));
+  for (const x of d0.bus?.disruptions || []) r.push(row("🚌", `<b style="color:${x.planned ? "#fbbf24" : "#fb923c"}">${esc(x.summary)}</b>${x.lines.length ? ` <span class="muted">(${esc(x.lines.join(", "))})</span>` : ""}`, null));
   $("nearTitle").textContent = `Near ${h.name} (${h.radius_km} km)`;
   $("near").innerHTML = r.join("") || '<span class="muted">All quiet</span>';
   wrap.hidden = false;
@@ -1845,6 +1911,7 @@ const LAYER_UI = [
     ["tfl", "TfL disruption (Info panel)", "#dc2626"], ["fuel", "Fuel prices (zoom 11+)", "#22c55e"],
     ["interconnectors", "Power interconnectors (flows)", "#e879f9"]]],
   ["Rail", [["rail_disruptions", "Rail disruptions (live)", "#e11d48"], ["rail_stations", "Stations & live departures (zoom 11+)", "#fda4af"]]],
+  ["Buses", [["buses", "Live buses (zoom 12+)", "#f59e0b"], ["bus_disruptions", "Bus disruptions (zoom 9+)", "#d97706"]]],
   ["Crime", [["crime", "Street crime, last month (zoom 14+)", "#c084fc"]]],
   ["Space & geological", [["quakes", "BGS earthquakes", "#f472b6"], ["meteors", "UK Meteor Network", "#a5b4fc"],
     ["iss", "ISS position & visible passes", "#e2e8f0"], ["allsky", "Allsky cameras (zoom in)", "#6366f1"],
@@ -1856,7 +1923,7 @@ function countFor(k) {
   return { ac_civil: a.civil, ac_military: a.military, ac_police: a.police, ac_hems: a.hems, ac_sar: a.sar,
     vs_special: counts.vessels?.special, vs_civil: counts.vessels?.total, floods: counts.floods, cuts: counts.cuts,
     quakes: counts.quakes, news: counts.news,
-    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, fuel: counts.fuel, allsky: counts.allsky, observatories: counts.observatories, rail_stations: counts.rail_stations, rail_disruptions: counts.rail_disruptions, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length }[k] ?? (k.startsWith("fire_") ? counts[k] : undefined);
+    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, fuel: counts.fuel, allsky: counts.allsky, observatories: counts.observatories, rail_stations: counts.rail_stations, rail_disruptions: counts.rail_disruptions, buses: counts.buses, bus_disruptions: counts.bus_disruptions, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length }[k] ?? (k.startsWith("fire_") ? counts[k] : undefined);
 }
 function renderCounts() { for (const el of document.querySelectorAll("[data-count]")) { const n = countFor(el.dataset.count); el.textContent = n ?? ""; } }
 // Views: switch many layers at once. Anything not listed is turned off.
@@ -1866,7 +1933,7 @@ const VIEWS = {
   emergency: ["Emergency", ["ac_police", "ac_hems", "ac_sar", "ac_trails", "hems_scene", "rnli", "fire", ...FIRE_KIDS, "vs_special",
     "warnings", "floods", "roads_incidents", "news"]],
   transport: ["Transport & infrastructure", ["ac_civil", "ac_military", "ac_police", "ac_hems", "ac_sar", "vs_civil", "vs_special",
-    "roads_incidents", "roads_closures", "roads_works", "tfl", "rail_disruptions", "rail_stations", "fuel", "cuts", "webcams"]],
+    "roads_incidents", "roads_closures", "roads_works", "tfl", "rail_disruptions", "rail_stations", "buses", "bus_disruptions", "fuel", "cuts", "webcams"]],
   weather: ["Weather & water", ["warnings", "cityweather", "radar", "wind", "temps", "lightning", "floods", "rivers", "sea",
     "sewage", "air"]],
   coast: ["Coast & sea", ["vs_special", "vs_civil", "ac_sar", "tides", "sea", "bathing", "sewage", "sewage_recent", "rnli",
@@ -1902,6 +1969,8 @@ function afterToggle(keys) {
   if (has(k => k === "fuel")) { fuelKey = null; refreshFuel(); }
   if (has(k => k === "rail_stations")) renderRailStations();
   if (has(k => k === "rail_disruptions")) { renderRailDis(); renderAlerts(); }
+  if (has(k => k === "buses")) refreshBuses(true);
+  if (has(k => k === "bus_disruptions")) renderBusDis();
   if (has(k => k === "satimg")) renderSatImg();
   if (has(k => k === "tfl" || k === "iss")) renderAlerts();
   syncGroupBoxes();
@@ -2027,6 +2096,7 @@ const refresh = {
   allsky: async () => renderAllsky(await getFeed("allsky")),
   rail_stations: async () => renderRailStations(await getFeed("rail_stations")),
   rail_disruptions: async () => { renderRailDis(await getFeed("rail_disruptions")); renderAlerts(); },
+  bus_disruptions: async () => renderBusDis(await getFeed("bus_disruptions")),
   observatories: async () => {
     const d = await getFeed("observatories");
     renderObs(d);
@@ -2062,7 +2132,7 @@ const refresh = {
   radar: refreshRadar,
 };
 const INTERVAL = { aircraft: 10, vessels: 30, weather_warnings: 600, floods: 600,
-  grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 1800, rnli: 180, fire: 900, webcams: 6 * 3600, allsky: 600, observatories: 6 * 3600, rail_stations: 86400, rail_disruptions: 300, tide_stations: 86400, sewage: 600, home: 120, bathing: 3 * 3600, rivers: 600, lightning: 30, air_quality: 3600, fires: 1800, tfl: 300, iss: 30, wind_grid: 1800, radar: 300, city_weather: 1800 };
+  grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 1800, rnli: 180, fire: 900, webcams: 6 * 3600, allsky: 600, observatories: 6 * 3600, rail_stations: 86400, rail_disruptions: 300, bus_disruptions: 300, tide_stations: 86400, sewage: 600, home: 120, bathing: 3 * 3600, rivers: 600, lightning: 30, air_quality: 3600, fires: 1800, tfl: 300, iss: 30, wind_grid: 1800, radar: 300, city_weather: 1800 };
 
 function start() {
   drawBases(); buildLeft();
@@ -2074,8 +2144,9 @@ function start() {
   for (const [k, fn] of Object.entries(refresh)) { fn(); setInterval(fn, INTERVAL[k] * 1000); }
   setInterval(() => renderNews(), 60000);  // age out expired incidents
   map.on("zoomend", () => { renderAircraft(lastAircraft); renderVessels(); if (lastGrid) renderInterconnectors(lastGrid); });
-  map.on("moveend", () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderAllsky(); renderObs(); renderRailStations(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); });
+  map.on("moveend", () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderAllsky(); renderObs(); renderRailStations(); renderBusDis(); refreshBuses(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); });
   setInterval(() => { fuelKey = null; refreshFuel(); }, 30 * 60000);
+  setInterval(() => { if (!document.hidden) refreshBuses(true); }, 20000);
   renderSatImg();
   setInterval(() => { const n = new Date();
     $("clock").innerHTML = n.toLocaleTimeString("en-GB") + `<span class="z"> · ${n.toISOString().slice(11, 16)}Z</span>`; }, 1000);

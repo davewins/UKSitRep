@@ -74,14 +74,14 @@ async def feed(request: web.Request) -> web.Response:
     if name == "aircraft_info":
         return web.json_response(await sit.aircraft_info(request.query.get("hex", ""), request.query.get("callsign", "")),
                                  headers={"Cache-Control": "max-age=3600"})
-    if name == "fuel":
+    if name in ("fuel", "buses"):
         try:
             bbox = tuple(float(x) for x in request.query["bbox"].split(","))
             if len(bbox) != 4:
                 raise ValueError
         except (KeyError, ValueError):
             bbox = None
-        return web.json_response(await sit.fuel(bbox))
+        return web.json_response(await (sit.buses(bbox) if name == "buses" else sit.fuel(bbox)))
     if name in ("iss", "crime"):
         try:
             lat, lon = float(request.query["lat"]), float(request.query["lon"])
@@ -134,6 +134,7 @@ async def healthz(request: web.Request) -> web.Response:
             "fuel_finder": bool(cfg.fuel_client_id and cfg.fuel_client_secret),
             "home": cfg.home_lat is not None,
             "rail_departures": bool(cfg.rail_ldb_key),
+            "buses": bool(cfg.bods_key),
             "rail_disruptions": bool(cfg.rail_disruptions_key),
             "ha_notifications": bool(cfg.ha_webhook_url and cfg.home_lat is not None),
         },

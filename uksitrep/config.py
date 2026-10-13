@@ -58,6 +58,7 @@ class Config:
     rail_ldb_key: str | None = None
     rail_disruptions_key: str | None = None
     rail_stations: list[str] = field(default_factory=list)
+    bods_key: str | None = None
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -96,11 +97,12 @@ class Config:
             home_name=os.environ.get("HOME_NAME") or "Home",
             home_radius_km=float(os.environ.get("HOME_RADIUS_KM") or 25),
             ha_webhook_url=os.environ.get("HA_WEBHOOK_URL") or None,
-            notify_kinds=set(_list("NOTIFY", "warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss,rail")),
+            notify_kinds=set(_list("NOTIFY", "warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss,rail,bus")),
             fuel_client_secret=os.environ.get("FUEL_FINDER_CLIENT_SECRET") or None,
             rail_ldb_key=os.environ.get("RAIL_LDB_KEY") or None,
             rail_disruptions_key=os.environ.get("RAIL_DISRUPTIONS_KEY") or None,
             rail_stations=[c.upper() for c in _list("RAIL_STATIONS", "") if re.fullmatch(r"[A-Za-z]{3}", c)],
+            bods_key=os.environ.get("BODS_API_KEY") or None,
         )
 
     def curated_cams(self) -> list[dict]:

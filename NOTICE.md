@@ -34,6 +34,8 @@ Each is subject to its own terms.
 | [allsky-map.com](https://allsky-map.com) ([TN-1/allsky-map](https://github.com/TN-1/allsky-map), for [indi-allsky](https://github.com/aaronwmorris/indi-allsky)) | indi-allsky camera locations, online status and latest image | Owners' content, served by allsky-map.com; not stored |
 | [Google Fonts](https://fonts.google.com) (Share Tech Mono, VT323, Orbitron, Exo 2, Oxanium) | Fonts for the optional film styles, loaded only when one is picked | SIL Open Font License |
 | [Rail Data Marketplace](https://raildata.org.uk) (Rail Delivery Group): Live Departure Board (Darwin) and National Rail Disruptions | Departure boards, delays, cancellations, disruption bulletins | Rail Data Marketplace licence terms for each product (free); requires your own keys |
+| [Bus Open Data Service](https://data.bus-data.dft.gov.uk) (DfT) | Live bus positions and bus disruptions | OGL v3; requires your own key |
+| [Traveline National Operator Codes](https://www.travelinedata.org.uk/traveline-open-data/transport-operations/) | Bus operator names (extract in `uksitrep/data/bus_operators.json`) | Traveline open data terms |
 | [NaPTAN](https://www.data.gov.uk/dataset/ff93ffc1-6656-47d8-9155-85ea0b8f2251/national-public-transport-access-nodes-naptan) (DfT) | Station positions and codes (extract in `uksitrep/data/rail_stations.json`) | OGL v3 |
 | [CelesTrak](https://celestrak.org) + [python-sgp4](https://pypi.org/project/sgp4/) | ISS orbit | CelesTrak terms; MIT |
 | [TfL Unified API](https://api.tfl.gov.uk) | Line status | Powered by TfL Open Data |

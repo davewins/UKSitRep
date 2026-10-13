@@ -139,12 +139,12 @@ class HomeArea:
         lat, lon, r = cfg.home_lat, cfg.home_lon, cfg.home_radius_km
         dlat, dlon = r / 111, r / (111 * math.cos(math.radians(lat)))
         (rivers, floods, sewage, bathing, fire, roads, cuts, warnings, rnli, aircraft, lightning, iss, fuel,
-         tides, air, rail_dis) = await asyncio.gather(
+         tides, air, rail_dis, bus_dis) = await asyncio.gather(
             safe(self.rivers()), safe(self.floods()), safe(self.sewage()), safe(self.bathing()), safe(self.fire()),
             safe(self.roads()), safe(self.power_cuts()), safe(self.weather_warnings()), safe(self.rnli()),
             safe(self.aircraft()), safe(self.lightning()), safe(self.iss(lat, lon)),
             safe(self.fuel((lat - dlat, lon - dlon, lat + dlat, lon + dlon))), safe(self.tide_stations()),
-            safe(self.air_quality()), safe(self.rail_disruptions()),
+            safe(self.air_quality()), safe(self.rail_disruptions()), safe(self.bus_disruptions()),
         )
         out: dict[str, Any] = {
             "updated": datetime.now(timezone.utc).isoformat(),
@@ -234,6 +234,16 @@ class HomeArea:
                if any(_km(lat, lon, s["lat"], s["lon"]) <= r for s in d.get("stations", []))]
         if dis:
             out.setdefault("rail", {})["disruptions"] = [{k: d.get(k) for k in ("id", "kind", "text", "url")} for d in dis[:5]]
+        if cfg.bods_key:
+            bl, bo = 1.5 / 111, 1.5 / (111 * math.cos(math.radians(lat)))  # buses within ~1.5 km
+            live = await safe(self.buses((lat - bl, lon - bo, lat + bl, lon + bo)))
+            near = [b for b in self._near(live.get("buses", []), 1.5)][:6]
+            bdis = [d for d in bus_dis.get("disruptions", []) if any(_km(lat, lon, s["lat"], s["lon"]) <= r for s in d["stops"])]
+            out["bus"] = {
+                "near": [{k: b.get(k) for k in ("line", "operator", "dest", "km", "at")} for b in near],
+                "disruptions": [{k: d.get(k) for k in ("id", "summary", "text", "planned", "url", "end")}
+                                | {"lines": [x["line"] for x in d["lines"]][:6]} for d in bdis[:6]],
+            }
         return out
 
     # ------------------------------------------------------------ notifications
@@ -294,6 +304,9 @@ class HomeArea:
         for d in rail.get("disruptions", []):
             if d.get("kind") == "Disruption":
                 ev.append(("rail", f"raildis:{d['id']}", "Rail disruption near you", d["text"][:200], {"url": d.get("url")}))
+        for d in s.get("bus", {}).get("disruptions", []):
+            if not d.get("planned"):  # planned roadworks are known weeks ahead; tell me about the surprises
+                ev.append(("bus", f"busdis:{d['id']}", f"Bus disruption: {d['summary']}"[:120], d["text"][:200], {"url": d.get("url")}))
         return [e for e in ev if e[0] in self.cfg.notify_kinds]
 
     async def notify_loop(self) -> None:
