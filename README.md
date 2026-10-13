@@ -49,6 +49,8 @@ For fun, **Layers → Filters → Style** restyles the whole screen without chan
 | **The Grid (Tron)** | Black and neon cyan, glowing panels and grid |
 | **Tactical (The Expanse)** | Navy and blue with amber highlights, cut-corner panels, hex grid |
 | **PreCrime (Minority Report)** | Frosted-glass panels in white and pale blue |
+| **LCARS (Star Trek)** | Black with orange, lilac and blue pill buttons, elbow-framed panels, stardate banner, "Computer: working" |
+| **Imperial (Star Wars)** | Steel grey and Imperial red, a targeting reticle, and the opening crawl as the boot sequence |
 
 <table><tr>
 <td align="center"><img src="docs/styles/style-spy.png" width="160" alt="Spy HQ style"><br>Spy HQ</td>
@@ -60,7 +62,7 @@ For fun, **Layers → Filters → Style** restyles the whole screen without chan
 
 Each plays a short boot sequence (click to skip). Marker colours keep their meaning in every
 style, and radar and satellite imagery keep their real colours. Add `?theme=spy` (or `alien`,
-`tron`, `expanse`, `minority`) to the URL for a wall display. Fonts load from Google Fonts.
+`tron`, `expanse`, `minority`, `lcars`, `imperial`) to the URL for a wall display. Fonts load from Google Fonts.
 
 ## Finding a place
 
