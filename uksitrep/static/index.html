@@ -133,9 +133,13 @@
   #fx { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 450; overflow: hidden; display: none; }
   body[data-theme] #fx { display: block; }
   #fx > div { position: absolute; inset: 0; }
-  #fx .cap { inset: auto; top: 8px; left: 50%; transform: translateX(-50%); font: 600 11px/1 var(--font-head); letter-spacing: .3em;
-    white-space: nowrap; color: var(--cap, var(--accent)); text-shadow: 0 0 6px var(--cap, var(--accent)); opacity: .85; }
-  #fx .cap.b { top: auto; bottom: 8px; }
+  #fx .cap { inset: auto; top: 8px; left: 50%; transform: translateX(-50%); font: 600 11px/1.5 var(--font-head); letter-spacing: .3em;
+    width: max-content; max-width: calc(100% - 24px); text-align: center; color: var(--cap, var(--accent)); text-shadow: 0 0 6px var(--cap, var(--accent)); opacity: .85; }
+  #fx .cap.b { top: auto; bottom: 24px; }  /* clear of the attribution line */
+  @media (max-width: 760px) { #fx .cap { font-size: 9.5px; letter-spacing: .14em; } }
+  /* Safari can paint filtered tiles over un-composited panes: give the panes above their own layers */
+  body[data-theme] .leaflet-overlay-pane, body[data-theme] .leaflet-marker-pane, body[data-theme] .leaflet-tooltip-pane,
+  body[data-theme] .leaflet-popup-pane { will-change: transform; }
   #boot { position: fixed; inset: 0; z-index: 5000; background: var(--bg); color: var(--accent); font: 18px/1.6 var(--font);
     padding: 12vh 10vw; letter-spacing: .08em; text-shadow: 0 0 8px var(--glow); cursor: pointer; transition: opacity .6s; }
   #boot.done { opacity: 0; pointer-events: none; }

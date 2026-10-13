@@ -49,6 +49,14 @@ For fun, **Layers → Filters → Style** restyles the whole screen without chan
 | **Tactical (The Expanse)** | Navy and blue with amber highlights, cut-corner panels, hex grid |
 | **PreCrime (Minority Report)** | Frosted-glass panels in white and pale blue |
 
+<table><tr>
+<td align="center"><img src="docs/styles/style-spy.png" width="160" alt="Spy HQ style"><br>Spy HQ</td>
+<td align="center"><img src="docs/styles/style-alien.png" width="160" alt="Nostromo style"><br>Nostromo</td>
+<td align="center"><img src="docs/styles/style-tron.png" width="160" alt="The Grid style"><br>The Grid</td>
+<td align="center"><img src="docs/styles/style-expanse.png" width="160" alt="Tactical style"><br>Tactical</td>
+<td align="center"><img src="docs/styles/style-minority.png" width="160" alt="PreCrime style"><br>PreCrime</td>
+</tr></table>
+
 Each plays a short boot sequence (click to skip). Marker colours keep their meaning in every
 style, and radar and satellite imagery keep their real colours. Add `?theme=spy` (or `alien`,
 `tron`, `expanse`, `minority`) to the URL for a wall display. Fonts load from Google Fonts.
