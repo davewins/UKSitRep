@@ -30,6 +30,51 @@ def _list(name: str, default: str = "") -> list[str]:
     return [x.strip() for x in os.environ.get(name, default).split(",") if x.strip()]
 
 
+DEFAULT_NOTIFY = "warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss,rail,bus"
+MAX_HOMES = 9
+
+
+@dataclass
+class Home:
+    """A place the Near home panel and notifications are about. One deployment can serve several:
+    HOME_* is the first, HOME2_* ... HOME9_* the others. A home's own token picks it by default."""
+    key: str
+    name: str
+    lat: float
+    lon: float
+    radius_km: float = 25.0
+    webhook_url: str | None = None
+    notify_kinds: set[str] = field(default_factory=set)
+    rail_stations: list[str] = field(default_factory=list)
+    token: str | None = None
+
+
+def _homes() -> list[Home]:
+    homes: list[Home] = []
+    for n in range(1, MAX_HOMES + 1):
+        pre = "HOME" if n == 1 else f"HOME{n}"
+        try:
+            lat, lon = float(os.environ[f"{pre}_LAT"]), float(os.environ[f"{pre}_LON"])
+        except (KeyError, ValueError):
+            continue
+        name = os.environ.get(f"{pre}_NAME") or ("Home" if n == 1 else f"Home {n}")
+        key = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or str(n)
+        if any(h.key == key for h in homes):
+            key = f"{key}-{n}"
+        # home 1 keeps its original variable names
+        hook, notify, rail = (("HA_WEBHOOK_URL", "NOTIFY", "RAIL_STATIONS") if n == 1 else
+                              (f"{pre}_WEBHOOK_URL", f"{pre}_NOTIFY", f"{pre}_RAIL_STATIONS"))
+        homes.append(Home(
+            key=key, name=name, lat=lat, lon=lon,
+            radius_km=float(os.environ.get(f"{pre}_RADIUS_KM") or 25),
+            webhook_url=os.environ.get(hook) or None,
+            notify_kinds=set(_list(notify, os.environ.get("NOTIFY") or DEFAULT_NOTIFY)),
+            rail_stations=[c.upper() for c in _list(rail) if re.fullmatch(r"[A-Za-z]{3}", c)],
+            token=(os.environ.get("ACCESS_TOKEN") if n == 1 else os.environ.get(f"{pre}_TOKEN")) or None,
+        ))
+    return homes
+
+
 @dataclass
 class Config:
     host: str = "0.0.0.0"
@@ -48,17 +93,21 @@ class Config:
     enable_lightning: bool = True
     fuel_client_id: str | None = None
     fire_services: set[str] = field(default_factory=set)
-    home_lat: float | None = None
-    home_lon: float | None = None
-    home_name: str = "Home"
-    home_radius_km: float = 25.0
-    ha_webhook_url: str | None = None
-    notify_kinds: set[str] = field(default_factory=set)
+    homes: list[Home] = field(default_factory=list)
     fuel_client_secret: str | None = None
     rail_ldb_key: str | None = None
     rail_disruptions_key: str | None = None
-    rail_stations: list[str] = field(default_factory=list)
     bods_key: str | None = None
+
+    def home(self, key: str | None = None) -> Home | None:
+        """The home with this key, else the first."""
+        return next((h for h in self.homes if h.key == key), self.homes[0] if self.homes else None)
+
+    def tokens(self) -> dict[str, str | None]:
+        """Every accepted access token -> the home it opens on (None: the first)."""
+        out: dict[str, str | None] = {self.access_token: None} if self.access_token else {}
+        out.update({h.token: h.key for h in self.homes if h.token})
+        return out
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -71,10 +120,6 @@ class Config:
             for r in _list("BBC_LOCAL_REGIONS")
         }
         cams = os.environ.get("CAMERAS_FILE")
-        try:
-            home_lat, home_lon = float(os.environ["HOME_LAT"]), float(os.environ["HOME_LON"])
-        except (KeyError, ValueError):
-            home_lat = home_lon = None
         return cls(
             host=os.environ.get("HOST", "0.0.0.0"),
             port=int(os.environ.get("PORT", "8080")),
@@ -93,15 +138,10 @@ class Config:
             enable_lightning=_bool("ENABLE_LIGHTNING", True),
             fuel_client_id=os.environ.get("FUEL_FINDER_CLIENT_ID") or None,
             fire_services=set(_list("FIRE_SERVICES", "avon,bucks,cheshire,cleveland,hants,rbfrs,shropshire")),
-            home_lat=home_lat, home_lon=home_lon,
-            home_name=os.environ.get("HOME_NAME") or "Home",
-            home_radius_km=float(os.environ.get("HOME_RADIUS_KM") or 25),
-            ha_webhook_url=os.environ.get("HA_WEBHOOK_URL") or None,
-            notify_kinds=set(_list("NOTIFY", "warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss,rail,bus")),
+            homes=_homes(),
             fuel_client_secret=os.environ.get("FUEL_FINDER_CLIENT_SECRET") or None,
             rail_ldb_key=os.environ.get("RAIL_LDB_KEY") or None,
             rail_disruptions_key=os.environ.get("RAIL_DISRUPTIONS_KEY") or None,
-            rail_stations=[c.upper() for c in _list("RAIL_STATIONS", "") if re.fullmatch(r"[A-Za-z]{3}", c)],
             bods_key=os.environ.get("BODS_API_KEY") or None,
         )
 

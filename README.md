@@ -104,6 +104,7 @@ Without Docker (Python 3.11+): `pip install -r requirements.txt && DATA_DIR=./da
 | `RAIL_STATIONS` | the 2 nearest home | Your stations' 3-letter codes for the Near home panel and notifications, e.g. `TGM,NTA` |
 | `HOME_LAT`, `HOME_LON`, `HOME_NAME`, `HOME_RADIUS_KM` | *(none)*, `Home`, `25` | Your home area: shows a "Near home" panel (rivers, floods, sewage, beaches, fire, roads, power cuts, lifeboats, lightning, tide, cheapest fuel, ISS, air quality) and a radius ring |
 | `HA_WEBHOOK_URL` | *(none)* | Post new nearby events to a Home Assistant webhook (needs the home area), e.g. `http://<ha-ip>:8123/api/webhook/<id>` |
+| `HOME2_NAME`, `HOME2_LAT`, `HOME2_LON`, `HOME2_RADIUS_KM`, `HOME2_TOKEN`, `HOME2_WEBHOOK_URL`, `HOME2_RAIL_STATIONS`, `HOME2_NOTIFY` | *(none)* | A second home (and `HOME3_*` … `HOME9_*`). Each home has its own Near home panel, stations and notifications. `HOMEn_TOKEN` is an extra access token (needs `ACCESS_TOKEN` set) that opens the map on that home, so each household can have its own link; anyone can switch homes from the Near home title. `?home=<name>` also picks one |
 | `NOTIFY` | all | Which events to send: `warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss,rail,bus` (`rail`: cancellations and delays of 15 min+ at your stations, and disruptions nearby; `bus`: unplanned bus disruptions nearby) |
 | `ENABLE_LIGHTNING` | `true` | Live lightning from Blitzortung.org (private, non-commercial use) |
 | `ENABLE_WORLDCAM` | `false` | Import the worldcam.eu directory (scraped; weekly refresh) |
@@ -137,6 +138,9 @@ automation:
 The service checks every 5 minutes and sends each new event once (it remembers what it sent in
 `/data/notified.json`). On first start it records what's already happening instead of sending it.
 
+With several homes, each posts to its own `HOMEn_WEBHOOK_URL` (it can be a different Home Assistant),
+and the payload's `home` field says which home it's about.
+
 ## Embedding in Home Assistant
 
 Add a dashboard in panel view containing a Webpage (iframe) card:
@@ -147,6 +151,21 @@ url: https://<host>/k/<ACCESS_TOKEN>/
 ```
 
 Add `?kiosk` to the URL (e.g. `https://<host>/k/<ACCESS_TOKEN>/?kiosk`) to hide the layer panel on a wall display.
+
+An iframe only works where the browser can reach the map. To use it away from home as well,
+let Home Assistant proxy it: install the [Ingress](https://github.com/lovelylain/hass_ingress)
+integration (HACS) and add a sidebar panel. HA's login then protects it and nothing new is exposed:
+
+```yaml
+ingress:
+  uk_sitrep:
+    title: UK SitRep
+    icon: mdi:radar
+    ui_mode: toolbar
+    url: !secret uk_sitrep_url    # http://<host>:8080/k/<ACCESS_TOKEN or HOMEn_TOKEN>/
+```
+
+The Home Assistant must be able to reach the container's address itself (same network, or a VPN between sites).
 
 ## Security notes
 

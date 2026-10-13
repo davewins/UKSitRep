@@ -25,6 +25,15 @@ services:
       HOME_NAME: ${HOME_NAME:-Home}
       HOME_RADIUS_KM: ${HOME_RADIUS_KM:-25}
       HA_WEBHOOK_URL: ${HA_WEBHOOK_URL:-}
+      # a second home (third: HOME3_*, up to HOME9_*); add the lines for any you use
+      HOME2_NAME: ${HOME2_NAME:-}
+      HOME2_LAT: ${HOME2_LAT:-}
+      HOME2_LON: ${HOME2_LON:-}
+      HOME2_RADIUS_KM: ${HOME2_RADIUS_KM:-}
+      HOME2_TOKEN: ${HOME2_TOKEN:-}
+      HOME2_WEBHOOK_URL: ${HOME2_WEBHOOK_URL:-}
+      HOME2_RAIL_STATIONS: ${HOME2_RAIL_STATIONS:-}
+      HOME2_NOTIFY: ${HOME2_NOTIFY:-}
       NOTIFY: ${NOTIFY:-warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss,rail,bus}
       BBC_LOCAL_REGIONS: ${BBC_LOCAL_REGIONS:-}
       ENABLE_BACKGROUND_ADSB: ${ENABLE_BACKGROUND_ADSB:-true}

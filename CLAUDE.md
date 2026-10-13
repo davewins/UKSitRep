@@ -28,7 +28,7 @@ fixed, allow-listed upstream URLs (never an open proxy)
 | `uksitrep/config.py` | `Config.from_env()`: every environment variable |
 | `uksitrep/feeds.py` | `Cache`, `Situation`, core feeds (aircraft, AIS relay, weather, grid, roads, news, sewage, tides, webcams…) and the `handlers` map |
 | `uksitrep/more_feeds.py` | `MoreFeeds` mixin: rivers, lightning relay, air quality, bathing water, ISS (sgp4), FIRMS, TfL, fuel, crime |
-| `uksitrep/home.py` | `HomeArea` mixin: the Near home summary, Home Assistant notifications (`NOTIFY` kinds, sent-key store) and place search (postcodes.io) |
+| `uksitrep/home.py` | `HomeArea` mixin: the Near home summary (per `Home` in `cfg.homes`; each home's token picks it), Home Assistant notifications (`NOTIFY` kinds, sent-key store) and place search (postcodes.io) |
 | `uksitrep/bus.py` | `Bus` mixin: BODS live bus positions (SIRI-VM, per map view) and disruptions (SIRI-SX), operator names from Traveline NOC |
 | `uksitrep/rail.py` | `Rail` mixin: Darwin departure boards and National Rail disruptions (Rail Data Marketplace keys), NaPTAN station positions, station names matched in disruption text |
 | `uksitrep/sky.py` | `SkyWatch` mixin: allsky cameras (Allsky map page, allsky-map.com for indi-allsky) and OSM observatories/telescopes/planetaria with a curated list of famous sites |

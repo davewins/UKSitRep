@@ -120,14 +120,12 @@ class Rail:
             self._crs_index = {s["crs"]: s for s in (await self.rail_stations())["stations"]}
         return self._crs_index
 
-    async def home_stations(self) -> list[str]:
-        """RAIL_STATIONS, or the two stations nearest home (within 15 km)."""
-        if self.cfg.rail_stations:
-            return self.cfg.rail_stations[:4]
-        if self.cfg.home_lat is None:
-            return []
+    async def home_stations(self, h) -> list[str]:
+        """The home's RAIL_STATIONS, or the two stations nearest it (within 15 km)."""
+        if h.rail_stations:
+            return h.rail_stations[:4]
         from .home import _km
-        lat, lon = self.cfg.home_lat, self.cfg.home_lon
+        lat, lon = h.lat, h.lon
         near = sorted(((_km(lat, lon, s["lat"], s["lon"]), s["crs"]) for s in (await self._crs()).values()))
         return [c for d, c in near[:2] if d < 15]
 

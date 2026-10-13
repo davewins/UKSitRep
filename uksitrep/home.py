@@ -20,6 +20,8 @@ from typing import Any
 import aiohttp
 from zoneinfo import ZoneInfo
 
+from .config import Home
+
 _LOGGER = logging.getLogger("uksitrep")
 
 NOTIFY_EVERY_S = 300
@@ -104,27 +106,30 @@ class HomeArea:
 
         return await self.cache.get(f"search:{q.lower()}", 86400, fetch)
 
-    def _near(self, items: list[dict], radius: float | None = None, lat: str = "lat", lon: str = "lon") -> list[dict]:
-        h = self.cfg
-        radius = radius or h.home_radius_km
+    @staticmethod
+    def _near_to(h: "Home", items: list[dict], radius: float | None = None, lat: str = "lat", lon: str = "lon") -> list[dict]:
+        radius = radius or h.radius_km
         out = []
         for it in items or []:
             la, lo = it.get(lat), it.get(lon)
             if la is None or lo is None:
                 continue
-            d = _km(h.home_lat, h.home_lon, float(la), float(lo))
+            d = _km(h.lat, h.lon, float(la), float(lo))
             if d <= radius:
                 out.append({**it, "km": round(d, 1)})
         return sorted(out, key=lambda x: x["km"])
 
-    async def home_summary(self) -> dict:
-        cfg = self.cfg
-        if cfg.home_lat is None or cfg.home_lon is None:
+    async def home_summary(self, key: str | None = None) -> dict:
+        h = self.cfg.home(key)
+        if not h:
             return {"error": "disabled (set HOME_LAT and HOME_LON)"}
-        return await self.cache.get("home", 60, self._home_summary)
+        return await self.cache.get(f"home:{h.key}", 60, lambda: self._home_summary(h))
 
-    async def _home_summary(self) -> dict:
+    async def _home_summary(self, h: "Home") -> dict:
         cfg = self.cfg
+
+        def near(items, radius=None, lat="lat", lon="lon"):
+            return self._near_to(h, items, radius, lat, lon)
 
         async def safe(coro):
             try:
@@ -136,7 +141,7 @@ class HomeArea:
                 _LOGGER.debug("home summary: %s", err)
                 return {}
 
-        lat, lon, r = cfg.home_lat, cfg.home_lon, cfg.home_radius_km
+        lat, lon, r = h.lat, h.lon, h.radius_km
         dlat, dlon = r / 111, r / (111 * math.cos(math.radians(lat)))
         (rivers, floods, sewage, bathing, fire, roads, cuts, warnings, rnli, aircraft, lightning, iss, fuel,
          tides, air, rail_dis, bus_dis) = await asyncio.gather(
@@ -148,27 +153,28 @@ class HomeArea:
         )
         out: dict[str, Any] = {
             "updated": datetime.now(timezone.utc).isoformat(),
-            "home": {"name": cfg.home_name, "lat": lat, "lon": lon, "radius_km": r},
+            "home": {"key": h.key, "name": h.name, "lat": lat, "lon": lon, "radius_km": r},
+            "homes": [{"key": x.key, "name": x.name} for x in cfg.homes],
         }
         # Met Office warnings are per region: count any whose region centre is within ~150 km
         out["warnings"] = [{"title": w["title"], "level": w["level"], "link": w.get("link"), "km": w["km"]}
-                           for w in self._near(warnings.get("warnings", []), 150)]
+                           for w in near(warnings.get("warnings", []), 150)]
         out["floods"] = [{"id": f.get("id"), "area": f.get("area"), "severity": f.get("severity"),
                           "level": f.get("level"), "km": f["km"], "lat": f["lat"], "lon": f["lon"]}
-                         for f in self._near(floods.get("floods", []))]
-        gauges = self._near(rivers.get("gauges", []))
+                         for f in near(floods.get("floods", []))]
+        gauges = near(rivers.get("gauges", []))
         pick = lambda g: {k: g.get(k) for k in ("id", "name", "river", "level", "low", "high", "state", "trend", "km",
                                                   "lat", "lon", "time")}
         out["rivers"] = {"raised": [pick(g) for g in gauges if g["state"] in ("high", "record")],
                          "nearest": [pick(g) for g in gauges[:5]]}
-        ov = self._near(sewage.get("overflows", []))
+        ov = near(sewage.get("overflows", []))
         out["sewage"] = {
             "active": [{"id": o["id"], "water": o.get("water"), "company": o.get("company"), "start": o.get("start"),
                         "km": o["km"], "lat": o["lat"], "lon": o["lon"]} for o in ov if o.get("active")],
             "recent": [{"id": o["id"], "water": o.get("water"), "end": o.get("end"), "km": o["km"]}
                        for o in ov if not o.get("active") and _age_min(o.get("end")) < 48 * 60],
         }
-        sites = self._near(bathing.get("sites", []))[:6]
+        sites = near(bathing.get("sites", []))[:6]
         for b in sites:
             b["sewage_near"] = sum(1 for o in sewage.get("overflows", [])
                                    if (o.get("active") or _age_min(o.get("end")) < 48 * 60)
@@ -177,7 +183,7 @@ class HomeArea:
                           for b in sites]
         out["fire"] = [{"title": f.get("title"), "location": f.get("location"), "time": f.get("time"),
                         "service": f.get("service"), "link": f.get("link"), "km": f["km"]}
-                       for f in self._near(fire.get("incidents", [])) if _age_min(f.get("time")) < 7 * 1440]
+                       for f in near(fire.get("incidents", [])) if _age_min(f.get("time")) < 7 * 1440]
         road_pts = []
         for e in roads.get("events", []):
             pts = [p for line in e.get("lines") or [] for p in line]
@@ -186,36 +192,36 @@ class HomeArea:
                 road_pts.append({**e, "lat": best[0], "lon": best[1]})
         out["roads"] = [{"id": e.get("id"), "type": e.get("type"), "where": e.get("where"), "roads": e.get("roads"),
                          "kind": e.get("kind"), "closure": e.get("full_closure"), "km": e["km"]}
-                        for e in self._near(road_pts)][:10]
+                        for e in near(road_pts)][:10]
         out["power"] = [{"ref": c.get("ref"), "dno": c.get("dno"), "type": c.get("type"), "customers": c.get("customers"),
-                         "eta": c.get("eta"), "km": c["km"]} for c in self._near(cuts.get("cuts", []))]
+                         "eta": c.get("eta"), "km": c["km"]} for c in near(cuts.get("cuts", []))]
         out["rnli"] = [{"id": x.get("id"), "station": x.get("station"), "time": x.get("time"), "km": x["km"]}
-                       for x in self._near(rnli.get("launches", []), r * 2) if _age_min(x.get("time")) < 1440]
+                       for x in near(rnli.get("launches", []), r * 2) if _age_min(x.get("time")) < 1440]
         planes = aircraft.get("aircraft", [])
         out["aircraft"] = {
             "emergencies": [{"hex": a["hex"], "flight": a.get("flight"), "squawk": a.get("squawk"),
                              "emergency": a.get("emergency"), "alt": a.get("alt"), "km": a["km"]}
-                            for a in self._near(planes, r * 2) if a.get("emergency")],
+                            for a in near(planes, r * 2) if a.get("emergency")],
             "hems": [{"hex": e["hex"], "flight": e.get("flight"), "kind": e.get("kind"), "first": e.get("first"),
-                      "km": e["km"]} for e in self._near(aircraft.get("hems_events", []))],
-            "overhead": len(self._near(planes, 10)),
+                      "km": e["km"]} for e in near(aircraft.get("hems_events", []))],
+            "overhead": len(near(planes, 10)),
         }
         now_s = time.time()
         strikes = [{"lat": la, "lon": lo, "t": t} for t, la, lo in lightning.get("strikes", []) if now_s - t < 1800]
-        near_strikes = self._near(strikes)
+        near_strikes = near(strikes)
         out["lightning"] = {"count_30min": len(near_strikes), "nearest_km": near_strikes[0]["km"] if near_strikes else None,
                             "count_15min": sum(1 for s in near_strikes if now_s - s["t"] < 900)}
         out["iss"] = {"passes": (iss.get("passes") or [])[:3]}
         st = [s for s in fuel.get("stations", []) if not s.get("closed")]
         cheapest = {}
         for ft in ("E10", "B7_STANDARD"):
-            have = [s for s in self._near(st) if ft in s.get("prices", {})]
+            have = [s for s in near(st) if ft in s.get("prices", {})]
             if have:
                 s = min(have, key=lambda s: (s["prices"][ft], s["km"]))
                 cheapest[ft] = {"price": s["prices"][ft], "name": s.get("name"), "brand": s.get("brand"),
                                 "km": s["km"], "lat": s["lat"], "lon": s["lon"]}
         out["fuel"] = cheapest
-        near_tide = self._near(tides.get("stations", []), 40)
+        near_tide = near(tides.get("stations", []), 40)
         if near_tide:
             t = await safe(self.tides(near_tide[0]["id"]))
             nxt = [e for e in t.get("events", []) if _age_min(e["time"]) < 0][:3]
@@ -226,7 +232,7 @@ class HomeArea:
             out["air"] = {"name": p["name"], "aqi": p.get("aqi"),
                           "pollen": {k: v for k, v in (p.get("pollen") or {}).items() if v}}
         if self.cfg.rail_ldb_key:
-            codes = await self.home_stations()
+            codes = await self.home_stations(h)
             boards = await asyncio.gather(*(safe(self.rail_board(c)) for c in codes))
             out["rail"] = {"boards": [{"crs": b["crs"], "name": b["name"], "services": b["services"][:5],
                                        "messages": b.get("messages", [])[:2]} for b in boards if b.get("services") is not None]}
@@ -237,7 +243,7 @@ class HomeArea:
         if cfg.bods_key:
             bl, bo = 1.5 / 111, 1.5 / (111 * math.cos(math.radians(lat)))  # buses within ~1.5 km
             live = await safe(self.buses((lat - bl, lon - bo, lat + bl, lon + bo)))
-            near = [b for b in self._near(live.get("buses", []), 1.5)][:6]
+            near = [b for b in near(live.get("buses", []), 1.5)][:6]
             bdis = [d for d in bus_dis.get("disruptions", []) if any(_km(lat, lon, s["lat"], s["lon"]) <= r for s in d["stops"])]
             out["bus"] = {
                 "near": [{k: b.get(k) for k in ("line", "operator", "dest", "km", "at")} for b in near],
@@ -247,7 +253,7 @@ class HomeArea:
         return out
 
     # ------------------------------------------------------------ notifications
-    def _home_events(self, s: dict) -> list[tuple[str, str, str, str, dict]]:
+    def _home_events(self, s: dict, h: "Home") -> list[tuple[str, str, str, str, dict]]:
         """(kind, key, title, message, extra) for everything currently notable near home."""
         ev: list[tuple[str, str, str, str, dict]] = []
         day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -307,11 +313,12 @@ class HomeArea:
         for d in s.get("bus", {}).get("disruptions", []):
             if not d.get("planned"):  # planned roadworks are known weeks ahead; tell me about the surprises
                 ev.append(("bus", f"busdis:{d['id']}", f"Bus disruption: {d['summary']}"[:120], d["text"][:200], {"url": d.get("url")}))
-        return [e for e in ev if e[0] in self.cfg.notify_kinds]
+        return [e for e in ev if e[0] in h.notify_kinds]
 
-    async def notify_loop(self) -> None:
+    async def notify_loop(self, h: "Home") -> None:
         cfg = self.cfg
-        store = cfg.data_dir / "notified.json"
+        # the first home keeps the original file, so upgrading doesn't re-send anything
+        store = cfg.data_dir / ("notified.json" if h is cfg.homes[0] else f"notified-{h.key}.json")
         try:
             sent: dict[str, float] = json.loads(store.read_text())
             first_run = False
@@ -320,27 +327,27 @@ class HomeArea:
         await asyncio.sleep(60)  # let the feeds warm up
         while True:
             try:
-                events = self._home_events(await self.home_summary())
+                events = self._home_events(await self.home_summary(h.key), h)
                 now = time.time()
                 new = [e for e in events if e[1] not in sent]
                 if first_run:
                     # a fresh install starts from what's already happening rather than sending it all
-                    _LOGGER.info("home notifications: baseline of %d current events, not sent", len(new))
+                    _LOGGER.info("%s notifications: baseline of %d current events, not sent", h.name, len(new))
                     new, first_run = [], False
                     sent.update({e[1]: now for e in events})
                 for kind, key, title, message, extra in new[:5]:  # never burst more than 5 at once
-                    payload = {"kind": kind, "title": title, "message": message, "home": cfg.home_name, **extra}
-                    async with self.session.post(cfg.ha_webhook_url, json=payload,
+                    payload = {"kind": kind, "title": title, "message": message, "home": h.name, **extra}
+                    async with self.session.post(h.webhook_url, json=payload,
                                                  timeout=aiohttp.ClientTimeout(total=15)) as r:
                         if r.status >= 400:
                             raise RuntimeError(f"webhook HTTP {r.status}")
                     sent[key] = now
-                    _LOGGER.info("notified: %s - %s", title, message)
+                    _LOGGER.info("notified %s: %s - %s", h.name, title, message)
                 cutoff = now - SENT_KEEP_DAYS * 86400
                 sent = {k: v for k, v in sent.items() if v > cutoff}
                 await asyncio.to_thread(lambda: store.write_text(json.dumps(sent)))
             except asyncio.CancelledError:
                 raise
             except Exception as err:  # noqa: BLE001
-                _LOGGER.warning("home notifications: %s", err)
+                _LOGGER.warning("%s notifications: %s", h.name, err)
             await asyncio.sleep(NOTIFY_EVERY_S)

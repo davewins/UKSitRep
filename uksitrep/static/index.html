@@ -65,6 +65,7 @@
   .panel h2 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
     margin: 12px 0 6px; border-bottom: 1px solid var(--line); padding-bottom: 3px; }
   .panel h2:first-child { margin-top: 2px; }
+  #nearTitle select { font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; background: transparent; border: 1px solid var(--line); border-radius: 4px; padding: 0 2px; }
   label.t { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; }
   label.t .sw { width: 10px; height: 10px; border-radius: 2px; flex: none; }
   #left h2 label.grp { display: flex; align-items: center; gap: 6px; cursor: pointer; }
@@ -1326,6 +1327,13 @@ function refreshCrime() {
 /* ------------------------------------------------------------ home area ("near me") */
 const GLYPH_HOUSE = '<path d="M0,-6 L6.5,0 L4.5,0 L4.5,5.5 L-4.5,5.5 L-4.5,0 L-6.5,0 Z" fill="#fff"/><rect x="-1.5" y="1.5" width="3" height="4" fill="#0f172a"/>';
 let lastHome = null;
+document.addEventListener("change", async (e) => {
+  if (e.target.id !== "homeSel") return;
+  S.home = e.target.value; save();
+  const d = await getFeed("home", `?home=${encodeURIComponent(S.home)}`);
+  renderHome(d);
+  if (d?.home) map.flyTo([d.home.lat, d.home.lon], 11, { duration: 1 });
+});
 function renderHome(d) {
   if (d && !d.error) lastHome = d;
   G.home.clearLayers();
@@ -1372,7 +1380,10 @@ function renderHome(d) {
   const nb = d0.bus?.near || [];
   if (nb.length) r.push(row("🚌", nb.slice(0, 4).map(b => `<b>${esc(b.line)}</b> to ${esc(b.dest || "?")} <span class="muted">${b.km} km</span>`).join(" · "), null));
   for (const x of d0.bus?.disruptions || []) r.push(row("🚌", `<b style="color:${x.planned ? "#fbbf24" : "#fb923c"}">${esc(x.summary)}</b>${x.lines.length ? ` <span class="muted">(${esc(x.lines.join(", "))})</span>` : ""}`, null));
-  $("nearTitle").textContent = `Near ${h.name} (${h.radius_km} km)`;
+  const homes = d0.homes || [];
+  $("nearTitle").innerHTML = homes.length > 1
+    ? `Near <select id="homeSel" title="Which home">${homes.map(x => `<option value="${esc(x.key)}"${x.key === h.key ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select> (${h.radius_km} km)`
+    : `Near ${esc(h.name)} (${h.radius_km} km)`;
   $("near").innerHTML = r.join("") || '<span class="muted">All quiet</span>';
   wrap.hidden = false;
 }
@@ -2104,7 +2115,7 @@ const refresh = {
     if (!d || !d.sites || !d.sites.length) setTimeout(refresh.observatories, 120000);
   },
   sewage: async () => renderSewage(await getFeed("sewage")),
-  home: async () => renderHome(await getFeed("home")),
+  home: async () => renderHome(await getFeed("home", S.home ? `?home=${encodeURIComponent(S.home)}` : "")),
   bathing: async () => renderBathing(await getFeed("bathing")),
   rivers: async () => renderRivers(await getFeed("rivers")),
   lightning: async () => renderLightning(await getFeed("lightning")),
@@ -2137,6 +2148,7 @@ const INTERVAL = { aircraft: 10, vessels: 30, weather_warnings: 600, floods: 600
 
 function start() {
   drawBases(); buildLeft();
+  if (params.get("home")) S.home = params.get("home");  // ?home=tewkesbury picks a home
   const pt = params.get("theme");  // ?theme=spy etc. for a wall display
   setTheme(pt && THEMES[pt] ? pt : S.theme, !!pt);
   const pv = params.get("view");

@@ -26,14 +26,18 @@ LOOKUPS = web.AppKey("lookups", dict)
 
 @web.middleware
 async def auth_middleware(request: web.Request, handler):
-    token = request.app[CFG].access_token
+    cfg = request.app[CFG]
+    token = cfg.access_token
     path = request.path
     if path.startswith("/k/"):  # /k/<token>/... form: survives clients that drop query strings
         path = "/" + path.split("/", 3)[3] if path.count("/") >= 3 else "/"
     if token and path not in PUBLIC_PATHS and not path.startswith("/icons/"):
         given = (request.match_info.get("tok") or request.query.get("token")
                  or request.headers.get("Authorization", "").removeprefix("Bearer ").strip())
-        if not given or not hmac.compare_digest(given, token):
+        # any home's token works; it also picks the home the page opens on
+        match = next((k for k in cfg.tokens() if given and hmac.compare_digest(given, k)), None)
+        request["home"] = cfg.tokens().get(match) if match else None
+        if not match:
             why = "no token in the request" if not given else f"token does not match ({len(given)} chars, starts {given[:4]})"
             _LOGGER.warning(
                 "401 %s: %s (from %s, referer %s, dest %s, UA %s)", path, why,
@@ -98,6 +102,8 @@ async def feed(request: web.Request) -> web.Response:
         return web.json_response(await sit.search(request.query.get("q", "")), headers={"Cache-Control": "max-age=3600"})
     if name == "tides":
         return web.json_response(await sit.tides(request.query.get("station", "")))
+    if name == "home":
+        return web.json_response(await sit.home_summary(request.query.get("home") or request.get("home")))
     handler = sit.handlers.get(name)
     if not handler:
         return web.json_response({"error": "unknown feed"}, status=404)
@@ -132,11 +138,11 @@ async def healthz(request: web.Request) -> web.Response:
             "lightning": cfg.enable_lightning,
             "firms": bool(cfg.firms_key),
             "fuel_finder": bool(cfg.fuel_client_id and cfg.fuel_client_secret),
-            "home": cfg.home_lat is not None,
+            "homes": [h.name for h in cfg.homes],
             "rail_departures": bool(cfg.rail_ldb_key),
             "buses": bool(cfg.bods_key),
             "rail_disruptions": bool(cfg.rail_disruptions_key),
-            "ha_notifications": bool(cfg.ha_webhook_url and cfg.home_lat is not None),
+            "ha_notifications": [h.name for h in cfg.homes if h.webhook_url],
         },
     })
 
@@ -154,8 +160,9 @@ async def _startup(app: web.Application) -> None:
         sit.spawn(sit.adsb_loop())
     if cfg.enable_lightning:
         sit.lightning_relay.start()
-    if cfg.ha_webhook_url and cfg.home_lat is not None:
-        sit.spawn(sit.notify_loop())
+    for h in cfg.homes:
+        if h.webhook_url:
+            sit.spawn(sit.notify_loop(h))
     if cfg.fuel_client_id and cfg.fuel_client_secret:
         sit.spawn(sit.fuel())  # warm the cache: a cold fetch is ~30 batched requests
     _LOGGER.info(
