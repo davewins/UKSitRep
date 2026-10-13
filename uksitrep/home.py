@@ -139,12 +139,12 @@ class HomeArea:
         lat, lon, r = cfg.home_lat, cfg.home_lon, cfg.home_radius_km
         dlat, dlon = r / 111, r / (111 * math.cos(math.radians(lat)))
         (rivers, floods, sewage, bathing, fire, roads, cuts, warnings, rnli, aircraft, lightning, iss, fuel,
-         tides, air) = await asyncio.gather(
+         tides, air, rail_dis) = await asyncio.gather(
             safe(self.rivers()), safe(self.floods()), safe(self.sewage()), safe(self.bathing()), safe(self.fire()),
             safe(self.roads()), safe(self.power_cuts()), safe(self.weather_warnings()), safe(self.rnli()),
             safe(self.aircraft()), safe(self.lightning()), safe(self.iss(lat, lon)),
             safe(self.fuel((lat - dlat, lon - dlon, lat + dlat, lon + dlon))), safe(self.tide_stations()),
-            safe(self.air_quality()),
+            safe(self.air_quality()), safe(self.rail_disruptions()),
         )
         out: dict[str, Any] = {
             "updated": datetime.now(timezone.utc).isoformat(),
@@ -225,6 +225,15 @@ class HomeArea:
             p = min(pts, key=lambda p: _km(lat, lon, p["lat"], p["lon"]))
             out["air"] = {"name": p["name"], "aqi": p.get("aqi"),
                           "pollen": {k: v for k, v in (p.get("pollen") or {}).items() if v}}
+        if self.cfg.rail_ldb_key:
+            codes = await self.home_stations()
+            boards = await asyncio.gather(*(safe(self.rail_board(c)) for c in codes))
+            out["rail"] = {"boards": [{"crs": b["crs"], "name": b["name"], "services": b["services"][:5],
+                                       "messages": b.get("messages", [])[:2]} for b in boards if b.get("services") is not None]}
+        dis = [d for d in rail_dis.get("disruptions", [])
+               if any(_km(lat, lon, s["lat"], s["lon"]) <= r for s in d.get("stations", []))]
+        if dis:
+            out.setdefault("rail", {})["disruptions"] = [{k: d.get(k) for k in ("id", "kind", "text", "url")} for d in dis[:5]]
         return out
 
     # ------------------------------------------------------------ notifications
@@ -275,6 +284,16 @@ class HomeArea:
             if 0 < mins <= 30:
                 ev.append(("iss", f"iss:{p['start']}", "ISS visible soon",
                            f"Look up in {round(mins)} min: max {p['max_el']}° elevation", {}))
+        rail = s.get("rail", {})
+        for b in rail.get("boards", []):
+            for t in b["services"]:
+                if t.get("cancelled") or (t.get("late") or 0) >= 15:
+                    what = "cancelled" if t.get("cancelled") else f"{t['late']} min late"
+                    ev.append(("rail", f"rail:{t['id']}:{'cancelled' if t.get('cancelled') else 'late'}", f"{t['std']} {b['name']} to {t['dest']} {what}",
+                               t.get("reason") or f"{t.get('operator') or ''}".strip(), {}))
+        for d in rail.get("disruptions", []):
+            if d.get("kind") == "Disruption":
+                ev.append(("rail", f"raildis:{d['id']}", "Rail disruption near you", d["text"][:200], {"url": d.get("url")}))
         return [e for e in ev if e[0] in self.cfg.notify_kinds]
 
     async def notify_loop(self) -> None:

@@ -22,6 +22,7 @@ It runs as a ~70 MB distroless container with no shell, as a non-root user.
 | Water | Environment Agency flood warnings; river gauges for England (EA) and Scotland (SEPA) (against their normal range, with rising/falling trend); live sewage storm overflow status from all 11 water companies (discharging now, and stopped within the last 48 hours); bathing water classifications and daily pollution-risk forecasts, cross-referenced with nearby sewage |
 | Air & fire | Air quality and pollen (CAMS via Open-Meteo); NASA FIRMS satellite fire hotspots (optional key); NASA GIBS satellite image overlay |
 | Transport & crime | Live forecourt fuel prices with brand logos (GOV.UK Fuel Finder, optional credentials) from zoom 11; TfL line disruption in the Info panel; police.uk street crime around the map centre (zoom 14+), falling back to the latest month a force has published |
+| Rail | Live disruptions pinned to the stations affected (National Rail, optional key), and from zoom 11 every station with its live departure board: times, platforms, delays, cancellations and reasons (Darwin, optional key). Near home shows your stations' next trains |
 | Tides | High and low water times, heights and a 30-hour curve for about 700 UK and Irish ports (Admiralty EasyTide), shown when zoomed in |
 | Cameras | TfL JamCams, OpenStreetMap-tagged webcams, your own curated list, and the WorldCam directory (optional) |
 | News | BBC UK, nations and local feeds, pinned to the places they mention, filtered by severity and age, plus a scrolling ticker |
@@ -95,9 +96,12 @@ Without Docker (Python 3.11+): `pip install -r requirements.txt && DATA_DIR=./da
 | `ENABLE_BACKGROUND_ADSB` | `true` | Poll ADS-B continuously so on-scene detection works with no viewer |
 | `FIRMS_MAP_KEY` | *(none)* | NASA FIRMS key for satellite fire hotspots ([free](https://firms.modaps.eosdis.nasa.gov/api/map_key/)) |
 | `FUEL_FINDER_CLIENT_ID`, `FUEL_FINDER_CLIENT_SECRET` | *(none)* | GOV.UK Fuel Finder API credentials for live forecourt prices ([register](https://www.developer.fuel-finder.service.gov.uk/access-latest-fuelprices)) |
+| `RAIL_LDB_KEY` | *(none)* | Live departure boards: consumer key of the free **Live Departure Board** product on the [Rail Data Marketplace](https://raildata.org.uk) (Specification tab) |
+| `RAIL_DISRUPTIONS_KEY` | *(none)* | Live rail disruptions: consumer key of the **National Rail Disruptions** product on the Rail Data Marketplace |
+| `RAIL_STATIONS` | the 2 nearest home | Your stations' 3-letter codes for the Near home panel and notifications, e.g. `TGM,NTA` |
 | `HOME_LAT`, `HOME_LON`, `HOME_NAME`, `HOME_RADIUS_KM` | *(none)*, `Home`, `25` | Your home area: shows a "Near home" panel (rivers, floods, sewage, beaches, fire, roads, power cuts, lifeboats, lightning, tide, cheapest fuel, ISS, air quality) and a radius ring |
 | `HA_WEBHOOK_URL` | *(none)* | Post new nearby events to a Home Assistant webhook (needs the home area), e.g. `http://<ha-ip>:8123/api/webhook/<id>` |
-| `NOTIFY` | all | Which events to send: `warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss` |
+| `NOTIFY` | all | Which events to send: `warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss,rail` (`rail`: cancellations and delays of 15 min+ at your stations, and disruptions nearby) |
 | `ENABLE_LIGHTNING` | `true` | Live lightning from Blitzortung.org (private, non-commercial use) |
 | `ENABLE_WORLDCAM` | `false` | Import the worldcam.eu directory (scraped; weekly refresh) |
 | `FIRE_SERVICES` | all seven | Fire & rescue services read from their public feeds: `avon,bucks,cheshire,cleveland,hants,rbfrs,shropshire`. Remove any you don't want |

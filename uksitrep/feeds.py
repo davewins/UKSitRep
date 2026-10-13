@@ -26,6 +26,7 @@ from .config import Config
 from .fire_services import FireServices
 from .home import HomeArea
 from .more_feeds import LightningRelay, MoreFeeds
+from .rail import Rail
 from .sky import SkyWatch
 from .hems_sites import HEMS_EXCLUDE_KM, HEMS_SITES
 from .places import PLACE_ORDER, PLACES
@@ -223,7 +224,7 @@ class Cache:
             return value
 
 
-class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch):
+class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail):
     """All feed fetchers plus long-lived state (aircraft trails, AIS)."""
 
     def __init__(self, cfg: Config, session: aiohttp.ClientSession) -> None:
@@ -248,6 +249,9 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch):
         self.osm_retry_at = 0.0
         self.obs_task: asyncio.Task | None = None
         self.obs_retry_at = 0.0
+        self.rail_task: asyncio.Task | None = None
+        self.rail_retry_at = 0.0
+        self._crs_index: dict | None = None
         self.ais = AisRelay(self, cfg.ais_key) if cfg.ais_key else None
         self.lightning_relay = LightningRelay(self)
         self.river_prev: dict[str, tuple[str, float, int]] = {}
@@ -818,6 +822,7 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch):
             "sewage": self.sewage, "rivers": self.rivers, "lightning": self.lightning,
             "air_quality": self.air_quality, "bathing": self.bathing, "fires": self.fires, "tfl": self.tfl, "fuel": self.fuel,
             "home": self.home_summary, "allsky": self.allsky, "observatories": self.observatories,
+            "rail_stations": self.rail_stations, "rail_disruptions": self.rail_disruptions,
         }
 
     # ---------------------------------------------------------------- weather

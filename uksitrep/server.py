@@ -92,6 +92,8 @@ async def feed(request: web.Request) -> web.Response:
         if name == "crime":
             return web.json_response(await sit.crime(lat, lon))
         return web.json_response(await sit.iss(lat, lon))
+    if name == "rail_board":
+        return web.json_response(await sit.rail_board(request.query.get("crs", "")))
     if name == "search":
         return web.json_response(await sit.search(request.query.get("q", "")), headers={"Cache-Control": "max-age=3600"})
     if name == "tides":
@@ -131,6 +133,8 @@ async def healthz(request: web.Request) -> web.Response:
             "firms": bool(cfg.firms_key),
             "fuel_finder": bool(cfg.fuel_client_id and cfg.fuel_client_secret),
             "home": cfg.home_lat is not None,
+            "rail_departures": bool(cfg.rail_ldb_key),
+            "rail_disruptions": bool(cfg.rail_disruptions_key),
             "ha_notifications": bool(cfg.ha_webhook_url and cfg.home_lat is not None),
         },
     })
