@@ -36,6 +36,12 @@ in Near home); zoom out as usual. The **⌂** and **UK** buttons under the zoom 
 and `U`) jump back to the home or out to the whole country. Add `?uk` to the URL to open on the
 whole country instead, e.g. for a wall display.
 
+**◎** next to the search button (key `L`) zooms to where this device is, with a blue dot and
+its accuracy circle. With no home set (`HOME_LAT`/`HOME_LON` unset) the map opens there too, and
+⌂ goes there. Browsers only share location with https pages, so this works through the Home
+Assistant panel or an https address but not on a plain `http://192.168…` link; the browser (or
+the Home Assistant app) asks permission the first time.
+
 ## Favourites
 
 Open a station, bus stop, webcam, allsky camera, observatory, tide station, river gauge,

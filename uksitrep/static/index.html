@@ -57,6 +57,13 @@
   #searchArea { width: 100%; margin-top: 6px; background: #111a24; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 7px; font: inherit; font-size: 13px; }
   .area-lbl { font-weight: 600; }
   .found-pin { width: 22px; height: 22px; border-radius: 50%; border: 3px solid #f43f5e; box-shadow: 0 0 0 4px #f43f5e55; animation: foundPulse 1.6s ease-out infinite; }
+  .me-dot { width: 16px; height: 16px; border-radius: 50%; background: #3b82f6; border: 3px solid #fff; box-shadow: 0 0 0 0 #3b82f6aa; animation: mePulse 2s ease-out infinite; }
+  @keyframes mePulse { 0% { box-shadow: 0 0 0 0 #3b82f6aa; } 100% { box-shadow: 0 0 0 16px #3b82f600; } }
+  #btnLocate.busy { animation: locBlink .8s ease-in-out infinite alternate; }
+  @keyframes locBlink { to { opacity: .35; } }
+  #toast { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); z-index: 2100; max-width: min(420px, calc(100vw - 32px));
+    background: #0f172a; color: var(--text); border: 1px solid #334155; border-radius: 8px; padding: 8px 12px; font-size: 13px; box-shadow: 0 6px 20px #000a; display: none; }
+  #toast.show { display: block; }
   @keyframes foundPulse { 0% { box-shadow: 0 0 0 0 #f43f5eaa; } 100% { box-shadow: 0 0 0 18px #f43f5e00; } }
   /* side panels */
   .panel { position: absolute; top: 48px; bottom: 38px; width: 270px; background: var(--panel);
@@ -369,7 +376,8 @@
     #btnLayers, #btnInfo { display: inline-block; padding: 6px 10px; }
     #btnInfo.alerting { border-color: var(--red); color: #fca5a5; }
     #top button { white-space: nowrap; flex: none; }
-    #btnSearch { padding: 6px 8px; }
+    #btnSearch, #btnLocate { padding: 6px 8px; }
+    #toast { top: calc(var(--top) + 6px); }
     #clock .z { display: none; }
     #searchBox { top: calc(var(--top) + 6px); }
     #searchQ { font-size: 16px; }  /* iOS zooms the page into inputs under 16px */
@@ -407,12 +415,14 @@
   <div id="chips"></div>
   <div id="feedList"></div>
   <button id="btnSearch" title="Find a town, postcode or county (/)">🔍</button>
+  <button id="btnLocate" title="My location (L)">◎</button>
   <button id="btnLayers">Layers</button>
   <button id="btnInfo">Info</button>
   <button id="btnPanels" title="Show/hide panels (P)">Panels</button>
   <button id="btnFs" title="Full screen (F)">⛶</button>
 </div>
 <div id="searchBox"><div class="sbar"><input id="searchQ" type="search" placeholder="Town, postcode or county" autocomplete="off" enterkeyhint="search" aria-label="Find a place"><button id="searchClear" title="Close and remove the pin">✕</button></div><select id="searchArea" aria-label="Choose an area"><option value="">…or choose a county, region or national park</option></select><div id="searchRes"></div></div>
+<div id="toast" role="status"></div>
 <div id="map"></div>
 <div id="left" class="panel"></div>
 <div id="right" class="panel">
@@ -465,16 +475,49 @@ let wantHome = !startUK;
 const map = L.map("map", { zoomControl: false, preferCanvas: true, worldCopyJump: false, tap: true });
 if (!startUK && S.homeAt) { map.setView(S.homeAt, HOME_ZOOM); wantHome = false; }
 else map.setView(UK_VIEW()[0], params.get("z") ? +params.get("z") : UK_VIEW()[1]);
+let noHome = false, homeAt = null;  // no home configured: ⌂ and the opening view use this device's location
 function goHome() {
-  const h = lastHome?.home;
-  if (h) map.flyTo([h.lat, h.lon], HOME_ZOOM, { duration: 1 }); else map.flyTo(...UK_VIEW(), { duration: 1 });
+  const h = lastHome?.home || homeAt;
+  if (h) map.flyTo([h.lat, h.lon], HOME_ZOOM, { duration: 1 }); else if (noHome) locate(); else map.flyTo(...UK_VIEW(), { duration: 1 });
+}
+let toastTimer;
+function toast(msg, ms = 5000) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), ms);
+}
+/* ------------------------------------------------------------ my location (browser geolocation) */
+let meMark = null, meCircle = null, locating = false;
+function locate(quiet = false) {
+  // Browsers only give a location to https pages (or localhost), and the user must allow it.
+  const fail = (msg) => { if (!quiet) toast(msg); };
+  if (!navigator.geolocation) return fail("This browser can't share its location.");
+  if (!window.isSecureContext) return fail("Location only works over https: open the map through Home Assistant or an https address.");
+  if (locating) return;
+  locating = true; document.getElementById("btnLocate").classList.add("busy");
+  navigator.geolocation.getCurrentPosition((p) => {
+    locating = false; document.getElementById("btnLocate").classList.remove("busy");
+    const ll = [p.coords.latitude, p.coords.longitude], acc = Math.round(p.coords.accuracy || 0);
+    if (meMark) meMark.remove();
+    if (meCircle) meCircle.remove();
+    meCircle = L.circle(ll, { radius: acc, color: "#3b82f6", weight: 1, fillColor: "#3b82f6", fillOpacity: 0.08, interactive: false }).addTo(map);
+    meMark = L.marker(ll, { icon: L.divIcon({ className: "", html: '<div class="me-dot"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), zIndexOffset: 1900 })
+      .bindTooltip(`You are here <span class="muted">±${acc < 1000 ? acc + " m" : (acc / 1000).toFixed(1) + " km"}</span>`, { direction: "top", offset: [0, -10] })
+      .addTo(map);
+    if (acc > 1500) map.flyToBounds(meCircle.getBounds(), { maxZoom: 15, duration: 1 });
+    else map.flyTo(ll, 15, { duration: 1 });
+  }, (err) => {
+    locating = false; document.getElementById("btnLocate").classList.remove("busy");
+    fail(err.code === 1 ? "Location is blocked: allow it for this site in the browser (or app) settings."
+      : err.code === 3 ? "Couldn't get a location in time; try again." : "Location isn't available right now.");
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
 }
 L.control.zoom({ position: "bottomleft" }).addTo(map);
 const ViewCtl = L.Control.extend({
   options: { position: "bottomleft" },
   onAdd() {
     const d = L.DomUtil.create("div", "leaflet-bar view-ctl");
-    d.innerHTML = '<a href="#" role="button" title="Home (H)">⌂</a><a href="#" role="button" title="Whole UK (U)">UK</a>';
+    d.innerHTML = '<a href="#" role="button" title="Home (H): your location when no home is set">⌂</a><a href="#" role="button" title="Whole UK (U)">UK</a>';
     L.DomEvent.disableClickPropagation(d);
     const [h, u] = d.querySelectorAll("a");
     h.onclick = (e) => { e.preventDefault(); goHome(); };
@@ -2366,7 +2409,7 @@ function buildLeft() {
     <div class="row"><span>Incident severity</span><select id="fNewsSev"><option value="1">All</option><option value="2">Medium +</option><option value="3">High only</option></select></div>
     <div class="row"><span>Quakes</span><select id="fQuake"><option value="1">24 h</option><option value="7">7 days</option><option value="30">30 days</option><option value="365">All</option></select></div>
     <div class="row"><span>Meteors</span><select id="fMeteor"><option value="12">12 h</option><option value="36">36 h</option><option value="72">3 nights</option></select></div>
-    <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>/</b> search · <b>P</b> panels · <b>F</b> full screen · <b>H</b> home · <b>U</b> whole UK<br>Add <code>?kiosk</code> to the URL for an always-on display, <code>?uk</code> to open on the whole country, and <code>?view=military</code> (or favourites, emergency, transport, weather, coast, space, everything) to open in a view, and <code>?theme=spy</code> (or alien, tron, expanse, minority) for a film style.</p>`;
+    <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>/</b> search · <b>P</b> panels · <b>F</b> full screen · <b>H</b> home · <b>L</b> my location · <b>U</b> whole UK<br>Add <code>?kiosk</code> to the URL for an always-on display, <code>?uk</code> to open on the whole country, and <code>?view=military</code> (or favourites, emergency, transport, weather, coast, space, everything) to open in a view, and <code>?theme=spy</code> (or alien, tron, expanse, minority) for a film style.</p>`;
   $("left").innerHTML = h + '<div class="sheet-close" data-close>Close</div>';
   $("fTheme").value = S.theme || "standard"; $("fBase").value = S.basemap; $("fLabels").value = S.labels; $("fAlt").value = S.minAltFt; $("fNewsH").value = S.newsHours; $("fNewsSev").value = S.newsMinSev; $("fQuake").value = S.quakeDays; $("fMeteor").value = S.meteorHours;
   syncGroupBoxes();
@@ -2487,8 +2530,12 @@ function start() {
   if (pv && (pv === "everything" || VIEWS[pv])) applyView(pv);
   syncLayers();
   if (pv === "favourites" && !startUK) wantHome = false;
-  if (wantHome) getFeed("home_info", S.home ? `?home=${encodeURIComponent(S.home)}` : "").then(d => {
+  getFeed("home_info", S.home ? `?home=${encodeURIComponent(S.home)}` : "").then(d => {
+    noHome = String(d?.error || "").startsWith("disabled");
+    if (d?.home) homeAt = d.home;
+    if (noHome && S.homeAt) { delete S.homeAt; save(); }  // a home that has since been removed
     if (wantHome && d?.home) { map.setView([d.home.lat, d.home.lon], HOME_ZOOM); S.homeAt = [d.home.lat, d.home.lon]; save(); }
+    else if (wantHome && noHome) locate(true);  // no home: open on wherever this device is, if it will say
     wantHome = false;
   });
   loadFavs().then(() => { if (pv === "favourites" && !startUK) fitFavs(); });
@@ -2689,6 +2736,7 @@ $("searchQ").addEventListener("keydown", (e) => {
   if (e.key === "Enter") { e.preventDefault(); clearTimeout(searchTimer); searchHits.length ? goTo(searchHits[searchSel]) : runSearch(e.target.value, true); }
 });
 $("searchRes").addEventListener("click", (e) => { const el = e.target.closest(".r"); if (el) goTo(searchHits[+el.dataset.i]); });
+$("btnLocate").onclick = () => locate();
 $("btnPanels").onclick = () => document.body.classList.toggle("hide-panels");
 $("btnFs").onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
 document.addEventListener("keydown", (e) => {
@@ -2697,6 +2745,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "p" || e.key === "P") $("btnPanels").click();
   if (e.key === "f" || e.key === "F") $("btnFs").click();
   if (e.key === "h" || e.key === "H") goHome();
+  if (e.key === "l" || e.key === "L") locate();
   if (e.key === "u" || e.key === "U") map.flyTo(...UK_VIEW(), { duration: 1 });
 });
 start();
