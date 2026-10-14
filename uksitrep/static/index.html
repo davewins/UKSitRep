@@ -152,6 +152,8 @@
   #btnLayers, #btnInfo, .sheet-close { display: none; }
   @media (min-width: 761px) { body:not(.hide-panels):not(.kiosk) .leaflet-bottom.leaflet-left { left: 286px; } }
   .view-ctl a { font-weight: 700; font-size: 12px; }
+  .view-ctl #btnLocate { font-size: 18px; font-weight: 400; }
+  .view-ctl #btnLocate.busy { color: #3b82f6; }
   .region-lbl { background: rgba(10,15,22,.72); border: 0; color: #f1f5f9; font: 600 11px/1.2 system-ui, sans-serif; padding: 1px 5px; box-shadow: none; }
   .region-lbl::before { display: none; }
   .radar-ctl button.on { background: var(--accent, #38bdf8); color: #000; }
@@ -376,7 +378,7 @@
     #btnLayers, #btnInfo { display: inline-block; padding: 6px 10px; }
     #btnInfo.alerting { border-color: var(--red); color: #fca5a5; }
     #top button { white-space: nowrap; flex: none; }
-    #btnSearch, #btnLocate { padding: 6px 8px; }
+    #btnSearch { padding: 6px 8px; }
     #toast { top: calc(var(--top) + 6px); }
     #clock .z { display: none; }
     #searchBox { top: calc(var(--top) + 6px); }
@@ -415,7 +417,6 @@
   <div id="chips"></div>
   <div id="feedList"></div>
   <button id="btnSearch" title="Find a town, postcode or county (/)">🔍</button>
-  <button id="btnLocate" title="My location (L)">◎</button>
   <button id="btnLayers">Layers</button>
   <button id="btnInfo">Info</button>
   <button id="btnPanels" title="Show/hide panels (P)">Panels</button>
@@ -517,9 +518,10 @@ const ViewCtl = L.Control.extend({
   options: { position: "bottomleft" },
   onAdd() {
     const d = L.DomUtil.create("div", "leaflet-bar view-ctl");
-    d.innerHTML = '<a href="#" role="button" title="Home (H): your location when no home is set">⌂</a><a href="#" role="button" title="Whole UK (U)">UK</a>';
+    d.innerHTML = '<a href="#" role="button" title="Home (H): your location when no home is set">⌂</a><a href="#" role="button" id="btnLocate" title="My location (L)">◎</a><a href="#" role="button" title="Whole UK (U)">UK</a>';
     L.DomEvent.disableClickPropagation(d);
-    const [h, u] = d.querySelectorAll("a");
+    const [h, me, u] = d.querySelectorAll("a");
+    me.onclick = (e) => { e.preventDefault(); locate(); };
     h.onclick = (e) => { e.preventDefault(); goHome(); };
     u.onclick = (e) => { e.preventDefault(); map.flyTo(...UK_VIEW(), { duration: 1 }); };
     return d;
@@ -2736,7 +2738,6 @@ $("searchQ").addEventListener("keydown", (e) => {
   if (e.key === "Enter") { e.preventDefault(); clearTimeout(searchTimer); searchHits.length ? goTo(searchHits[searchSel]) : runSearch(e.target.value, true); }
 });
 $("searchRes").addEventListener("click", (e) => { const el = e.target.closest(".r"); if (el) goTo(searchHits[+el.dataset.i]); });
-$("btnLocate").onclick = () => locate();
 $("btnPanels").onclick = () => document.body.classList.toggle("hide-panels");
 $("btnFs").onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
 document.addEventListener("keydown", (e) => {
