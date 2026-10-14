@@ -1306,6 +1306,17 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
         return self.ais.snapshot(show_all)
 
 
+def _vessel_size(v: dict, dim: dict | None) -> None:
+    """AIS gives the antenna's distance to bow, stern, port and starboard: length and beam in metres."""
+    if not dim:
+        return
+    length, beam = (dim.get("A") or 0) + (dim.get("B") or 0), (dim.get("C") or 0) + (dim.get("D") or 0)
+    if 2 <= length < 500:
+        v["length"] = length
+    if 1 <= beam < 80:
+        v["beam"] = beam
+
+
 # ======================================================= emergency helpers
 def _norm_station(name: str) -> str:
     n = name.lower().replace("&", "and")
@@ -1556,8 +1567,12 @@ class AisRelay:
             v["shiptype"] = body.get("Type")
             v["callsign"] = (body.get("CallSign") or "").strip()
             v["dest"] = (body.get("Destination") or "").strip()
+            if 1000000 <= (body.get("ImoNumber") or 0) <= 9999999:
+                v["imo"] = body["ImoNumber"]
+            _vessel_size(v, body.get("Dimension"))
         elif mtype == "StaticDataReport":
             rb = body.get("ReportB") or {}
             if rb.get("Valid"):
                 v["shiptype"] = rb.get("ShipType")
                 v["callsign"] = (rb.get("CallSign") or "").strip()
+                _vessel_size(v, rb.get("Dimension"))

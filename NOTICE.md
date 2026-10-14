@@ -49,6 +49,7 @@ Each is subject to its own terms.
 | [TfL Unified API](https://api.tfl.gov.uk) | Line status | Powered by TfL Open Data |
 | [GOV.UK Fuel Finder](https://www.developer.fuel-finder.service.gov.uk) *(optional credentials)* | Fuel prices | Motor Fuel Price (Open Data) Regulations 2025; Fuel Finder terms |
 | [adsbdb](https://www.adsbdb.com), [Planespotters.net](https://www.planespotters.net/photo/api), airport-data.com | Aircraft routes and photos (fetched when a popup opens) | adsbdb terms; photos © their photographers, credited and linked |
+| [Wikidata](https://www.wikidata.org) and [Wikimedia Commons](https://commons.wikimedia.org) | Ship photos, found by IMO or MMSI number (fetched when a popup opens) | Wikidata CC0; each photo under its own licence (CC BY-SA, CC0 and so on), credited with author and licence and linked to its Commons page |
 | [SEPA](https://timeseriesdoc.sepa.org.uk) KiWIS | Scottish river levels | OGL v3 |
 | [Elexon BMRS FUELINST](https://bmrs.elexon.co.uk) | Interconnector flows | Elexon licence |
 | [data.police.uk](https://data.police.uk) | Street-level crime | OGL v3 |

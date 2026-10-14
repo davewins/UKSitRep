@@ -17,6 +17,7 @@ import math
 import re
 import time
 from typing import Any
+import urllib.parse
 
 import aiohttp
 
@@ -57,6 +58,8 @@ FUEL_TYPES = ("E10", "E5", "B7_STANDARD", "B7_PREMIUM", "B10", "HVO")
 CRIME_MIN_PER_MONTH = 10  # fewer than this within a mile usually means the force didn't submit
 
 PHOTO_UA = {"User-Agent": "UKSitRep/1.5 (+https://github.com/davewins/UKSitRep)"}  # Planespotters requires a contact URL
+COMMONS_API = "https://commons.wikimedia.org/w/api.php"
+WIKIDATA_SPARQL = "https://query.wikidata.org/sparql"
 HEX_RE = re.compile(r"^[0-9a-f]{6}$")
 CALLSIGN_RE = re.compile(r"^[A-Z0-9]{3,8}$")
 
@@ -564,6 +567,61 @@ class MoreFeeds:
 
         p, r = await asyncio.gather(photo(), route())
         return {"photo": p, "route": r}
+
+    # ------------------------------------------------------------ vessel photo
+    async def vessel_info(self, mmsi: str, imo: str, name: str) -> dict:
+        """A photo of one ship from Wikimedia: Wikidata's image for the IMO or MMSI number, else a photo
+        from the ship's Commons category (Commons files ships under "IMO 1234567", which keeps working
+        through renames). Small craft without an IMO number rarely have one."""
+        mmsi, imo = mmsi.strip(), imo.strip()
+        if not re.fullmatch(r"\d{9}", mmsi) or (imo and not re.fullmatch(r"\d{7}", imo)):
+            return {"error": "bad mmsi or imo"}
+        name = re.sub(r"[^\w ]", "", name or "").strip().lower()
+
+        async def commons_file(title: str) -> dict | None:
+            d = await self._json(COMMONS_API, params={
+                "action": "query", "titles": title, "prop": "imageinfo", "iiprop": "url|extmetadata", "iiurlwidth": "320",
+                "iiextmetadatafilter": "Artist|LicenseShortName", "format": "json"}, headers=PHOTO_UA)
+            for page in (d.get("query") or {}).get("pages", {}).values():
+                ii = (page.get("imageinfo") or [None])[0]
+                if ii and ii.get("thumburl"):
+                    meta = ii.get("extmetadata") or {}
+                    artist = re.sub(r"<[^>]+>", "", (meta.get("Artist") or {}).get("value", "")).strip()
+                    lic = (meta.get("LicenseShortName") or {}).get("value", "")
+                    return {"src": ii["thumburl"].split("?")[0], "link": ii.get("descriptionurl"),
+                            "credit": " · ".join(x for x in (f"© {artist[:60]}" if artist else "", lic, "Wikimedia Commons") if x)}
+            return None
+
+        async def fetch() -> dict:
+            # 1. Wikidata: the ship's item and its chosen image
+            where = " UNION ".join(([f'{{ ?s wdt:P458 "{imo}" }}'] if imo else []) + [f'{{ ?s wdt:P587 "{mmsi}" }}'])
+            try:
+                d = await self._json(WIKIDATA_SPARQL, params={"query": f"SELECT ?img WHERE {{ {where} ?s wdt:P18 ?img }} LIMIT 1",
+                                                              "format": "json"}, headers=PHOTO_UA)
+                rows = d.get("results", {}).get("bindings", [])
+            except Exception as err:  # noqa: BLE001 - the query service is slow at times; Commons alone still works
+                _LOGGER.debug("wikidata %s: %s", imo or mmsi, err)
+                rows = []
+            if rows:
+                f = await commons_file("File:" + urllib.parse.unquote(rows[0]["img"]["value"].rsplit("/", 1)[-1]))
+                if f:
+                    return f
+            if not imo:
+                return {}
+            # 2. Commons: "Category:IMO n" holds the ship's category (one per name it has had) or its files
+            d = await self._json(COMMONS_API, params={"action": "query", "list": "categorymembers", "cmtitle": f"Category:IMO {imo}",
+                                                      "cmtype": "subcat|file", "cmlimit": "20", "format": "json"}, headers=PHOTO_UA)
+            members = [m["title"] for m in (d.get("query") or {}).get("categorymembers", [])]
+            files = [m for m in members if m.startswith("File:")]
+            cats = sorted((m for m in members if m.startswith("Category:")), key=lambda c: name not in c.lower())  # its current name first
+            if not files and cats:
+                d = await self._json(COMMONS_API, params={"action": "query", "list": "categorymembers", "cmtitle": cats[0],
+                                                          "cmtype": "file", "cmlimit": "20", "format": "json"}, headers=PHOTO_UA)
+                files = [m["title"] for m in (d.get("query") or {}).get("categorymembers", [])]
+            files = [f for f in files if re.search(r"\.(jpe?g|png|webp)$", f, re.I)]
+            return (await commons_file(files[0]) or {}) if files else {}
+
+        return {"photo": await self.cache.get(f"vsphoto:{imo or mmsi}", 7 * 86400, fetch)}
 
     # ------------------------------------------------------------ satellite fire hotspots
     async def fires(self) -> dict:

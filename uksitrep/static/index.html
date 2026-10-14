@@ -865,10 +865,36 @@ const VS_NAME = { military: "Military", rnli: "RNLI lifeboat", sar: "Coastguard 
   medical: "Medical", government: "Government / public service", distress: "AIS distress beacon (SART/MOB/EPIRB)",
   sar_aircraft: "SAR aircraft (AIS)", civil: "Vessel" };
 let lastVessels = [];
+map.on("popupclose", () => { if (vsHeld) { vsHeld = false; setTimeout(() => renderVessels(), 0); } });
+// photo from Wikimedia (by IMO or MMSI), fetched when a popup opens and remembered for the session
+const vsInfo = {};
+function vsPhoto(d) {
+  const p = d.photo || {};
+  return p.src ? `<a href="${esc(p.link || p.src)}" target="_blank" rel="noopener"><img src="${esc(p.src)}" alt="Vessel photo" style="display:block;width:260px;max-width:70vw;border-radius:4px;margin:4px 0 1px" onerror="this.closest('a').remove()"></a><span class="muted" style="font-size:10px">${esc(p.credit || "")}</span><br>` : "";
+}
+map.on("popupopen", async (e) => {
+  const el = e.popup.getElement()?.querySelector(".vs-extra");
+  if (!el || el.childElementCount) return;
+  const { mmsi, imo, name } = el.dataset;
+  if (!vsInfo[mmsi]) {
+    try {
+      const r = await fetch(withToken(`${API}vessel_info?mmsi=${mmsi}&imo=${imo}&name=${encodeURIComponent(name)}`));
+      if (!r.ok) return;
+      vsInfo[mmsi] = await r.json();
+    } catch (err) { return; }
+  }
+  if (!e.popup.isOpen()) return;
+  el.innerHTML = vsPhoto(vsInfo[mmsi]);
+  e.popup.update();
+});
 const VS_ARROW_ZOOM = 10;  // civil vessels become heading arrows from here
 let lastVesselFeed = null;
+let vsHeld = false;
 function renderVessels(d) {
   if (d === undefined) d = lastVesselFeed;  // re-render on zoom
+  // redrawing would close an open vessel popup: hold the update until it closes
+  const src = map._popup?.isOpen() && map._popup._source;
+  if (src && (G.vs_civil.hasLayer(src) || G.vs_special.hasLayer(src))) { if (d) lastVesselFeed = d; vsHeld = true; return; }
   G.vs_civil.clearLayers(); G.vs_special.clearLayers();
   if (!d) return;
   if (d.error === "no_key") { setStatus("vessels", false, "Add aisstream_api_key to enable AIS"); return; }
@@ -877,9 +903,10 @@ function renderVessels(d) {
   const z = map.getZoom(), arrows = z >= VS_ARROW_ZOOM, inView = map.getBounds().pad(0.2);
   for (const v of lastVessels) {
     const col = VS_COL[v.cls] || VS_COL.civil;
-    const popup = `<b>${esc(v.name || "MMSI " + v.mmsi)}</b><br><span class="muted">${VS_NAME[v.cls]}</span><br>
+    const popup = () => `<b>${esc(v.name || "MMSI " + v.mmsi)}</b><br><span class="muted">${VS_NAME[v.cls]}</span><br>
       ${v.sog != null ? v.sog + " kn" : ""} ${v.cog != null ? "· COG " + Math.round(v.cog) + "°" : ""}<br>
-      MMSI ${v.mmsi}${v.callsign ? " · " + esc(v.callsign) : ""}${v.dest ? "<br>→ " + esc(v.dest) : ""}<br>
+      MMSI ${v.mmsi}${v.callsign ? " · " + esc(v.callsign) : ""}${v.imo ? " · IMO " + v.imo : ""}${v.length ? `<br>${v.length} m${v.beam ? " × " + v.beam + " m" : ""}` : ""}${v.dest ? "<br>→ " + esc(v.dest) : ""}<br>
+      <div class="vs-extra" data-mmsi="${v.mmsi}" data-imo="${v.imo || ""}" data-name="${esc(v.name || "")}">${vsInfo[v.mmsi] ? vsPhoto(vsInfo[v.mmsi]) : ""}</div>
       <a href="https://www.marinetraffic.com/en/ais/details/ships/mmsi:${v.mmsi}" target="_blank" rel="noopener">MarineTraffic ↗</a>`;
     if (v.cls === "civil" && arrows) {
       if (!inView.contains([v.lat, v.lon])) continue;

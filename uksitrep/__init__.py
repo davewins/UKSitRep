@@ -1,3 +1,3 @@
 """UK SitRep — a live UK situational-awareness map."""
 
-__version__ = "1.18.2"
+__version__ = "1.19.0"

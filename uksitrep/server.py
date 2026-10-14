@@ -77,6 +77,10 @@ async def feed(request: web.Request) -> web.Response:
     name = request.match_info["feed"]
     if name == "vessels":
         return web.json_response(await sit.vessels(request.query.get("all") == "1"))
+    if name == "vessel_info":
+        q = request.query
+        return web.json_response(await sit.vessel_info(q.get("mmsi", ""), q.get("imo", ""), q.get("name", "")),
+                                 headers={"Cache-Control": "max-age=86400"})
     if name == "aircraft_info":
         return web.json_response(await sit.aircraft_info(request.query.get("hex", ""), request.query.get("callsign", "")),
                                  headers={"Cache-Control": "max-age=3600"})
