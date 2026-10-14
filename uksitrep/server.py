@@ -75,6 +75,8 @@ async def index(request: web.Request) -> web.FileResponse:
 async def feed(request: web.Request) -> web.Response:
     sit = request.app[SIT]
     name = request.match_info["feed"]
+    if name == "version":
+        return web.json_response(await sit.version_info(__version__))
     if name == "vessels":
         return web.json_response(await sit.vessels(request.query.get("all") == "1"))
     if name == "vessel_info":

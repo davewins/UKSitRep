@@ -100,6 +100,13 @@ under the box: nations and regions first, then each region's counties with their
 indented. ✕ removes the pin or outline. Place names come from postcodes.io (OS Open Names, Great
 Britain); areas cover the whole UK. Other keys: `P` panels, `F` full screen, `H` home, `U` whole UK.
 
+## Version
+
+The version runs next to the title in the top bar (desktop) and at the bottom of the Layers panel.
+The server checks GitHub every six hours: when a newer version is out it turns amber with ⬆ and
+says "Pull and redeploy" (on a phone it only appears then). After a redeploy, a page that was
+already open says "reload the page". `/healthz` also reports the version.
+
 ## Quick start
 
 ```bash

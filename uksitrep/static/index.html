@@ -28,6 +28,9 @@
   #top { position: absolute; top: 0; left: 0; right: 0; height: 40px; display: flex; align-items: center;
     gap: 12px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); z-index: 1000; }
   #top h1 { font-size: 15px; margin: 0; letter-spacing: .08em; white-space: nowrap; }
+  #top h1 .ver { font: 10px/1 system-ui, sans-serif; letter-spacing: 0; color: var(--muted); margin-left: 6px; vertical-align: middle; }
+  #top h1 .ver.new { color: #fbbf24; }
+  #verLine.new { color: #fbbf24; }
   #clock { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
   #chips { display: flex; gap: 6px; overflow: hidden; flex: 1; min-width: 0; }
   #chips .chip.sum { cursor: pointer; background: #1e293b; color: var(--fg, #e2e8f0); }
@@ -373,7 +376,7 @@
     html, body { height: 100dvh; }
     #top { height: var(--top); padding: var(--sat) 8px 0; gap: 6px; }
     #top h1 { font-size: 13px; letter-spacing: .04em; }
-    #top h1 .full { display: none; }
+    #top h1 .full, #top h1 .ver:not(.new) { display: none; }
     #chips, #btnFs, #btnPanels { display: none; }
     #btnLayers, #btnInfo { display: inline-block; padding: 6px 10px; }
     #btnInfo.alerting { border-color: var(--red); color: #fca5a5; }
@@ -412,7 +415,7 @@
 </head>
 <body>
 <div id="top">
-  <h1>🇬🇧 UK<span class="full"> SITREP</span></h1>
+  <h1>🇬🇧 UK<span class="full"> SITREP</span><span class="ver" id="verTop"></span></h1>
   <div id="clock"></div>
   <div id="chips"></div>
   <div id="feedList"></div>
@@ -486,6 +489,23 @@ function toast(msg, ms = 5000) {
   const t = document.getElementById("toast");
   t.textContent = msg; t.classList.add("show");
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), ms);
+}
+/* ------------------------------------------------------------ version: shown in the top bar and under Layers */
+let verInfo = null, pageVer = null;  // pageVer: the server's version when this page loaded
+function showVersion() {
+  const v = verInfo, top = document.getElementById("verTop"), line = document.getElementById("verLine");
+  if (!v?.version) return;
+  // redeployed since this page loaded (a wall display, say): the page itself is out of date
+  const reload = pageVer && v.version !== pageVer;
+  const shown = pageVer || v.version, flag = reload || v.newer;
+  const tip = reload ? `v${v.version} is running: reload the page` : v.newer ? `v${v.latest} is available: Pull and redeploy` : v.latest ? "Up to date" : "";
+  if (top) { top.textContent = `v${shown}${flag ? " ⬆" : ""}`; top.title = tip; top.classList.toggle("new", !!flag); }
+  if (line) { line.textContent = `UK SitRep v${shown}${tip ? " · " + tip : ""}`; line.classList.toggle("new", !!flag); }
+}
+async function checkVersion() {
+  try { verInfo = await (await fetch(withToken(API + "version"), { cache: "no-store" })).json(); } catch { return; }
+  pageVer = pageVer || verInfo.version;
+  showVersion();
 }
 /* ------------------------------------------------------------ my location (browser geolocation) */
 let meMark = null, meCircle = null, locating = false;
@@ -2467,7 +2487,8 @@ function buildLeft() {
     <div class="row"><span>Quakes</span><select id="fQuake"><option value="1">24 h</option><option value="7">7 days</option><option value="30">30 days</option><option value="365">All</option></select></div>
     <div class="row"><span>Meteors</span><select id="fMeteor"><option value="12">12 h</option><option value="36">36 h</option><option value="72">3 nights</option></select></div>
     <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>/</b> search · <b>P</b> panels · <b>F</b> full screen · <b>H</b> home · <b>L</b> my location · <b>U</b> whole UK<br>Add <code>?kiosk</code> to the URL for an always-on display, <code>?uk</code> to open on the whole country, and <code>?view=military</code> (or favourites, emergency, transport, weather, coast, space, everything) to open in a view, and <code>?theme=spy</code> (or alien, tron, expanse, minority) for a film style.</p>`;
-  $("left").innerHTML = h + '<div class="sheet-close" data-close>Close</div>';
+  $("left").innerHTML = h + '<p class="muted" id="verLine" style="font-size:11px"></p><div class="sheet-close" data-close>Close</div>';
+  showVersion();
   $("fTheme").value = S.theme || "standard"; $("fBase").value = S.basemap; $("fLabels").value = S.labels; $("fAlt").value = S.minAltFt; $("fNewsH").value = S.newsHours; $("fNewsSev").value = S.newsMinSev; $("fQuake").value = S.quakeDays; $("fMeteor").value = S.meteorHours;
   syncGroupBoxes();
   $("left").addEventListener("click", (ev) => {
@@ -2597,7 +2618,8 @@ function start() {
   });
   loadFavs().then(() => { if (pv === "favourites" && !startUK) fitFavs(); });
   for (const [k, fn] of Object.entries(refresh)) { fn(); setInterval(fn, INTERVAL[k] * 1000); }
-  setInterval(() => renderNews(), 60000);  // age out expired incidents
+  setInterval(() => renderNews(), 60000);
+  checkVersion(); setInterval(checkVersion, 3600 * 1000);  // age out expired incidents
   map.on("zoomend", () => { renderAircraft(lastAircraft); renderVessels(); if (lastGrid) renderInterconnectors(lastGrid); });
   const moved = () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderAllsky(); renderObs(); renderRailStations(); renderBusDis(); refreshBuses(); refreshBusStops(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); refreshChargers(); };
   // redrawing a layer would close the popup that just auto-panned the map, so wait until it's closed

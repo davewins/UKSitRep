@@ -58,6 +58,7 @@ FUEL_TYPES = ("E10", "E5", "B7_STANDARD", "B7_PREMIUM", "B10", "HVO")
 CRIME_MIN_PER_MONTH = 10  # fewer than this within a mile usually means the force didn't submit
 
 PHOTO_UA = {"User-Agent": "UKSitRep/1.5 (+https://github.com/davewins/UKSitRep)"}  # Planespotters requires a contact URL
+LATEST_VERSION_URL = "https://raw.githubusercontent.com/davewins/UKSitRep/main/uksitrep/__init__.py"
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 WIKIDATA_SPARQL = "https://query.wikidata.org/sparql"
 HEX_RE = re.compile(r"^[0-9a-f]{6}$")
@@ -567,6 +568,19 @@ class MoreFeeds:
 
         p, r = await asyncio.gather(photo(), route())
         return {"photo": p, "route": r}
+
+    # ------------------------------------------------------------ version check
+    async def version_info(self, running: str) -> dict:
+        """This server's version and the latest on GitHub main, so the page can say when to redeploy."""
+        async def fetch() -> dict:
+            async with self.session.get(LATEST_VERSION_URL, timeout=aiohttp.ClientTimeout(total=15)) as r:
+                r.raise_for_status()
+                m = re.search(r'__version__ = "([\d.]+)"', await r.text())
+            return {"latest": m.group(1)} if m else {}
+
+        latest = (await self.cache.get("latest_version", 6 * 3600, fetch)).get("latest")
+        vt = lambda v: tuple(int(x) for x in v.split("."))
+        return {"version": running, "latest": latest, "newer": bool(latest and vt(latest) > vt(running))}
 
     # ------------------------------------------------------------ vessel photo
     async def vessel_info(self, mmsi: str, imo: str, name: str) -> dict:
