@@ -38,9 +38,11 @@ whole country instead, e.g. for a wall display.
 
 **◎** between ⌂ and UK at bottom left (key `L`) zooms to where this device is, with a blue dot and
 its accuracy circle. With no home set (`HOME_LAT`/`HOME_LON` unset) the map opens there too, and
-⌂ goes there. Browsers only share location with https pages, so this works through the Home
-Assistant panel or an https address but not on a plain `http://192.168…` link; the browser (or
-the Home Assistant app) asks permission the first time.
+⌂ goes there. Browsers only share location with https pages, and the page counts as http if the
+Home Assistant app is on its internal `http://` address (as it usually is on home Wi-Fi). In that
+case, inside the Home Assistant panel, the map uses your own `person` entity's location (the
+companion app's GPS fix) instead. On a plain `http://192.168…` link outside Home Assistant there
+is no location. On https the browser (or app) asks permission the first time.
 
 ## Favourites
 

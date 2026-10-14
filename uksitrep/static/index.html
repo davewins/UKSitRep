@@ -489,29 +489,57 @@ function toast(msg, ms = 5000) {
 }
 /* ------------------------------------------------------------ my location (browser geolocation) */
 let meMark = null, meCircle = null, locating = false;
+function haLocation() {
+  // Inside the Home Assistant panel (same origin through ingress), the signed-in user's person
+  // entity has the companion app's GPS fix. That works even on http, where browsers refuse location.
+  let w = window;
+  try {
+    while (w !== w.parent) {
+      w = w.parent;
+      const hass = w.document.querySelector("home-assistant")?.hass;
+      if (!hass?.user) continue;
+      const me = Object.values(hass.states).find((e) => e.entity_id.startsWith("person.") && e.attributes.user_id === hass.user.id);
+      const a = me?.attributes;
+      if (a?.latitude == null || a?.longitude == null) return null;
+      return { lat: a.latitude, lon: a.longitude, acc: a.gps_accuracy || 0, who: a.friendly_name || me.entity_id, when: me.last_updated };
+    }
+  } catch (e) { /* a parent on another origin */ }
+  return null;
+}
 function locate(quiet = false) {
-  // Browsers only give a location to https pages (or localhost), and the user must allow it.
-  const fail = (msg) => { if (!quiet) toast(msg); };
+  // Browsers only give a location to https pages (or localhost), and the user must allow it;
+  // failing that, use Home Assistant's idea of where this user is.
+  const fail = (msg) => {
+    const h = haLocation();
+    if (h) {
+      const mins = Math.round((Date.now() - new Date(h.when)) / 60000);
+      showMe([h.lat, h.lon], h.acc, `${h.who} in Home Assistant${mins > 2 ? `, ${mins < 120 ? mins + " min" : Math.round(mins / 60) + " h"} ago` : ""}`);
+      if (!quiet && !window.isSecureContext) toast(`Location from Home Assistant (${h.who}): the app is on its http address, so the browser won't give one.`, 4000);
+    } else if (!quiet) toast(msg);
+  };
   if (!navigator.geolocation) return fail("This browser can't share its location.");
-  if (!window.isSecureContext) return fail("Location only works over https: open the map through Home Assistant or an https address.");
+  if (!window.isSecureContext) return fail("Location only works over https: open the map through Home Assistant on its https address.");
   if (locating) return;
   locating = true; document.getElementById("btnLocate").classList.add("busy");
   navigator.geolocation.getCurrentPosition((p) => {
     locating = false; document.getElementById("btnLocate").classList.remove("busy");
-    const ll = [p.coords.latitude, p.coords.longitude], acc = Math.round(p.coords.accuracy || 0);
-    if (meMark) meMark.remove();
-    if (meCircle) meCircle.remove();
-    meCircle = L.circle(ll, { radius: acc, color: "#3b82f6", weight: 1, fillColor: "#3b82f6", fillOpacity: 0.08, interactive: false }).addTo(map);
-    meMark = L.marker(ll, { icon: L.divIcon({ className: "", html: '<div class="me-dot"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), zIndexOffset: 1900 })
-      .bindTooltip(`You are here <span class="muted">±${acc < 1000 ? acc + " m" : (acc / 1000).toFixed(1) + " km"}</span>`, { direction: "top", offset: [0, -10] })
-      .addTo(map);
-    if (acc > 1500) map.flyToBounds(meCircle.getBounds(), { maxZoom: 15, duration: 1 });
-    else map.flyTo(ll, 15, { duration: 1 });
+    showMe([p.coords.latitude, p.coords.longitude], p.coords.accuracy, "You are here");
   }, (err) => {
     locating = false; document.getElementById("btnLocate").classList.remove("busy");
     fail(err.code === 1 ? "Location is blocked: allow it for this site in the browser (or app) settings."
       : err.code === 3 ? "Couldn't get a location in time; try again." : "Location isn't available right now.");
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+}
+function showMe(ll, accuracy, label) {
+  const acc = Math.round(accuracy || 0);
+  if (meMark) meMark.remove();
+  if (meCircle) meCircle.remove();
+  meCircle = L.circle(ll, { radius: acc, color: "#3b82f6", weight: 1, fillColor: "#3b82f6", fillOpacity: 0.08, interactive: false }).addTo(map);
+  meMark = L.marker(ll, { icon: L.divIcon({ className: "", html: '<div class="me-dot"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }), zIndexOffset: 1900 })
+    .bindTooltip(`${esc(label)} <span class="muted">±${acc < 1000 ? acc + " m" : (acc / 1000).toFixed(1) + " km"}</span>`, { direction: "top", offset: [0, -10] })
+    .addTo(map);
+  if (acc > 1500) map.flyToBounds(meCircle.getBounds(), { maxZoom: 15, duration: 1 });
+  else map.flyTo(ll, 15, { duration: 1 });
 }
 L.control.zoom({ position: "bottomleft" }).addTo(map);
 const ViewCtl = L.Control.extend({
