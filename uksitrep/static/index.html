@@ -1113,7 +1113,7 @@ map.on("popupopen", e => { const n = e.popup.getElement(); n?.querySelectorAll("
 map.on("popupclose", e => { e.popup.getElement()?.querySelectorAll("video[data-cam]").forEach(stopCamVideo); });
 function camPopup(c) {
   const src = c.preview ? c.image : c.image && `${c.image}${c.image.includes("?") ? "&" : "?"}t=${Date.now()}`;
-  const img = c.image ? `<a href="${esc(c.url)}" target="_blank" rel="noopener"><img src="${esc(src)}" alt="Camera image" loading="lazy" onerror="this.replaceWith('Image not available right now')"></a>${c.preview ? '<span class="muted" style="font-size:11px">Preview photo — opens the camera\u2019s own site</span><br>' : ""}` : "";
+  const img = c.image && !(c.jw || c.stream || c.embed) ? `<a href="${esc(c.url)}" target="_blank" rel="noopener"><img src="${esc(src)}" alt="Camera image" loading="lazy" onerror="this.replaceWith('Image not available right now')"></a>${c.preview ? '<span class="muted" style="font-size:11px">Preview photo — opens the camera\u2019s own site</span><br>' : ""}` : "";
   const player = c.jw || c.stream ? `<video data-cam data-jw="${esc(c.jw || "")}" data-stream="${esc(c.stream || "")}" muted playsinline controls style="width:100%;max-width:300px;background:#000;display:block;margin:6px 0;aspect-ratio:16/9"></video>`
     : c.embed ? `<iframe src="${esc(c.embed)}" allow="autoplay; fullscreen" allowfullscreen loading="lazy" referrerpolicy="no-referrer" style="width:100%;max-width:300px;aspect-ratio:16/9;border:0;background:#000;display:block;margin:6px 0"></iframe>` : "";
   const inline = !!player;

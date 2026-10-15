@@ -464,6 +464,10 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
             if self.cfg.enable_worldcam:
                 cams.extend(await self._worldcams())
             cams.extend(self.cfg.curated_cams())
+            by_id = {c["id"]: c for c in cams}
+            for o in self.cfg.cam_overlays():
+                if target := by_id.get(o["match"]):
+                    target.update({k: o[k] for k in ("jw", "stream", "embed", "video", "image", "preview") if k in o})
             if not cams:
                 raise RuntimeError("; ".join(errors) or "no webcams")
             if errors:  # don't keep a partial list for a whole day

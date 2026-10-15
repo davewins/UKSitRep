@@ -143,7 +143,8 @@
       "source": "NCI Coastwatch",
       "local": true,
       "image": "https://ipcamlive.com/player/snapshot.php?alias=6630f862817b1",
-      "video": "https://g0.ipcamlive.com/player/player.php?alias=6630f862817b1&autoplay=1&mute=1"
+      "video": "https://g0.ipcamlive.com/player/player.php?alias=6630f862817b1&autoplay=1&mute=1",
+      "embed": "https://g0.ipcamlive.com/player/player.php?alias=6630f862817b1&autoplay=1&mute=1"
     },
     {
       "name": "NCI Teignmouth — beach towards Holcombe & Dawlish",
@@ -153,7 +154,8 @@
       "source": "NCI Coastwatch",
       "local": true,
       "image": "https://ipcamlive.com/player/snapshot.php?alias=6669691debdef",
-      "video": "https://g0.ipcamlive.com/player/player.php?alias=6669691debdef&autoplay=1&mute=1"
+      "video": "https://g0.ipcamlive.com/player/player.php?alias=6669691debdef&autoplay=1&mute=1",
+      "embed": "https://g0.ipcamlive.com/player/player.php?alias=6669691debdef&autoplay=1&mute=1"
     },
     {
       "name": "Torquay Harbour",
@@ -161,7 +163,8 @@
       "lon": -3.5262,
       "url": "https://www.camsecure.uk/httpswebcam/torquaywatersports/torquaywatersports.html",
       "source": "English Riviera webcams",
-      "local": true
+      "local": true,
+      "stream": "https://camsecure.uk/HLS/torquaywatersports.m3u8"
     },
     {
       "name": "Livermead Sands, Torquay",
@@ -169,7 +172,8 @@
       "lon": -3.5455,
       "url": "https://www.camsecure.co.uk/torquay_sea_view.html",
       "source": "English Riviera webcams",
-      "local": true
+      "local": true,
+      "stream": "https://camsecure.uk/HLS/llivermeadcliffwebcam.m3u8"
     },
     {
       "name": "Brixham Inner Harbour",
@@ -207,7 +211,168 @@
       "lon": -3.5045,
       "url": "https://www.camsecure.co.uk/brixham_breakwater.html",
       "source": "English Riviera webcams",
-      "local": true
+      "local": true,
+      "stream": "https://camsecure.co/HLS/break.m3u8"
     }
-  ]
+  ],
+  "overlays": [
+    {
+      "match": "wc21651",
+      "name": "Clovelly - Several views",
+      "stream": "https://camsecure.co/HLS/clovelly1.m3u8"
+    },
+    {
+      "match": "wc25051",
+      "name": "Combe Martin - Beach",
+      "stream": "https://camsecure.co/HLS/combemartin.m3u8"
+    },
+    {
+      "match": "wc25113",
+      "name": "Ilfracombe - Harbour",
+      "stream": "https://camsecure.co/HLS/ilfracombe1camz.m3u8"
+    },
+    {
+      "match": "wc26771",
+      "name": "Brixham - Brixham Marina",
+      "stream": "https://camsecure.co/HLS/brixham.m3u8"
+    },
+    {
+      "match": "wc26770",
+      "name": "Brixham - Shoalstone Seawater Pool",
+      "stream": "https://camsecure.uk/HLS/shoalstonepool.m3u8"
+    },
+    {
+      "match": "wc36879",
+      "name": "Brixham - Breakwater Beach",
+      "stream": "https://camsecure.co/HLS/break.m3u8"
+    },
+    {
+      "match": "wc17394",
+      "name": "Dartmouth - Dart Estuary",
+      "stream": "https://camsecure.uk/HLS/dartmouth.m3u8"
+    },
+    {
+      "match": "wc20902",
+      "name": "Paignton - Broadsands Beach",
+      "stream": "https://camsecure.co/HLS/broadsands.m3u8"
+    },
+    {
+      "match": "wc26653",
+      "name": "Torquay - Institute Beach",
+      "stream": "https://camsecure.uk/HLS/llivermeadcliffwebcam.m3u8"
+    },
+    {
+      "match": "wc19480",
+      "name": "Westward Ho! - Beachside Holiday Park",
+      "stream": "https://camsecure.co/HLS/westho.m3u8"
+    },
+    {
+      "match": "wc28985",
+      "name": "Westward Ho! - Surf Bay Holiday Park",
+      "stream": "https://camsecure.co/HLS/westh2.m3u8"
+    },
+    {
+      "match": "wc27927",
+      "name": "Westward Ho! - Beach",
+      "embed": "https://video.nest.com/embedded/live/6rVIGjhd36?autoplay=1"
+    },
+    {
+      "match": "wc34383",
+      "name": "Braunton - Saunton Sands Beach",
+      "embed": "https://g0.ipcamlive.com/player/player.php?alias=chaletsaunton&autoplay=1&mute=1"
+    },
+    {
+      "match": "wc27926",
+      "name": "Hartland - Hartland Quay",
+      "embed": "https://g0.ipcamlive.com/player/player.php?alias=5fb23e068ccb5&autoplay=1&mute=1"
+    },
+    {
+      "match": "wc40649",
+      "name": "Thurlestone - Panoramic view",
+      "embed": "https://g0.ipcamlive.com/player/player.php?alias=thurlestonehotel&autoplay=1&mute=1"
+    },
+    {
+      "match": "wc34077",
+      "name": "Plymouth - Plymouth Yacht Haven",
+      "embed": "https://g0.ipcamlive.com/player/player.php?alias=pyhmarina&autoplay=1&mute=1"
+    },
+    {
+      "match": "wc34076",
+      "name": "Plymouth - Quay Pontoons",
+      "embed": "https://g0.ipcamlive.com/player/player.php?alias=yhqpontoon&autoplay=1&mute=1"
+    },
+    {
+      "match": "wc33254",
+      "name": "Teignmouth - Seafront",
+      "embed": "https://g0.ipcamlive.com/player/player.php?alias=6630f862817b1&autoplay=1&mute=1"
+    },
+    {
+      "match": "wc18348",
+      "name": "Teignmouth - Back Beach",
+      "jw": "VroRR23P"
+    },
+    {
+      "match": "wc31507",
+      "name": "Torquay - Meadfoot Beach",
+      "embed": "https://rtsp.me/embed/e46sEt5b/"
+    },
+    {
+      "match": "wc28952",
+      "name": "Exmouth - Exe Sailing Club",
+      "embed": "https://viewcam.co.uk/controls/index.php?camera=esc&layout=vertical&embed=true"
+    },
+    {
+      "match": "wc11436",
+      "name": "Exmouth - Starcross Landing",
+      "embed": "https://viewcam.co.uk/controls/index.php?camera=esc&layout=vertical&embed=true"
+    },
+    {
+      "match": "wc28755",
+      "name": "Exmouth - Coast",
+      "embed": "https://www.viewcam.co.uk/clients/feeds/ssl/codegenssl.php?feed=nciexmouth&version=compatible&chart=103&tab=ld&disp_option="
+    },
+    {
+      "match": "wc20901",
+      "name": "Sidmouth - The Esplanade",
+      "embed": "https://www.viewcam.co.uk/clients/feeds/ssl/codegenssl.php?feed=feeds/sidmouthsailing&version=mse"
+    },
+    {
+      "match": "wc16199",
+      "name": "Paignton - Harbour",
+      "embed": "https://www.viewcam.co.uk/clients/feeds/ssl/codegenssl.php?feed=paignton&version=webrtc&timeout=30"
+    },
+    {
+      "match": "wc26831",
+      "name": "Bideford - The Royal North Devon Golf Club",
+      "embed": "https://www.youtube.com/embed/m7LalTizc1s?autoplay=1&mute=1&rel=0"
+    },
+    {
+      "match": "wc18349",
+      "name": "Dawlish - Marine Parade",
+      "embed": "https://www.youtube.com/embed/4Na__R9kWV0?autoplay=1&mute=1&rel=0"
+    },
+    {
+      "match": "wc41069",
+      "name": "Sidmouth - Beach",
+      "embed": "https://www.youtube.com/embed/ai1RgnDhCD8?autoplay=1&mute=1&rel=0"
+    },
+    {
+      "match": "wc685",
+      "name": "Exmouth - Sea Front, The Strand",
+      "image": "https://www.exmouthcam.co.uk/jpg/index.php?1.jpg",
+      "preview": false
+    },
+    {
+      "match": "wc20903",
+      "name": "Kingswear - Start Bay",
+      "image": "https://www.nci-frowardpoint.org.uk/assets/webcam.jpg",
+      "preview": false
+    },
+    {
+      "match": "osmn11446046955",
+      "name": "Webcam",
+      "embed": "https://viewcam.co.uk/controls/index.php?camera=esc&layout=vertical&embed=true"
+    }
+  ],
+  "_overlays_comment": "Players attached to cameras from the WorldCam/OSM layers, by feed id ('match'). Same fields as a curated camera: jw, stream, embed, video, image (plus preview:false for a live image). 'name' is only a label for people."
 }
