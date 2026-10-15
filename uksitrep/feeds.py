@@ -7,6 +7,7 @@ served by :mod:`uksitrep.server`.
 from __future__ import annotations
 
 import asyncio
+import base64
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
@@ -661,8 +662,10 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
             self.worldcam_task = self.spawn(self._refresh_worldcams(store, saved))
         return [
             {"id": f"wc{cid}", "name": c["name"], "lat": c["lat"], "lon": c["lon"],
-             "image": c.get("img"), "video": None, "url": c["url"], "source": "WorldCam",
-             "preview": True}
+             "image": c.get("img"), "video": None, "source": "WorldCam", "preview": True,
+             # worldcam.eu's own click-through (a 302 to the camera's site) skips its ad-laden listing page
+             "url": "https://worldcam.eu/click/url?code=" + base64.b64encode(cid.encode()).decode().rstrip("="),
+             "info": c["url"]}
             for cid, c in saved.get("cams", {}).items() if c.get("name")
         ]
 
