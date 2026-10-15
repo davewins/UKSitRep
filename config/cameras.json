@@ -1,5 +1,5 @@
 {
-  "_comment": "Hand-curated webcams added to the webcam layer. Positions are approximate. 'local': true draws them with the blue icon; 'image' is a live snapshot URL (optional).",
+  "_comment": "Hand-curated webcams added to the webcam layer. Positions are approximate. 'local': true draws them with the blue icon; 'image' is a live snapshot URL (optional). Inline playback in the popup: 'jw' is a JW Player media id (resolved to its HLS stream in the browser), 'stream' is a direct .m3u8 URL, 'embed' is an iframe-able player page. 'video' is the direct final player page, linked as 'Live stream'.",
   "cameras": [
     {
       "name": "Pontoon Terrace Cam, Dartmouth",
@@ -15,7 +15,9 @@
       "lon": -3.5778,
       "url": "https://free.coastcams.com/dartmouth/embankment-bistro-cam-dartmouth/",
       "source": "Coast Cams",
-      "local": true
+      "local": true,
+      "jw": "ZasSjdBq",
+      "video": "https://cdn.jwplayer.com/previews/ZasSjdBq-y65kwOIB"
     },
     {
       "name": "Brunel Holiday Park Cam, Dawlish Warren",
@@ -23,7 +25,9 @@
       "lon": -3.443,
       "url": "https://free.coastcams.com/dawlish-warren/brunel-holiday-park-cam-sponsored-by-discover-dawlish-warren/",
       "source": "Coast Cams",
-      "local": true
+      "local": true,
+      "jw": "f7CyQzRU",
+      "video": "https://cdn.jwplayer.com/previews/f7CyQzRU-EaS0Untr"
     },
     {
       "name": "Mount Pleasant Cam, Dawlish Warren",
@@ -31,7 +35,9 @@
       "lon": -3.447,
       "url": "https://free.coastcams.com/dawlish-warren/mount-pleasant-cam/",
       "source": "Coast Cams",
-      "local": true
+      "local": true,
+      "jw": "QZBpjZAR",
+      "video": "https://cdn.jwplayer.com/previews/QZBpjZAR-zuA7zdaF"
     },
     {
       "name": "Black Swan Cam, Dawlish",
@@ -39,7 +45,9 @@
       "lon": -3.466,
       "url": "https://free.coastcams.com/dawlish/black-swan-cam/",
       "source": "Coast Cams",
-      "local": true
+      "local": true,
+      "jw": "qiwgL0mO",
+      "video": "https://cdn.jwplayer.com/previews/qiwgL0mO-F1HcnW3B"
     },
     {
       "name": "Blenheim Cam, Dawlish",
@@ -47,7 +55,9 @@
       "lon": -3.4625,
       "url": "https://free.coastcams.com/dawlish/blenheim-cam/",
       "source": "Coast Cams",
-      "local": true
+      "local": true,
+      "jw": "IJJWe0io",
+      "video": "https://cdn.jwplayer.com/previews/IJJWe0io-F1HcnW3B"
     },
     {
       "name": "Blenheim Cam 2, Dawlish",
@@ -55,7 +65,9 @@
       "lon": -3.4616,
       "url": "https://free.coastcams.com/dawlish/blenheim-cam-2/",
       "source": "Coast Cams",
-      "local": true
+      "local": true,
+      "jw": "fqjSJ2qm",
+      "video": "https://cdn.jwplayer.com/previews/fqjSJ2qm-F1HcnW3B"
     },
     {
       "name": "Sea Breeze Cam, Dawlish",
@@ -63,7 +75,9 @@
       "lon": -3.465,
       "url": "https://free.coastcams.com/dawlish/sea-breeze-cam-sponsored-by-cofton-holidays-dawlish/",
       "source": "Coast Cams",
-      "local": true
+      "local": true,
+      "jw": "xu3wiCHl",
+      "video": "https://cdn.jwplayer.com/previews/xu3wiCHl-fITLDzM5"
     },
     {
       "name": "San Remo Cam, Dawlish",
@@ -71,7 +85,9 @@
       "lon": -3.4672,
       "url": "https://free.coastcams.com/dawlish/san-remo-cam/",
       "source": "Coast Cams",
-      "local": true
+      "local": true,
+      "jw": "ZiAHpT5c",
+      "video": "https://cdn.jwplayer.com/previews/ZiAHpT5c-zuA7zdaF"
     },
     {
       "name": "Salty Cottage Cam, Teignmouth",
@@ -79,7 +95,9 @@
       "lon": -3.496,
       "url": "https://free.coastcams.com/teignmouth/salty-cottage-cam/",
       "source": "Coast Cams",
-      "local": true
+      "local": true,
+      "jw": "VroRR23P",
+      "video": "https://cdn.jwplayer.com/previews/VroRR23P-lWS4LpV7"
     },
     {
       "name": "Tinside Lido Cam, Plymouth",
@@ -87,7 +105,9 @@
       "lon": -4.1405,
       "url": "https://free.coastcams.com/plymouth/tinside-lido-cam-plymouth-webcam/",
       "source": "Coast Cams",
-      "local": true
+      "local": true,
+      "jw": "1ACbWois",
+      "video": "https://cdn.jwplayer.com/previews/1ACbWois-wGl2fbDC"
     },
     {
       "name": "The Waterfront Cam, Plymouth",
@@ -95,7 +115,9 @@
       "lon": -4.137,
       "url": "https://free.coastcams.com/plymouth/the-waterfront-cam-sponsored-by-your-devon-escape/",
       "source": "Coast Cams",
-      "local": true
+      "local": true,
+      "jw": "h9UeyAti",
+      "video": "https://cdn.jwplayer.com/previews/h9UeyAti-wGl2fbDC"
     },
     {
       "name": "RNLI Plymouth Cam",
@@ -155,7 +177,9 @@
       "lon": -3.5135,
       "url": "https://www.camsecure.co/httpswebcam/sampford/sampford.html",
       "source": "English Riviera webcams",
-      "local": true
+      "local": true,
+      "stream": "https://camsecure.co/HLS/brixhamharbour.m3u8",
+      "video": "https://www.camsecure.co/httpswebcam/sampford/sampford.html"
     },
     {
       "name": "Brixham Harbour (Sea Tang)",
@@ -163,7 +187,9 @@
       "lon": -3.519,
       "url": "https://www.seatang-guesthouse.com/live-brixham-webcam/",
       "source": "English Riviera webcams",
-      "local": true
+      "local": true,
+      "stream": "https://camsecure.co/HLS/brixham.m3u8",
+      "video": "https://www.camsecure.co.uk/webcam/seatang/cam.html"
     },
     {
       "name": "Meadfoot Beach, Torquay (Osborne Apartments)",
@@ -171,7 +197,9 @@
       "lon": -3.50919,
       "url": "https://osborneapartments.co.uk/meadfoot-webcam/",
       "source": "English Riviera webcams",
-      "local": true
+      "local": true,
+      "embed": "https://rtsp.me/embed/e46sEt5b/",
+      "video": "https://rtsp.me/embed/e46sEt5b/"
     },
     {
       "name": "Brixham Breakwater Beach",

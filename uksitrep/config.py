@@ -178,6 +178,7 @@ class Config:
             out.append({
                 "id": f"cur{i}", "name": c["name"], "lat": c["lat"], "lon": c["lon"],
                 "url": c["url"], "image": c.get("image"), "video": c.get("video"),
+                "jw": c.get("jw"), "stream": c.get("stream"), "embed": c.get("embed"),
                 "source": c.get("source", "Curated"), "local": bool(c.get("local", True)),
             })
         return out

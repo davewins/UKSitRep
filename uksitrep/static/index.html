@@ -1076,11 +1076,49 @@ const GLYPH_CAM = '<rect x="-6" y="-3.5" width="8.5" height="7" rx="1.2" fill="#
 const mkCamIcon = (col) => L.divIcon({ className: "base", iconSize: [18, 18], iconAnchor: [9, 9],
   html: `<svg width="18" height="18" viewBox="-9 -9 18 18"><circle r="8" fill="${col}" stroke="#000" stroke-width="1"/>${GLYPH_CAM}</svg>` });
 const camIcon = mkCamIcon("#0d9488"), coastCamIcon = mkCamIcon("#0284c7"), worldCamIcon = mkCamIcon("#7c3aed");
+// Inline players: curated cameras can carry "jw" (JW Player media id), "stream" (.m3u8) or "embed" (iframe page), so the
+// live view plays in the popup instead of sending you through the camera site's own page. Streams start muted.
+const HLS_JS = "https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.17/hls.min.js";
+let hlsLoad = null, hlsLive = null;
+const loadHls = () => hlsLoad ||= new Promise((ok, no) => {
+  if (window.Hls) return ok();
+  const s = document.createElement("script"); s.src = HLS_JS; s.onload = ok; s.onerror = () => { hlsLoad = null; no(new Error("hls.js")); };
+  document.head.append(s);
+});
+async function startCamVideo(v) {
+  try {
+    let url = v.dataset.stream;
+    if (!url && v.dataset.jw) {
+      const r = await fetch(`https://cdn.jwplayer.com/v2/media/${encodeURIComponent(v.dataset.jw)}`);
+      url = (await r.json()).playlist[0].sources.find(x => /mpegurl/i.test(x.type))?.file;
+    }
+    if (!url) throw new Error("no stream");
+    if (v.canPlayType("application/vnd.apple.mpegurl")) { v.src = url; }   // Safari / iOS play HLS natively
+    else {
+      await loadHls();
+      if (!Hls.isSupported()) throw new Error("no HLS");
+      const h = new Hls({ capLevelToPlayerSize: true, maxBufferLength: 10, liveSyncDurationCount: 3 });
+      h.on(Hls.Events.ERROR, (_, e) => { if (e.fatal) camVideoFail(v); });
+      h.loadSource(url); h.attachMedia(v); v._hls = h;
+    }
+    v.play().catch(() => {});   // muted autoplay is allowed; if blocked the native controls are there
+  } catch { camVideoFail(v); }
+}
+function camVideoFail(v) {
+  stopCamVideo(v);   // the camera page link under the player is still there
+  v.replaceWith(Object.assign(document.createElement("span"), { className: "muted", textContent: "Live view not available right now" }));
+}
+function stopCamVideo(v) { if (v._hls) { v._hls.destroy(); v._hls = null; } v.pause(); v.removeAttribute("src"); v.load?.(); }
+map.on("popupopen", e => { const n = e.popup.getElement(); n?.querySelectorAll("video[data-cam]").forEach(startCamVideo); });
+map.on("popupclose", e => { e.popup.getElement()?.querySelectorAll("video[data-cam]").forEach(stopCamVideo); });
 function camPopup(c) {
   const src = c.preview ? c.image : c.image && `${c.image}${c.image.includes("?") ? "&" : "?"}t=${Date.now()}`;
   const img = c.image ? `<a href="${esc(c.url)}" target="_blank" rel="noopener"><img src="${esc(src)}" alt="Camera image" loading="lazy" onerror="this.replaceWith('Image not available right now')"></a>${c.preview ? '<span class="muted" style="font-size:11px">Preview photo — open for the live view</span><br>' : ""}` : "";
-  return `<div class="cam-pop"><b>${esc(c.name)}</b><br><span class="muted">${esc(c.source)}${c.local && !c.image ? " · live stream on their site" : ""}</span>${img}<br>
-    <a href="${esc(c.url)}" target="_blank" rel="noopener">Open camera ↗</a>${c.video && c.video !== c.url ? ` · <a href="${esc(c.video)}" target="_blank" rel="noopener">${c.source === "TfL JamCam" ? "Latest clip" : "Live stream"} ↗</a>` : ""}</div>`;
+  const player = c.jw || c.stream ? `<video data-cam data-jw="${esc(c.jw || "")}" data-stream="${esc(c.stream || "")}" muted playsinline controls style="width:100%;max-width:300px;background:#000;display:block;margin:6px 0;aspect-ratio:16/9"></video>`
+    : c.embed ? `<iframe src="${esc(c.embed)}" allow="autoplay; fullscreen" allowfullscreen loading="lazy" referrerpolicy="no-referrer" style="width:100%;max-width:300px;aspect-ratio:16/9;border:0;background:#000;display:block;margin:6px 0"></iframe>` : "";
+  const inline = !!player;
+  return `<div class="cam-pop"><b>${esc(c.name)}</b><br><span class="muted">${esc(c.source)}${c.local && !c.image && !inline ? " · live stream on their site" : ""}</span>${img}${player}<br>
+    <a href="${esc(c.url)}" target="_blank" rel="noopener">${inline ? "Camera page" : "Open camera"} ↗</a>${c.video && c.video !== c.url ? ` · <a href="${esc(c.video)}" target="_blank" rel="noopener">${c.source === "TfL JamCam" ? "Latest clip" : inline ? "Full-screen player" : "Live stream"} ↗</a>` : ""}</div>`;
 }
 function renderCams(d) {
   if (d) lastCams = d.cams || [];
