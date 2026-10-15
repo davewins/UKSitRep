@@ -163,14 +163,21 @@ class Config:
             bus_timetable_regions=_bus_regions(),
         )
 
-    def curated_cams(self) -> list[dict]:
-        """Hand-curated webcams from CAMERAS_FILE (or the bundled default)."""
+    def _cameras_data(self) -> dict:
         path = self.cameras_file or PACKAGE_DIR.parent / "config" / "cameras.json"
         try:
-            data = json.loads(path.read_text())
+            return json.loads(path.read_text())
         except (OSError, ValueError) as err:
             _LOGGER.warning("cameras file %s not loaded: %s", path, err)
-            return []
+            return {}
+
+    def cam_overlays(self) -> list[dict]:
+        """Players attached to cameras from other layers (WorldCam, OSM), matched by feed id."""
+        return [o for o in self._cameras_data().get("overlays", []) if o.get("match")]
+
+    def curated_cams(self) -> list[dict]:
+        """Hand-curated webcams from CAMERAS_FILE (or the bundled default)."""
+        data = self._cameras_data()
         out = []
         for i, c in enumerate(data.get("cameras", [])):
             if not all(k in c for k in ("name", "lat", "lon", "url")):

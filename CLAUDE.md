@@ -39,7 +39,7 @@ fixed, allow-listed upstream URLs (never an open proxy)
 | `uksitrep/places.py`, `hems_sites.py` | Gazetteer for pinning news to places; hospital/base sites for air-ambulance "on scene" inference |
 | `uksitrep/data/` | Small bundled seeds, each refreshed in the background into `DATA_DIR`: lifeboat stations, OSM webcams, observatories, rail stations (NaPTAN), bus operator names (NOC). Two are static and rebuilt by hand with `tools/`: `energy_regions.json` (`build_energy_regions.py`) and `power_plants.json` (`build_power_plants.py`; new farms go in its `EXTRA`) and `areas.json` (`build_areas.py`; search areas, outlines served one at a time by the `area` feed) |
 | `uksitrep/static/index.html` | The whole front end: settings, layers, renderers, refresh loop, views |
-| `config/cameras.json` | Hand-curated webcams |
+| `config/cameras.json` | Hand-curated webcams, plus `overlays` that attach an inline player (`jw` / `stream` / `embed`) to WorldCam and OSM cameras by feed id |
 | `tools/smoke/` | jsdom smoke test (see Testing) |
 
 ## Anatomy of a feed (the checklist for adding one)
