@@ -1113,12 +1113,12 @@ map.on("popupopen", e => { const n = e.popup.getElement(); n?.querySelectorAll("
 map.on("popupclose", e => { e.popup.getElement()?.querySelectorAll("video[data-cam]").forEach(stopCamVideo); });
 function camPopup(c) {
   const src = c.preview ? c.image : c.image && `${c.image}${c.image.includes("?") ? "&" : "?"}t=${Date.now()}`;
-  const img = c.image ? `<a href="${esc(c.url)}" target="_blank" rel="noopener"><img src="${esc(src)}" alt="Camera image" loading="lazy" onerror="this.replaceWith('Image not available right now')"></a>${c.preview ? '<span class="muted" style="font-size:11px">Preview photo — open for the live view</span><br>' : ""}` : "";
+  const img = c.image ? `<a href="${esc(c.url)}" target="_blank" rel="noopener"><img src="${esc(src)}" alt="Camera image" loading="lazy" onerror="this.replaceWith('Image not available right now')"></a>${c.preview ? '<span class="muted" style="font-size:11px">Preview photo — opens the camera\u2019s own site</span><br>' : ""}` : "";
   const player = c.jw || c.stream ? `<video data-cam data-jw="${esc(c.jw || "")}" data-stream="${esc(c.stream || "")}" muted playsinline controls style="width:100%;max-width:300px;background:#000;display:block;margin:6px 0;aspect-ratio:16/9"></video>`
     : c.embed ? `<iframe src="${esc(c.embed)}" allow="autoplay; fullscreen" allowfullscreen loading="lazy" referrerpolicy="no-referrer" style="width:100%;max-width:300px;aspect-ratio:16/9;border:0;background:#000;display:block;margin:6px 0"></iframe>` : "";
   const inline = !!player;
   return `<div class="cam-pop"><b>${esc(c.name)}</b><br><span class="muted">${esc(c.source)}${c.local && !c.image && !inline ? " · live stream on their site" : ""}</span>${img}${player}<br>
-    <a href="${esc(c.url)}" target="_blank" rel="noopener">${inline ? "Camera page" : "Open camera"} ↗</a>${c.video && c.video !== c.url ? ` · <a href="${esc(c.video)}" target="_blank" rel="noopener">${c.source === "TfL JamCam" ? "Latest clip" : inline ? "Full-screen player" : "Live stream"} ↗</a>` : ""}</div>`;
+    <a href="${esc(c.url)}" target="_blank" rel="noopener">${inline ? "Camera page" : "Open camera"} ↗</a>${c.info ? ` · <a href="${esc(c.info)}" target="_blank" rel="noopener">WorldCam listing ↗</a>` : ""}${c.video && c.video !== c.url ? ` · <a href="${esc(c.video)}" target="_blank" rel="noopener">${c.source === "TfL JamCam" ? "Latest clip" : inline ? "Full-screen player" : "Live stream"} ↗</a>` : ""}</div>`;
 }
 function renderCams(d) {
   if (d) lastCams = d.cams || [];
