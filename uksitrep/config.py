@@ -104,7 +104,7 @@ class Config:
     bbc_local_feeds: dict[str, str] = field(default_factory=dict)
     cameras_file: Path | None = None
     firms_key: str | None = None
-    enable_lightning: bool = True
+    enable_lightning: bool = False
     fuel_client_id: str | None = None
     fire_services: set[str] = field(default_factory=set)
     homes: list[Home] = field(default_factory=list)
@@ -152,7 +152,7 @@ class Config:
             bbc_local_feeds=bbc,
             cameras_file=Path(cams) if cams else None,
             firms_key=os.environ.get("FIRMS_MAP_KEY") or None,
-            enable_lightning=_bool("ENABLE_LIGHTNING", True),
+            enable_lightning=_bool("ENABLE_LIGHTNING", False),
             fuel_client_id=os.environ.get("FUEL_FINDER_CLIENT_ID") or None,
             fire_services=set(_list("FIRE_SERVICES", "avon,bucks,cheshire,cleveland,hants,rbfrs,shropshire")),
             homes=_homes(),

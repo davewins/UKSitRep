@@ -27,7 +27,7 @@ Each is subject to its own terms.
 | [Esri](https://www.esri.com) basemaps, [OpenStreetMap tiles](https://operations.osmfoundation.org/policies/tiles/) | Base maps | Esri terms; OSM tile usage policy (light personal use) |
 | Water company storm overflow feeds via [Stream](https://www.streamwaterdata.co.uk) (Anglian, Northumbrian, Severn Trent, Southern, South West, Thames, United Utilities, Wessex, Yorkshire), Dŵr Cymru Welsh Water, Scottish Water | Live sewage discharges | © the respective water company, CC BY 4.0 / OGL |
 | [Environment Agency](https://environment.data.gov.uk/flood-monitoring/doc/reference) river gauges, [bathing water quality](https://environment.data.gov.uk/bwq/) | River levels, beaches | OGL v3 |
-| [Blitzortung.org](https://www.blitzortung.org) | Lightning strikes | Private, non-commercial use; volunteer network |
+| [Blitzortung.org](https://www.blitzortung.org) | Lightning strikes | Private, non-commercial use; volunteer network. Off by default (`ENABLE_LIGHTNING`): data access is for registered station owners |
 | [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) (Copernicus CAMS) | Air quality & pollen | CC BY 4.0 |
 | [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov) *(optional key)*, [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) | Fire hotspots, satellite imagery | NASA open data; please acknowledge LANCE FIRMS / GIBS |
 | [Allsky camera map](https://www.thomasjacquin.com/allsky-map/) (Thomas Jacquin's Allsky project) | Locations, links and latest images of allsky cameras whose owners chose to show them on the map; images are loaded from the owners' own sites | Owners' content; links and images shown as published, not stored |
