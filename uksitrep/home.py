@@ -127,6 +127,20 @@ class HomeArea:
         out = big + same + small + [hit(a) for a in partial[:4]] + rest
         return {"results": out[:10]}
 
+    async def place_at(self, lat: float, lon: float) -> dict:
+        """Nearest postcode to a dropped pin (postcodes.io, Great Britain), cached a day."""
+        lat, lon = round(lat, 4), round(lon, 4)
+
+        async def fetch() -> dict:
+            d = await self._json("https://api.postcodes.io/postcodes", params={"lat": lat, "lon": lon, "limit": 1, "radius": 500})
+            r = (d.get("result") or [None])[0]
+            if not r:
+                return {"postcode": None}
+            return {"postcode": r.get("postcode"), "district": r.get("admin_district"),
+                    "region": r.get("region") or r.get("country"), "metres": round(r.get("distance") or 0)}
+
+        return await self.cache.get(f"reverse:{lat},{lon}", 86400, fetch)
+
     async def _places(self, q: str) -> dict:
         pc = q.upper().replace(" ", "")
 

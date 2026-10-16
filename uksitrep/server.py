@@ -95,6 +95,14 @@ async def feed(request: web.Request) -> web.Response:
             bbox = None
         fn = {"buses": sit.buses, "bus_stops": sit.bus_stops, "fuel": sit.fuel, "chargers": sit.chargers, "atms": sit.atms, "postboxes": sit.postboxes}[name]
         return web.json_response(await fn(bbox))
+    if name == "reverse":
+        try:
+            lat, lon = float(request.query["lat"]), float(request.query["lon"])
+            if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                raise ValueError
+        except (KeyError, ValueError):
+            return web.json_response({"error": "lat and lon required"}, status=400)
+        return web.json_response(await sit.place_at(lat, lon), headers={"Cache-Control": "max-age=3600"})
     if name in ("iss", "crime"):
         try:
             lat, lon = float(request.query["lat"]), float(request.query["lon"])

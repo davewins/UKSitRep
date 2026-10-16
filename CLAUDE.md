@@ -57,7 +57,7 @@ Server side:
    Errors raised inside `fetch` are caught by the cache: viewers get the last good value or
    `{"error": ...}`. Return `{"error": "no_key", ...}` when an optional key isn't set.
 2. Add it to `Situation.handlers` (or special-case it in `server.feed` if it takes query
-   parameters, like `tides`, `crime`, `iss`, `fuel`, `buses`, `rail_board`, `search`).
+   parameters, like `tides`, `crime`, `iss`, `fuel`, `buses`, `rail_board`, `search`, `reverse`).
 3. New settings go in `Config` / `from_env()`, `docker-compose.yml` (`environment:` block),
    `.env.example`, the README configuration table, and `/healthz` features if it's a key.
 

@@ -169,6 +169,11 @@
   .spark i { flex: 1; min-width: 2px; border-radius: 1px 1px 0 0; }
   .atm { width: 16px; height: 16px; border-radius: 50%; border: 1px solid #0b1118; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
   .pbox { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #0b1118; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #fff; background: #dc2626; }
+  .leaflet-container { -webkit-touch-callout: none; }
+  .navrow { margin-top: 6px; display: flex; gap: 6px; align-items: center; }
+  .leaflet-container a.navgo { padding: 3px 9px; border-radius: 6px; background: #2563eb; color: #fff; font-size: 12px; text-decoration: none; white-space: nowrap; }
+  .navsel { font-size: 11px; background: #18212c; color: var(--muted); border: 1px solid #2a3544; border-radius: 6px; padding: 2px 4px; }
+  .drop-pin { font-size: 24px; line-height: 24px; filter: drop-shadow(0 1px 2px #000); }
   .ev { width: 16px; height: 16px; border-radius: 4px; border: 1px solid #0b1118; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff; }
   .leaflet-popup.has-fav .leaflet-popup-content { margin-right: 40px; }
   .leaflet-container a.fav-star { position: absolute; top: 3px; right: 24px; width: 20px; height: 20px; line-height: 20px; text-align: center;
@@ -641,7 +646,7 @@ function setStatus(feed, ok, note) { status[feed] = { ok, t: Date.now(), note };
 const FEED_NAMES = { aircraft: "ADS-B aircraft", vessels: "AIS ships", weather_warnings: "Met Office warnings", floods: "EA floods",
   city_weather: "Open-Meteo weather", grid: "Electricity grid", roads: "National Highways", power_cuts: "Power cuts", space: "Space weather",
   quakes: "BGS earthquakes", news: "BBC news", meteors: "UK Meteor Network", sea: "Sea state", wind_grid: "Wind grid", radar: "Rain radar",
-  favourites: "Favourites", home_info: "Home location", energy_regions: "Energy regions", energy_live: "Carbon, solar & Agile",
+  favourites: "Favourites", home_info: "Home location", reverse: "Pin lookup", energy_regions: "Energy regions", energy_live: "Carbon, solar & Agile",
   generators: "Generation (Elexon)", chargers: "EV chargers (OCM)", atms: "Cash machines (OSM)", postboxes: "Post boxes (OSM)", rnli: "RNLI launches", fire: "Fire & rescue", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage overflows", bathing: "Bathing waters",
   rivers: "River levels", lightning: "Lightning", air_quality: "Air quality", fires: "NASA fire hotspots", tfl: "TfL status", iss: "ISS", allsky: "Allsky cameras", observatories: "Observatories", rail_stations: "Rail stations", rail_disruptions: "Rail disruptions", buses: "Live buses", bus_stops: "Bus stops", bus_board: "Bus departures", bus_disruptions: "Bus disruptions",
   crime: "Street crime", fuel: "Fuel prices", home: "Near home" };
@@ -2352,6 +2357,80 @@ function refreshPostboxes() {
   }, 500);
 }
 
+/* ------------------------------------------------------------ navigation: Navigate button and dropped pin */
+// Links only: the user's own maps app does the routing. The chosen app is kept in settings (S.navApp) until changed.
+const NAV_APPS = {
+  apple: { name: "Apple Maps", url: (la, lo) => `https://maps.apple.com/?daddr=${la},${lo}&dirflg=d` },
+  google: { name: "Google Maps", url: (la, lo) => `https://www.google.com/maps/dir/?api=1&destination=${la},${lo}&travelmode=driving` },
+  waze: { name: "Waze", url: (la, lo) => `https://waze.com/ul?ll=${la},${lo}&navigate=yes` },
+};
+const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const navApp = () => NAV_APPS[S.navApp] ? S.navApp : isIOS ? "apple" : "google";
+function navRow(lat, lon) {
+  const row = L.DomUtil.create("div", "navrow");
+  const a = L.DomUtil.create("a", "navgo", row);
+  a.target = "_blank"; a.rel = "noopener"; a.textContent = "🧭 Navigate";
+  const sel = L.DomUtil.create("select", "navsel", row);
+  sel.title = "Navigation app";
+  for (const [k, v] of Object.entries(NAV_APPS)) sel.add(new Option(v.name, k));
+  const paint = () => { sel.value = navApp(); a.href = NAV_APPS[sel.value].url(lat.toFixed(6), lon.toFixed(6)); };
+  sel.onchange = () => { S.navApp = sel.value; save(); paint(); };
+  L.DomEvent.disableClickPropagation(row);
+  paint();
+  return row;
+}
+// places only: moving things (aircraft, ships, buses) are not worth navigating to
+function addNav(popup) {
+  const c = popup.getElement()?.querySelector(".leaflet-popup-content"), ll = popup.getLatLng();
+  if (c && ll && !c.querySelector(".navrow")) c.appendChild(navRow(ll.lat, ll.lng));
+}
+map.on("popupopen", (e) => {
+  const p = e.popup;
+  if (!(p.fav || p._source?.fav)) return;
+  addNav(p);
+  if (p._navFn) p.off("contentupdate", p._navFn);  // popups that load a board later replace their content
+  p._navFn = () => addNav(p); p.on("contentupdate", p._navFn);
+});
+
+let pinMarker = null, pinAt = 0, longPressed = false;
+const pinPopup = (o) => `<b>📍 ${esc(o.name)}</b><br><span class="muted">${o.lat.toFixed(5)}, ${o.lon.toFixed(5)}</span>
+  ${o.place ? `<br>${esc(o.place)}` : ""}${pinMarker?.fav?.[1] === o ? '<br><a href="#" class="pin-clear" style="font-size:11px">Remove pin</a>' : ""}`;
+function dropPin(ll) {
+  if (Date.now() - pinAt < 1000) return;  // a long press can raise both pointer and contextmenu events
+  pinAt = Date.now();
+  if (pinMarker) pinMarker.remove();
+  const o = { id: `pin@${ll.lat.toFixed(4)},${ll.lng.toFixed(4)}`, name: "Dropped pin", lat: +ll.lat.toFixed(6), lon: +ll.lng.toFixed(6) };
+  const m = pinMarker = fav(L.marker([o.lat, o.lon], { zIndexOffset: 1000,
+    icon: L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 24], html: '<div class="drop-pin">📍</div>' }) }), "pin", o);
+  m.bindPopup(() => pinPopup(o), { maxWidth: 280 }).addTo(map).openPopup();
+  getFeed("reverse", `?lat=${o.lat}&lon=${o.lon}`).then((d) => {
+    if (!d?.postcode) return;
+    o.name = `Pin near ${d.postcode}`;
+    o.place = Array.isArray(d.district) ? d.district.join(", ") : d.district || d.region || "";
+    if (m.isPopupOpen()) m.getPopup().update();
+  });
+}
+document.addEventListener("click", (ev) => {
+  if (!ev.target.closest?.(".pin-clear")) return;
+  ev.preventDefault();
+  pinMarker?.remove(); pinMarker = null;
+});
+map.on("contextmenu", (e) => dropPin(e.latlng));
+(() => {  // touch long-press (iOS fires no contextmenu event)
+  const c = map.getContainer(); let t = null, x0 = 0, y0 = 0;
+  const clear = () => { clearTimeout(t); t = null; };
+  c.addEventListener("pointerdown", (e) => {
+    clear(); longPressed = false;
+    if (e.pointerType !== "touch" || !e.isPrimary || e.target.closest(".leaflet-marker-icon, .leaflet-popup, .leaflet-control")) return;
+    x0 = e.clientX; y0 = e.clientY;
+    t = setTimeout(() => { t = null; longPressed = true; dropPin(map.mouseEventToLatLng(e)); }, 700);
+  });
+  c.addEventListener("pointermove", (e) => { if (t && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) clear(); });
+  for (const ev of ["pointerup", "pointercancel"]) c.addEventListener(ev, clear);
+  // the tap that ends a long press would otherwise close the popup just opened
+  c.addEventListener("click", (e) => { if (longPressed) { longPressed = false; e.stopPropagation(); e.preventDefault(); } }, true);
+})();
+
 /* ------------------------------------------------------------ favourites */
 // ☆ in a popup saves the place. The list lives on the server, one per home (the link's token picks it),
 // so the HA panel, a phone and a wall display all share it.
@@ -2368,6 +2447,7 @@ const FAV_KINDS = {
   plant: { icon: "🏭", name: "Generator", popup: (o) => genPopup(o), opts: { maxWidth: 300 }, live: () => lastPlants.map(p => ({ ...p, id: p.name })) },
   charger: { icon: "🔌", name: "EV charger", popup: (o) => chargerPopup(o), opts: { maxWidth: 300 } },
   postbox: { icon: "📮", name: "Post box", popup: (o) => postboxPopup(o), opts: { maxWidth: 300 } },
+  pin: { icon: "📍", name: "Pin", popup: (o) => pinPopup(o), opts: { maxWidth: 280 } },
   atm: { icon: "🏧", name: "Cash machine", popup: (o) => atmPopup(o), opts: { maxWidth: 300 } },
 };
 let favs = [];

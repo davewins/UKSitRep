@@ -20,7 +20,7 @@ Each is subject to its own terms.
 | [BBC News](https://www.bbc.co.uk/news) RSS | Headlines | Personal, non-commercial use |
 | [RNLI](https://rnli.org) launches feed | Lifeboat launches | RNLI |
 | [OpenStreetMap](https://www.openstreetmap.org/copyright) | Lifeboat station positions (`uksitrep/data/rnli_stations.json`), webcams (seed copy in `uksitrep/data/osm_webcams.json`), observatories and telescopes (seed copy in `uksitrep/data/observatories.json`), cash machines (`amenity=atm`) and post boxes (`amenity=post_box`), each downloaded weekly from Overpass into `DATA_DIR` | © OpenStreetMap contributors, ODbL |
-| [postcodes.io](https://postcodes.io) / OS Open Names | Geocoding and place search | OGL |
+| [postcodes.io](https://postcodes.io) / OS Open Names | Geocoding, place search and the nearest postcode to a dropped pin | OGL |
 | [TfL Unified API](https://api.tfl.gov.uk) | JamCams | Powered by TfL Open Data |
 | [tar1090](https://github.com/wiedehopf/tar1090), [tar1090-db](https://github.com/wiedehopf/tar1090-db) | Aircraft type names, ICAO country ranges (downloaded at runtime, not bundled) | GPL |
 | [flagcdn.com](https://flagcdn.com) | Flag images | Public domain flags |

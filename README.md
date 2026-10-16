@@ -44,6 +44,19 @@ case, inside the Home Assistant panel, the map uses your own `person` entity's l
 companion app's GPS fix) instead. On a plain `http://192.168…` link outside Home Assistant there
 is no location. On https the browser (or app) asks permission the first time.
 
+## Navigation and dropped pins
+
+Popups for places (stations, bus stops, chargers, cash machines, post boxes, fuel, favourites and so on) end with a
+**🧭 Navigate** button that opens turn-by-turn directions in Apple Maps, Google Maps or Waze. It uses plain links, so
+no keys are needed and the routing is done by the maps app on your device (on a phone, the same app CarPlay uses).
+The first time it picks Apple Maps on iPhone and iPad and Google Maps elsewhere; change it with the drop-down next
+to the button and your choice is remembered on that device until you change it again. Moving things (aircraft,
+ships, live buses) don't get the button.
+
+**Long-press** (touch) or **right-click** (mouse) anywhere on the map to drop a pin. Its popup shows the coordinates
+and the nearest postcode (postcodes.io, Great Britain), the Navigate button, **☆** to save it as a favourite and
+**Remove pin**.
+
 ## Favourites
 
 Open a station, bus stop, webcam, allsky camera, observatory, tide station, river gauge,
