@@ -24,7 +24,8 @@ _LOGGER = logging.getLogger("uksitrep")
 STATIC = Path(__file__).parent / "static"
 ICONS = STATIC / "icons"
 # Icons are fetched by browsers without our token, so they skip auth
-PUBLIC_PATHS = {"/healthz", "/favicon.ico", "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"}
+PUBLIC_PATHS = {"/healthz", "/favicon.ico", "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png",
+                "/apple-touch-icon-120x120.png", "/apple-touch-icon-120x120-precomposed.png"}
 CFG = web.AppKey("cfg", Config)
 SIT = web.AppKey("situation", Situation)
 LOOKUPS = web.AppKey("lookups", dict)
@@ -50,10 +51,13 @@ async def auth_middleware(request: web.Request, handler):
         path = "/" + path.split("/", 3)[3] if path.count("/") >= 3 else "/"
     if token and path not in PUBLIC_PATHS and not path.startswith("/icons/"):
         given = (request.match_info.get("tok") or request.query.get("token")
-                 or request.headers.get("Authorization", "").removeprefix("Bearer ").strip())
+                 or request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+                 or request.cookies.get("sitrep_token", ""))
         # any home's token works; it also picks the home the page opens on
         match = next((k for k in cfg.tokens() if given and hmac.compare_digest(given, k)), None)
         request["home"] = cfg.tokens().get(match) if match else None
+        if match and (request.match_info.get("tok") or request.query.get("token")):
+            request["set_cookie"] = match
         if not match:
             why = "no token in the request" if not given else f"token does not match ({len(given)} chars, starts {given[:4]})"
             _LOGGER.warning(
@@ -65,6 +69,10 @@ async def auth_middleware(request: web.Request, handler):
             return web.Response(status=401, text=f"Unauthorised: open /?token=... or /k/<token>/\n\n({why})",
                                 headers={"Cache-Control": "no-store"})
     resp = await handler(request)
+    if request.get("set_cookie") and path in ("/", "/index.html"):
+        # remembered so that an installed app which opens "/" with no token still gets in on this device
+        resp.set_cookie("sitrep_token", request["set_cookie"], max_age=365 * 86400, httponly=True, samesite="Lax",
+                        secure=request.headers.get("X-Forwarded-Proto", request.scheme) == "https")
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")
     # send our origin (not full URL) so tile servers like OSM see a valid Referer
     resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
@@ -78,9 +86,13 @@ async def icon_file(request: web.Request) -> web.StreamResponse:
     if f.name == "site.webmanifest":
         # an installed web app opens start_url with no cookies or headers, so the token has to be inside it
         manifest = json.loads(await asyncio.to_thread(f.read_text))
-        given = request.query.get("token", "")
+        given = request.match_info.get("tok") or request.query.get("token", "")
         if given and any(hmac.compare_digest(given, k) for k in request.app[CFG].tokens()):
-            manifest["start_url"] = "../?" + urlencode({"token": given})
+            # absolute and inside the scope: a relative "../" fell outside the manifest's own folder and was ignored
+            manifest["start_url"] = f"/k/{given}/" if request.match_info.get("tok") else "/?" + urlencode({"token": given})
+        else:
+            manifest["start_url"] = "/"
+        manifest["scope"] = "/"
         manifest["id"] = manifest["start_url"]
         return web.json_response(manifest, content_type="application/manifest+json", headers={"Cache-Control": "no-store"})
     return web.FileResponse(f, headers={"Cache-Control": "max-age=604800"})
