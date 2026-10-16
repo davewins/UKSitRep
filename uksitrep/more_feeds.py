@@ -7,6 +7,7 @@ Mixed into Situation, so these use its session, cache and helpers.
 from __future__ import annotations
 
 import asyncio
+from bisect import bisect_left, bisect_right
 from collections import deque
 from datetime import datetime, timedelta, timezone
 import csv
@@ -208,10 +209,8 @@ def _eci_to_latlon(r: tuple[float, float, float], dt: datetime) -> tuple[float, 
     return lat, lon, alt
 
 
-ATM_MAX_SPAN = (0.1, 0.2)   # degrees lat, lon: about zoom 15 on a big screen
-ATM_MAX = 500
-ATM_UK_BOX = "49.8,-8.7,60.9,1.9"   # S, W, N, E
-ATM_REFRESH_S = 7 * 86400
+OSM_UK_BOX = "49.8,-8.7,60.9,1.9"   # S, W, N, E
+OSM_REFRESH_S = 7 * 86400
 
 
 def parse_osm_atms(els: list[dict]) -> list[dict]:
@@ -239,13 +238,37 @@ def parse_osm_atms(els: list[dict]) -> list[dict]:
     return out
 
 
+def parse_osm_postboxes(els: list[dict]) -> list[dict]:
+    """Overpass elements tagged amenity=post_box -> small records, empty fields left out (there are
+    ~90,000 of them). `times` is OSM's collection_times text as mapped; it may be missing or out of date."""
+    out = []
+    for el in els:
+        t = el.get("tags") or {}
+        lat = el.get("lat") if el.get("lat") is not None else (el.get("center") or {}).get("lat")
+        lon = el.get("lon") if el.get("lon") is not None else (el.get("center") or {}).get("lon")
+        if lat is None or lon is None:
+            continue
+        typ = el.get("type", "node")
+        rec = {"id": f"{typ[0]}{el.get('id')}", "lat": round(lat, 5), "lon": round(lon, 5)}
+        for key, val in (("ref", t.get("ref")), ("operator", t.get("operator")), ("cypher", t.get("royal_cypher")),
+                         ("type", t.get("post_box:type")), ("times", t.get("collection_times"))):
+            if val:
+                rec[key] = val[:80]
+        out.append(rec)
+    return out
+
+
+# name -> Overpass tag, saved file, record parser, biggest box one request may cover (degrees lat, lon), markers per request
+OSM_POINTS = {
+    "atms": ("amenity=atm", "osm_atms.json", parse_osm_atms, (0.1, 0.2), 500),
+    "postboxes": ("amenity=post_box", "osm_postboxes.json", parse_osm_postboxes, (0.05, 0.1), 500),
+}
+
+
 class MoreFeeds:
     """Mixin for Situation."""
 
-    _atm_list: list[dict] | None = None   # cash machines, loaded from DATA_DIR or the first refresh
-    _atm_fetched = 0.0
-    _atm_retry_at = 0.0
-    _atm_task: asyncio.Task | None = None
+    _osm_pts: dict[str, dict] | None = None   # per OSM_POINTS name: records sorted by lat, their lats, fetched, retry_at, task
 
     # ------------------------------------------------------------ river levels
     async def rivers(self) -> dict:
@@ -767,52 +790,70 @@ class MoreFeeds:
         return out
 
     async def atms(self, bbox: tuple[float, float, float, float] | None) -> dict:
-        """Cash machines from OpenStreetMap (amenity=atm) inside the viewer's box. The whole UK list is
-        fetched from Overpass once a week in the background and kept in memory, so viewers never wait on
-        Overpass. OSM has no live status: these are mapped positions."""
+        return await self._osm_points("atms", bbox)
+
+    async def postboxes(self, bbox: tuple[float, float, float, float] | None) -> dict:
+        return await self._osm_points("postboxes", bbox)
+
+    async def _osm_points(self, name: str, bbox: tuple[float, float, float, float] | None) -> dict:
+        """Points of one kind from OpenStreetMap inside the viewer's box. The whole UK list is fetched from
+        Overpass once a week in the background and kept in memory, so viewers never wait on Overpass.
+        OSM has no live status: these are mapped positions and tags."""
+        _tag, fname, _parse, span, cap = OSM_POINTS[name]
         if not bbox:
             return {"error": "bbox required"}
         s, w, n, e = bbox
-        if not (-90 <= s < n <= 90 and -180 <= w < e <= 180) or n - s > ATM_MAX_SPAN[0] or e - w > ATM_MAX_SPAN[1]:
-            return {"error": "zoom in", "atms": []}
-        store = self.cfg.data_dir / "osm_atms.json"
-        if self._atm_list is None:
+        if not (-90 <= s < n <= 90 and -180 <= w < e <= 180) or n - s > span[0] or e - w > span[1]:
+            return {"error": "zoom in", name: []}
+        if self._osm_pts is None:
+            self._osm_pts = {}
+        st = self._osm_pts.setdefault(name, {"recs": None, "lats": [], "fetched": 0.0, "retry_at": 0.0, "task": None})
+        store = self.cfg.data_dir / fname
+        if st["recs"] is None:
             try:
                 saved = await asyncio.to_thread(lambda: json.loads(store.read_text()))
-                self._atm_list, self._atm_fetched = saved["atms"], float(saved.get("fetched", 0))
+                self._osm_set(st, saved[name], float(saved.get("fetched", 0)))
             except (OSError, ValueError, KeyError, TypeError):
                 pass
-        if time.time() - self._atm_fetched > ATM_REFRESH_S and time.time() > self._atm_retry_at \
-                and (not self._atm_task or self._atm_task.done()):
-            self._atm_task = self.spawn(self._refresh_atms(store))
-        if self._atm_list is None:
-            return {"error": "loading: the cash machine list is downloading, try again in a few minutes"}
-        hits = [a for a in self._atm_list if s <= a["lat"] <= n and w <= a["lon"] <= e]
-        return {"updated": datetime.fromtimestamp(self._atm_fetched, timezone.utc).isoformat(),
-                "atms": hits[:ATM_MAX], "truncated": len(hits) > ATM_MAX}
+        if time.time() - st["fetched"] > OSM_REFRESH_S and time.time() > st["retry_at"] \
+                and (not st["task"] or st["task"].done()):
+            st["task"] = self.spawn(self._refresh_osm_points(name, st, store))
+        if st["recs"] is None:
+            return {"error": "loading: the list is downloading, try again in a few minutes"}
+        hits = [r for r in st["recs"][bisect_left(st["lats"], s):bisect_right(st["lats"], n)] if w <= r["lon"] <= e]
+        return {"updated": datetime.fromtimestamp(st["fetched"], timezone.utc).isoformat(),
+                name: hits[:cap], "truncated": len(hits) > cap}
 
-    async def _refresh_atms(self, store) -> None:
+    @staticmethod
+    def _osm_set(st: dict, recs: list[dict], fetched: float) -> None:
+        recs.sort(key=lambda r: r["lat"])
+        st["recs"], st["lats"], st["fetched"] = recs, [r["lat"] for r in recs], fetched
+
+    async def _refresh_osm_points(self, name: str, st: dict, store) -> None:
         from .feeds import OVERPASS_MIRRORS, UA
-        query = f'[out:json][timeout:240];nwr["amenity"="atm"]({ATM_UK_BOX});out center tags;'
+        tag, _f, parse, _span, _cap = OSM_POINTS[name]
+        k, v = tag.split("=")
+        query = f'[out:json][timeout:400];nwr["{k}"="{v}"]({OSM_UK_BOX});out center tags;'
         for mirror in OVERPASS_MIRRORS:
             try:
                 async with self.session.post(mirror, data={"data": query}, headers=UA,
-                                             timeout=aiohttp.ClientTimeout(total=300)) as r:
+                                             timeout=aiohttp.ClientTimeout(total=480)) as r:
                     r.raise_for_status()
                     els = (await r.json(content_type=None)).get("elements", [])
             except Exception as err:  # noqa: BLE001 - try the next mirror
                 _LOGGER.info("overpass %s failed: %s", mirror, err)
                 continue
-            atms = parse_osm_atms(els)
-            if not atms:
+            recs = parse(els)
+            del els
+            if not recs:
                 continue
             now = time.time()
-            await asyncio.to_thread(lambda: store.write_text(json.dumps({"fetched": now, "atms": atms})))
-            self._atm_list, self._atm_fetched = atms, now
-            _LOGGER.info("OSM cash machines refreshed: %d", len(atms))
+            await asyncio.to_thread(lambda: store.write_text(json.dumps({"fetched": now, name: recs}, separators=(",", ":"))))
+            self._osm_set(st, recs, now)
+            _LOGGER.info("OSM %s refreshed: %d", name, len(recs))
             return
-        self._atm_retry_at = time.time() + 1800
-        _LOGGER.warning("OSM cash machines: all Overpass mirrors failed, retrying in 30 min")
+        st["retry_at"] = time.time() + 1800
+        _LOGGER.warning("OSM %s: all Overpass mirrors failed, retrying in 30 min", name)
 
     async def fuel(self, bbox: tuple[float, float, float, float] | None = None) -> dict:
         """Forecourt prices. The full list is ~2.5 MB, so viewers ask for their bounding box (S,W,N,E)."""
