@@ -54,6 +54,7 @@ Each is subject to its own terms.
 | [Elexon BMRS FUELINST](https://bmrs.elexon.co.uk) | Interconnector flows | Elexon licence |
 | [data.police.uk](https://data.police.uk) | Street-level crime | OGL v3 |
 | [Admiralty EasyTide](https://easytide.admiralty.co.uk) (UKHO) | Tide times. Fetched per port when a popup is opened, cached 6 h | Crown copyright. Not for navigation |
+| [seaglasshunting.com](https://seaglasshunting.com) *(optional, `ENABLE_SEAGLASS`)* | Weekly sea glass hunting Top 25 (ShoreSense score) and beach positions | Their content (© Seaglass Hunting), read from public pages; linked and credited, not stored beyond the latest copy. Check their terms before enabling |
 | worldcam.eu *(optional)* | Webcam directory | Scraped. Check their terms before enabling |
 | Avon, Buckinghamshire, Cheshire, Cleveland, Hampshire & IoW, Royal Berkshire and Shropshire fire & rescue services | Incident reports (their public RSS / website JSON), geocoded with postcodes.io | Each service's website terms |
 | Devon & Somerset FRS *(optional)* | Incident pages | Scraped. Check their terms before enabling |

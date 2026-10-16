@@ -32,6 +32,7 @@ from .bus import Bus
 from .bustimes import BusTimes
 from .energy import Energy
 from .rail import Rail
+from .seaglass import SeaGlass
 from .sky import SkyWatch
 from .hems_sites import HEMS_EXCLUDE_KM, HEMS_SITES
 from .places import PLACE_ORDER, PLACES
@@ -247,7 +248,7 @@ def _rnli_callouts(launches: list[dict]) -> list[dict]:
     return sorted(out, key=lambda l: l.get("time") or "", reverse=True)
 
 
-class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes, Energy):
+class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes, Energy, SeaGlass):
     """All feed fetchers plus long-lived state (aircraft trails, AIS)."""
 
     def __init__(self, cfg: Config, session: aiohttp.ClientSession) -> None:
@@ -863,7 +864,7 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
             "city_weather": self.city_weather, "grid": self.grid, "power_cuts": self.power_cuts,
             "space": self.space, "quakes": self.quakes, "news": self.news, "roads": self.roads,
             "meteors": self.meteors, "sea": self.sea, "wind_grid": self.wind_grid, "rnli": self.rnli,
-            "fire": self.fire, "webcams": self.webcams, "tide_stations": self.tide_stations,
+            "fire": self.fire, "seaglass": self.seaglass, "webcams": self.webcams, "tide_stations": self.tide_stations,
             "sewage": self.sewage, "rivers": self.rivers, "lightning": self.lightning,
             "air_quality": self.air_quality, "bathing": self.bathing, "fires": self.fires, "tfl": self.tfl, "fuel": self.fuel,
             "home": self.home_summary, "allsky": self.allsky, "observatories": self.observatories,

@@ -216,6 +216,7 @@ async def healthz(request: web.Request) -> web.Response:
             "bbc_local_regions": sorted(cfg.bbc_local_feeds),
             "background_adsb": cfg.enable_background_adsb,
             "lightning": cfg.enable_lightning,
+            "seaglass": cfg.enable_seaglass,
             "firms": bool(cfg.firms_key),
             "fuel_finder": bool(cfg.fuel_client_id and cfg.fuel_client_secret),
             "homes": [h.name for h in cfg.homes],

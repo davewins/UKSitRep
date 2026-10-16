@@ -32,6 +32,7 @@ fixed, allow-listed upstream URLs (never an open proxy)
 | `uksitrep/bus.py` | `Bus` mixin: BODS live bus positions (SIRI-VM, per map view) and disruptions (SIRI-SX), operator names from Traveline NOC |
 | `uksitrep/energy.py` | `Energy` mixin: 14 grid regions (bundled outlines) with Carbon Intensity, PV_Live solar and Octopus Agile prices; generator live output from Elexon physical notifications mapped through `data/power_plants.json`; Open Charge Map EV chargers (per view); `energy_home` for Near home and the `agile` notification |
 | `uksitrep/bustimes.py` | `BusTimes` mixin: BODS regional GTFS timetables indexed in a child process (`python -m uksitrep.bustimes`) into `DATA_DIR/bustimes/<region>/` (meta.json + 6-byte departure records per stop); stop boards, live journeys matched by operator + line + start time |
+| `uksitrep/seaglass.py` | `SeaGlass` mixin: the seaglasshunting.com weekly Top 25 (parsed from their leaderboard HTML) joined to beach positions from their /map/ JSON-LD; off unless `ENABLE_SEAGLASS` |
 | `uksitrep/rail.py` | `Rail` mixin: Darwin departure boards and National Rail disruptions (Rail Data Marketplace keys), NaPTAN station positions, station names matched in disruption text |
 | `uksitrep/sky.py` | `SkyWatch` mixin: allsky cameras (Allsky map page, allsky-map.com for indi-allsky) and OSM observatories/telescopes/planetaria with a curated list of famous sites |
 | `uksitrep/fire_services.py` | `FireServices` mixin: fire & rescue feeds, text-to-place geocoding restricted to a bounding box |
