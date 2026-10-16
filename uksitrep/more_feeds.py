@@ -67,6 +67,8 @@ HEX_RE = re.compile(r"^[0-9a-f]{6}$")
 CALLSIGN_RE = re.compile(r"^[A-Z0-9]{3,8}$")
 
 ISS_TLE = "https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE"
+ISS_TLE_FRESH_S = 3 * 3600      # a saved copy this young is used as it is: CelesTrak only refreshes every 2 h
+ISS_TLE_USABLE_S = 2 * 86400    # and one this old is still good enough when CelesTrak is refusing us
 
 
 def _in_box(lat: float, lon: float, box: tuple[float, float, float, float]) -> bool:
@@ -598,15 +600,34 @@ class MoreFeeds:
         from sgp4.api import Satrec, jday  # imported lazily: only this feed needs it
 
         async def tle() -> dict:
+            store = self.cfg.data_dir / "iss_tle.json"
+
             async def fetch() -> dict:
-                # CelesTrak firewalls an IP after 50 HTTP errors in 2 h, so after a failure wait 30 min
+                # CelesTrak refreshes every 2 h, answers 403 to a repeat download before then and firewalls an IP after
+                # 50 HTTP errors in 2 h. So the last copy is kept on disk (a restart must not ask again), and after a
+                # failure we wait 30 min. A saved orbit stays usable for a couple of days.
+                try:
+                    saved = await asyncio.to_thread(lambda: json.loads(store.read_text()))
+                    age = time.time() - float(saved["fetched"])
+                    old = {"l1": saved["l1"], "l2": saved["l2"]}
+                except (OSError, ValueError, KeyError, TypeError):
+                    age, old = None, None
+                if old and age < ISS_TLE_FRESH_S:
+                    return old
                 if time.time() < self._iss_retry_at:
+                    if old and age < ISS_TLE_USABLE_S:
+                        return old
                     raise RuntimeError("CelesTrak: backing off after an error")
                 try:
-                    return await get_tle()
+                    fresh = await get_tle()
                 except Exception:
                     self._iss_retry_at = time.time() + 1800
+                    if old and age < ISS_TLE_USABLE_S:
+                        return old
                     raise
+                now = time.time()
+                await asyncio.to_thread(lambda: store.write_text(json.dumps({"fetched": now, **fresh})))
+                return fresh
 
             async def get_tle() -> dict:
                 lines = [ln.strip() for ln in (await self._text(ISS_TLE)).splitlines() if ln.strip()]
