@@ -387,19 +387,26 @@
       radial-gradient(1px 1px at 60px 70px, #cfd8ff, transparent) 0 0 / 151px 131px, #000;
     padding: 0; overflow: hidden; color: #ffe81f; text-shadow: none; font-family: "News Cycle", "Arial Narrow", sans-serif; letter-spacing: 0; }
   #boot.crawl .intro { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 10vw;
-    color: #4bd5ee; font-size: clamp(18px, 3.4vw, 34px); opacity: 0; animation: crawlIntro 4.5s ease-in-out forwards; }
+    color: #4bd5ee; font-size: clamp(18px, 3.4vw, 34px); opacity: 0; }
   #boot.crawl .logo { position: absolute; left: 50%; top: 50%; font: 900 clamp(48px, 13vw, 140px)/1 "News Cycle", sans-serif; letter-spacing: .06em;
-    color: #000; -webkit-text-stroke: 2px #ffe81f; transform: translate(-50%, -50%) scale(0); animation: crawlLogo 8s 4.5s ease-out both; }
+    color: #000; -webkit-text-stroke: 2px #ffe81f; transform: translate(-50%, -50%) scale(0); opacity: 0; }
   #boot.crawl .persp { position: absolute; left: 0; right: 0; bottom: 0; height: 75%; perspective: 340px; overflow: hidden;
     -webkit-mask-image: linear-gradient(transparent, #000 35%); mask-image: linear-gradient(transparent, #000 35%); }
   #boot.crawl .text { position: absolute; left: 50%; width: min(620px, 86vw); top: 100%; transform-origin: 50% 100%; text-align: justify;
-    font-size: clamp(20px, 3.6vw, 40px); font-weight: 700; line-height: 1.45; animation: crawlUp 30s 5.5s linear both; }
+    font-size: clamp(20px, 3.6vw, 40px); font-weight: 700; line-height: 1.45; opacity: 0; }
+  /* Nothing is visible until .go is added (once the font has loaded). Each animation starts with an opacity:0 step, because a
+     delayed animation with fill-mode both shows its first keyframe during the delay: that put the full-size logo and the
+     start of the crawl on screen over the opening text. */
+  #boot.crawl.go .intro { animation: crawlIntro 3.8s .3s ease-in-out both; }
+  #boot.crawl.go .logo { animation: crawlLogo 6s 4.4s cubic-bezier(.35,.1,.6,1) both; }
+  #boot.crawl.go .text { animation: crawlUp 30s 8.8s linear both; }
   #boot.crawl .text .ep, #boot.crawl .text h3 { text-align: center; margin: 0 0 .3em; font-size: 1em; }
   #boot.crawl .text h3 { font-size: 1.6em; margin-bottom: 1em; }
   #boot.crawl .skip { position: absolute; right: 16px; bottom: 12px; color: #666; font: 12px system-ui, sans-serif; }
   @keyframes crawlIntro { 15%, 75% { opacity: 1; } 100% { opacity: 0; } }
-  @keyframes crawlLogo { 0% { transform: translate(-50%, -50%) scale(2.6); opacity: 1; } 85% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(0); opacity: 0; } }
-  @keyframes crawlUp { from { transform: translateX(-50%) rotateX(24deg) translateY(0); } to { transform: translateX(-50%) rotateX(24deg) translateY(-260%); } }
+  @keyframes crawlLogo { 0% { transform: translate(-50%, -50%) scale(2.6); opacity: 0; } 2% { transform: translate(-50%, -50%) scale(2.6); opacity: 1; } 85% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(0); opacity: 0; } }
+  @keyframes crawlUp { 0% { transform: translateX(-50%) rotateX(24deg) translateY(14%); opacity: 0; } 0.1% { transform: translateX(-50%) rotateX(24deg) translateY(14%); opacity: 1; }
+    to { transform: translateX(-50%) rotateX(24deg) translateY(-260%); opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { #fx *, #boot .cur::after, body[data-theme] .ac.pulse::before { animation: none !important; } }
   /* ---------- phone layout: panels become bottom sheets ---------- */
   @media (max-width: 760px) {
@@ -3285,7 +3292,21 @@ function bootSequence(t) {
     el.innerHTML = `<div class="intro">${c.intro}</div><div class="logo">${esc(c.logo)}</div>
       <div class="persp"><div class="text"><p class="ep">${esc(c.episode)}</p><h3>${esc(c.title)}</h3>${c.text.map(p => `<p>${esc(p)}</p>`).join("")}</div></div>
       <div class="skip">tap to skip</div>`;
-    bootTimer = setTimeout(done, 26000);
+    // wait for the crawl's font (so the opening text doesn't swap fonts mid-fade), then start every animation together
+    const fontReady = (async () => {
+      const link = document.getElementById("themeFont"), wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      if (link && !link.sheet) await Promise.race([new Promise((r) => { link.addEventListener("load", r, { once: true }); link.addEventListener("error", r, { once: true }); }), wait(2500)]);
+      await Promise.race([document.fonts.load('700 1em "News Cycle"').catch(() => {}), wait(1500)]);
+    })();
+    bootTimer = setTimeout(done, 40000);   // safety net; the real end is set below once the animations start
+    fontReady.then(() => {
+      if (!el.isConnected) return;
+      requestAnimationFrame(() => requestAnimationFrame(() => {   // let the first black frame paint before anything moves
+        if (!el.isConnected) return;
+        el.classList.add("go");
+        clearTimeout(bootTimer); bootTimer = setTimeout(done, 30500);
+      }));
+    });
     return;
   }
   let i = 0;
