@@ -17,10 +17,11 @@ import re
 import xml.etree.ElementTree as ET
 
 import aiohttp
+from . import USER_AGENT
 
 _LOGGER = logging.getLogger("uksitrep")
 
-UA = {"User-Agent": "Mozilla/5.0 (UKSitRep; +https://github.com/davewins/UKSitRep)"}
+UA = {"User-Agent": f"Mozilla/5.0 ({USER_AGENT})"}
 KEEP_DAYS = 14  # several services only post every few days
 FIRE_TIMEOUT = aiohttp.ClientTimeout(total=30)
 PER_SERVICE = 40

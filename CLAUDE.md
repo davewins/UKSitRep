@@ -27,7 +27,7 @@ fixed, allow-listed upstream URLs (never an open proxy)
 | `uksitrep/server.py` | Routes, token auth (`?token=`, `/k/<token>/`, Bearer), `/healthz`, startup tasks, the favourites store (`GET`/`POST /api/favourites`, one file per home) and `home_info` |
 | `uksitrep/config.py` | `Config.from_env()`: every environment variable |
 | `uksitrep/feeds.py` | `Cache`, `Situation`, core feeds (aircraft, AIS relay, weather, grid, roads, news, sewage, tides, webcams…) and the `handlers` map |
-| `uksitrep/more_feeds.py` | `MoreFeeds` mixin: rivers, lightning relay, air quality, bathing water, ISS (sgp4), FIRMS, TfL, fuel, crime, cash machines, post boxes, defibrillators, water safety and toilets (`OSM_POINTS`: a weekly UK-wide OSM Overpass download per dataset, held in memory; add a dataset with a parser and a row there, and a row in `OSM_LAYERS` in `index.html`) |
+| `uksitrep/more_feeds.py` | `MoreFeeds` mixin: rivers, lightning relay, air quality, bathing water, ISS (sgp4), FIRMS, TfL, fuel, crime, cash machines, post boxes, defibrillators, water safety, hospitals and toilets (`OSM_POINTS`: a weekly UK-wide OSM Overpass download per dataset, held in memory; add a dataset with a parser and a row there, and a row in `OSM_LAYERS` in `index.html`) |
 | `uksitrep/home.py` | `HomeArea` mixin: the Near home summary (per `Home` in `cfg.homes`; each home's token picks it), Home Assistant notifications (`NOTIFY` kinds, sent-key store) and place search (postcodes.io, plus the bundled ONS areas for counties, regions and parks) |
 | `uksitrep/bus.py` | `Bus` mixin: BODS live bus positions (SIRI-VM, per map view) and disruptions (SIRI-SX), operator names from Traveline NOC |
 | `uksitrep/energy.py` | `Energy` mixin: 14 grid regions (bundled outlines) with Carbon Intensity, PV_Live solar and Octopus Agile prices; generator live output from Elexon physical notifications mapped through `data/power_plants.json`; Open Charge Map EV chargers (per view); `energy_home` for Near home and the `agile` notification |
@@ -164,6 +164,7 @@ compose file, README/NOTICE.
 - **Never make viewers wait on a slow upstream.** Serve a saved copy and refresh in the
   background (OSM webcams, WorldCam, river stations, fuel forecourts, observatories, rail
   stations, bus operators). Ship a seed in `uksitrep/data/` so a fresh install works offline.
+- **Read an upstream's terms before adding it, and keep to them.** Send `USER_AGENT` (names the app, gives a contact URL) on every request. Overpass: cache, one big query at a time, a gap between downloads, datasets refreshed on staggered days. Open-Meteo: every location is a call against a 10,000 a day free quota, so go through `_om_spend` and gate polling on the layer being on. CelesTrak: never retry a failed fetch in a loop. aisstream: server-side only, compressed websocket. Credit sources in `DATA_ATTR` / `OSM_ATTR`.
 - **Keys come only from environment variables.** Never commit them; `.env` is gitignored.
 - **Scraped or unofficial sources are off by default** and flagged in `NOTICE.md` (WorldCam, DSFRS).
   Prefer official open data; record every source and licence in `NOTICE.md`.

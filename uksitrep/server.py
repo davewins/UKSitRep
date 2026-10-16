@@ -7,13 +7,14 @@ import hmac
 import json
 import logging
 import math
+from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
 
 import aiohttp
 from aiohttp import web
 
-from . import __version__, lookups
+from . import USER_AGENT, __version__, lookups
 from .config import Config
 from .feeds import Situation
 from .more_feeds import OSM_POINTS
@@ -200,9 +201,12 @@ async def favicon(request: web.Request) -> web.FileResponse:
 async def healthz(request: web.Request) -> web.Response:
     """Liveness plus which optional features are configured (never the values)."""
     cfg = request.app[CFG]
+    sit = request.app[SIT]
     return web.json_response({
         "ok": True,
         "version": __version__,
+        "open_meteo_calls_today": {"used": sit._om_calls if sit._om_day == datetime.now(timezone.utc).strftime("%Y-%m-%d") else 0,
+                                   "budget": cfg.open_meteo_daily_calls},
         "features": {
             "access_token": bool(cfg.access_token),
             "ais": bool(cfg.ais_key),
@@ -228,7 +232,7 @@ async def healthz(request: web.Request) -> web.Response:
 async def _startup(app: web.Application) -> None:
     cfg = app[CFG]
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
-    session = aiohttp.ClientSession(headers={"User-Agent": f"UKSitRep/{__version__}"})
+    session = aiohttp.ClientSession(headers={"User-Agent": USER_AGENT})
     app["session"] = session
     sit = Situation(cfg, session)
     app[SIT] = sit

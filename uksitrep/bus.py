@@ -21,6 +21,7 @@ import time
 import xml.etree.ElementTree as ET
 
 import aiohttp
+from . import USER_AGENT
 
 _LOGGER = logging.getLogger("uksitrep")
 
@@ -188,7 +189,7 @@ class Bus:
 
         async def fetch() -> dict:
             async with self.session.get(VM_URL, params={"boundingBox": f"{w},{s},{e},{n}", "api_key": self.cfg.bods_key},
-                                        headers={"User-Agent": "UKSitRep"}, timeout=BUS_TIMEOUT) as r:
+                                        headers={"User-Agent": USER_AGENT}, timeout=BUS_TIMEOUT) as r:
                 r.raise_for_status()
                 raw = await r.read()
             buses = await asyncio.to_thread(parse_vm, raw)
@@ -206,7 +207,7 @@ class Bus:
             return {"error": "no_key", "note": "Add BODS_API_KEY for bus disruptions"}
 
         async def fetch() -> dict:
-            async with self.session.get(SX_URL, params={"api_key": self.cfg.bods_key}, headers={"User-Agent": "UKSitRep"},
+            async with self.session.get(SX_URL, params={"api_key": self.cfg.bods_key}, headers={"User-Agent": USER_AGENT},
                                         timeout=aiohttp.ClientTimeout(total=60)) as r:
                 r.raise_for_status()
                 raw = await r.read()

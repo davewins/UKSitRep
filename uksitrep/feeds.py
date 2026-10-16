@@ -23,6 +23,7 @@ import xml.etree.ElementTree as ET
 from zoneinfo import ZoneInfo
 
 import aiohttp
+from . import USER_AGENT
 from .config import Config
 from .fire_services import FireServices
 from .home import HomeArea
@@ -37,7 +38,7 @@ from .places import PLACE_ORDER, PLACES
 
 _LOGGER = logging.getLogger("uksitrep")
 
-UA = {"User-Agent": "UKSitRep/1.0 (+https://github.com/)"}
+UA = {"User-Agent": USER_AGENT}
 TIMEOUT = aiohttp.ClientTimeout(total=20)
 
 # UK + surrounding waters
@@ -269,6 +270,7 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
         self.worldcam_task: asyncio.Task | None = None
         self.osm_task: asyncio.Task | None = None
         self.osm_retry_at = 0.0
+        self._om_day, self._om_calls = "", 0   # Open-Meteo calls made today (UTC)
         self.obs_task: asyncio.Task | None = None
         self.obs_retry_at = 0.0
         self.rail_task: asyncio.Task | None = None
@@ -284,6 +286,16 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
         self.river_prev: dict[str, tuple[str, float, int]] = {}
         self.fuel_token: tuple[str, float] | None = None
         self.fuel_lock = asyncio.Lock()
+
+    def _om_spend(self, n: int) -> None:
+        """Open-Meteo's free tier allows 10,000 calls a day and every location counts as a call. Stay under
+        OPEN_METEO_DAILY_CALLS: past that the feeds serve their last good data until UTC midnight."""
+        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        if day != self._om_day:
+            self._om_day, self._om_calls = day, 0
+        if self._om_calls + n > self.cfg.open_meteo_daily_calls:
+            raise RuntimeError(f"Open-Meteo budget of {self.cfg.open_meteo_daily_calls} calls a day used up (OPEN_METEO_DAILY_CALLS)")
+        self._om_calls += n
 
     def spawn(self, coro) -> asyncio.Task:
         """Start a background task and keep a reference so it is not GC'd."""
@@ -808,7 +820,7 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
             for page in (0, 1):
                 async with self.session.get(
                     "https://www.dsfire.gov.uk/incidents", params=params + [("page", page)],
-                    headers={"User-Agent": "Mozilla/5.0 (UKSitRep)"}, timeout=TIMEOUT,
+                    headers={"User-Agent": f"Mozilla/5.0 ({USER_AGENT})"}, timeout=TIMEOUT,
                 ) as r:
                     r.raise_for_status()
                     page_html = await r.text()
@@ -934,6 +946,7 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
 
     async def city_weather(self) -> dict:
         async def fetch() -> dict:
+            self._om_spend(len(CITY_WEATHER))
             lats = ",".join(str(c[1]) for c in CITY_WEATHER)
             lons = ",".join(str(c[2]) for c in CITY_WEATHER)
             data = await self._json(
@@ -958,12 +971,13 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
                 })
             return {"updated": datetime.now(timezone.utc).isoformat(), "cities": out}
 
-        return await self.cache.get("city_weather", 1800, fetch)
+        return await self.cache.get("city_weather", 3600, fetch)
 
     async def wind_grid(self) -> dict:
         """Coarse wind/rain/cloud grid over the UK (~100 points, hourly)."""
         async def fetch() -> dict:
             pts = [(la, round(-10 + i * 1.5, 2)) for la in range(50, 61) for i in range(9)]
+            self._om_spend(len(pts))
             lats = ",".join(str(p[0]) for p in pts)
             lons = ",".join(str(p[1]) for p in pts)
             data = await self._json(
@@ -984,10 +998,11 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
                 })
             return {"updated": datetime.now(timezone.utc).isoformat(), "points": out}
 
-        return await self.cache.get("wind_grid", 3600, fetch)
+        return await self.cache.get("wind_grid", 3 * 3600, fetch)
 
     async def sea(self) -> dict:
         async def fetch() -> dict:
+            self._om_spend(2 * len(SEA_POINTS))  # a marine and a forecast request for each point
             lats = ",".join(str(p[1]) for p in SEA_POINTS)
             lons = ",".join(str(p[2]) for p in SEA_POINTS)
             marine, wind = await asyncio.gather(
@@ -1026,7 +1041,7 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
                 })
             return {"updated": datetime.now(timezone.utc).isoformat(), "points": out}
 
-        return await self.cache.get("sea", 1800, fetch)
+        return await self.cache.get("sea", 3600, fetch)
 
     # ----------------------------------------------------------------- energy
     async def grid(self) -> dict:
@@ -1508,7 +1523,7 @@ class AisRelay:
             try:
                 self.status = "connecting"
                 async with session.ws_connect(
-                    "wss://stream.aisstream.io/v0/stream", heartbeat=30, timeout=aiohttp.ClientWSTimeout(ws_close=10)
+                    "wss://stream.aisstream.io/v0/stream", heartbeat=30, compress=15, timeout=aiohttp.ClientWSTimeout(ws_close=10)
                 ) as ws:
                     await ws.send_str(json.dumps({
                         "APIKey": self.key,

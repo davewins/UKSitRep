@@ -20,6 +20,7 @@ from pathlib import Path
 import time
 
 import aiohttp
+from . import USER_AGENT
 
 _LOGGER = logging.getLogger("uksitrep")
 
@@ -29,7 +30,7 @@ PV_URL = "https://api.solar.sheffield.ac.uk/pvlive/api/v4/pes/{pes}"
 OCTOPUS = "https://api.octopus.energy/v1"
 PN_URL = "https://data.elexon.co.uk/bmrs/api/v1/datasets/PN/stream"
 OCM_URL = "https://api.openchargemap.io/v3/poi/"
-UA = {"User-Agent": "UKSitRep"}
+UA = {"User-Agent": USER_AGENT}
 TIMEOUT = aiohttp.ClientTimeout(total=30)
 # PES id (also PV_Live's) -> Carbon Intensity region id
 CI_REGION = {17: 1, 18: 2, 16: 3, 15: 4, 23: 5, 13: 6, 21: 7, 14: 8, 11: 9, 10: 10, 22: 11, 20: 12, 12: 13, 19: 14}

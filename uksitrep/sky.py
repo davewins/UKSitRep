@@ -21,13 +21,14 @@ import time
 from urllib.parse import quote
 
 import aiohttp
+from . import USER_AGENT
 
 _LOGGER = logging.getLogger("uksitrep")
 
 ALLSKY_MAP = "https://www.thomasjacquin.com/allsky-map/"
 INDI_ALLSKY_MAP = "https://allsky-map.com"
 SKY_BOX = (49.8, -8.7, 60.9, 1.9)  # S, W, N, E: UK and Ireland
-SKY_UA = {"User-Agent": "UKSitRep/1.7 (+https://github.com/davewins/UKSitRep)"}
+SKY_UA = {"User-Agent": USER_AGENT}
 INDI_ID = re.compile(r"^[0-9a-f]{8,32}$")
 INDI_OFFLINE_DAYS = 7  # drop indi-allsky cameras not seen for a week
 OBS_QUERY = (

@@ -23,6 +23,7 @@ import xml.etree.ElementTree as ET
 from zoneinfo import ZoneInfo
 
 import aiohttp
+from . import USER_AGENT
 
 _LOGGER = logging.getLogger("uksitrep")
 
@@ -163,7 +164,7 @@ class Rail:
 
         async def fetch() -> dict:
             d = await self._json(LDB_URL.format(crs=crs), params={"numRows": str(BOARD_ROWS)},
-                                 headers={"x-apikey": self.cfg.rail_ldb_key, "User-Agent": "UKSitRep"},
+                                 headers={"x-apikey": self.cfg.rail_ldb_key, "User-Agent": USER_AGENT},
                                  timeout=RAIL_TIMEOUT)
             services = []
             for s in d.get("trainServices") or []:
@@ -192,7 +193,7 @@ class Rail:
 
         async def fetch() -> dict:
             ptr = await self._json(DISRUPTIONS_URL, headers={"x-apikey": self.cfg.rail_disruptions_key,
-                                                             "User-Agent": "UKSitRep"}, timeout=RAIL_TIMEOUT)
+                                                             "User-Agent": USER_AGENT}, timeout=RAIL_TIMEOUT)
             url = ptr.get("bulletinURL") or ""
             if not url.startswith("https://") or ".amazonaws.com/" not in url:
                 raise RuntimeError("unexpected bulletin location")

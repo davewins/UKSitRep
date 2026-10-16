@@ -21,6 +21,7 @@ from typing import Any
 import urllib.parse
 
 import aiohttp
+from . import USER_AGENT
 
 _LOGGER = logging.getLogger("uksitrep")
 
@@ -58,7 +59,7 @@ FUEL_TYPES = ("E10", "E5", "B7_STANDARD", "B7_PREMIUM", "B10", "HVO")
 
 CRIME_MIN_PER_MONTH = 10  # fewer than this within a mile usually means the force didn't submit
 
-PHOTO_UA = {"User-Agent": "UKSitRep/1.5 (+https://github.com/davewins/UKSitRep)"}  # Planespotters requires a contact URL
+PHOTO_UA = {"User-Agent": USER_AGENT}  # Planespotters requires a contact URL
 LATEST_VERSION_URL = "https://raw.githubusercontent.com/davewins/UKSitRep/main/uksitrep/__init__.py"
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 WIKIDATA_SPARQL = "https://query.wikidata.org/sparql"
@@ -209,8 +210,8 @@ def _eci_to_latlon(r: tuple[float, float, float], dt: datetime) -> tuple[float, 
     return lat, lon, alt
 
 
-OSM_UK_BOX = "49.8,-8.7,60.9,1.9"   # S, W, N, E
-OSM_REFRESH_S = 7 * 86400
+OSM_SCOPE = "gb-area"   # what the saved files cover: a file saved with another scope is refreshed at once (and served meanwhile)
+OSM_GAP_S = 60   # pause after each Overpass download so they never come back to back
 
 
 def parse_osm_atms(els: list[dict]) -> list[dict]:
@@ -310,6 +311,23 @@ def parse_osm_watersafety(els: list[dict]) -> list[dict]:
     return out
 
 
+def parse_osm_hospitals(els: list[dict]) -> list[dict]:
+    """amenity=hospital elements (mostly mapped as areas, so positions are their centres). `ae` is set when the
+    hospital is tagged emergency=yes, i.e. has an emergency department."""
+    out = []
+    for el in els:
+        rec = _osm_base(el)
+        if rec:
+            t = el.get("tags") or {}
+            _osm_fill(rec, t, (("name", "name"), ("operator", "operator"), ("hours", "opening_hours"),
+                               ("phone", "phone"), ("web", "website"), ("spec", "healthcare:speciality"),
+                               ("wheelchair", "wheelchair"), ("desc", "description")))
+            if t.get("emergency") == "yes":
+                rec["ae"] = "yes"
+            out.append(rec)
+    return out
+
+
 def parse_osm_toilets(els: list[dict]) -> list[dict]:
     """amenity=toilets elements. `fee` stays absent when untagged: unknown, not free."""
     out = []
@@ -330,12 +348,15 @@ OSM_POINTS = {
     "postboxes": (("amenity=post_box",), "osm_postboxes.json", parse_osm_postboxes, (0.05, 0.1), 500),
     "defibs": (("emergency=defibrillator",), "osm_defibs.json", parse_osm_defibs, (0.15, 0.3), 500),
     "watersafety": (("emergency=life_ring", "emergency=lifeguard"), "osm_watersafety.json", parse_osm_watersafety, (0.25, 0.5), 500),
+    "hospitals": (("amenity=hospital",), "osm_hospitals.json", parse_osm_hospitals, (3.0, 6.0), 500),
     "toilets": (("amenity=toilets",), "osm_toilets.json", parse_osm_toilets, (0.15, 0.3), 500),
 }
 
 class MoreFeeds:
     """Mixin for Situation."""
 
+    _iss_retry_at = 0.0
+    _osm_lock: asyncio.Lock | None = None   # one Overpass download at a time: several big queries together get 502/504
     _osm_pts: dict[str, dict] | None = None   # per OSM_POINTS name: records sorted by lat, their lats, fetched, retry_at, task
 
     # ------------------------------------------------------------ river levels
@@ -509,6 +530,7 @@ class MoreFeeds:
     # ------------------------------------------------------------ air quality
     async def air_quality(self) -> dict:
         async def fetch() -> dict:
+            self._om_spend(len(AIR_POINTS))
             pollen = ",".join(f"{p}_pollen" for p in POLLEN)
             d = await self._json("https://air-quality-api.open-meteo.com/v1/air-quality", params={
                 "latitude": ",".join(str(p[1]) for p in AIR_POINTS),
@@ -528,7 +550,7 @@ class MoreFeeds:
                 })
             return {"updated": datetime.now(timezone.utc).isoformat(), "points": out}
 
-        return await self.cache.get("air_quality", 3600, fetch)
+        return await self.cache.get("air_quality", 3 * 3600, fetch)
 
     # ------------------------------------------------------------ bathing water
     async def bathing(self) -> dict:
@@ -577,6 +599,16 @@ class MoreFeeds:
 
         async def tle() -> dict:
             async def fetch() -> dict:
+                # CelesTrak firewalls an IP after 50 HTTP errors in 2 h, so after a failure wait 30 min
+                if time.time() < self._iss_retry_at:
+                    raise RuntimeError("CelesTrak: backing off after an error")
+                try:
+                    return await get_tle()
+                except Exception:
+                    self._iss_retry_at = time.time() + 1800
+                    raise
+
+            async def get_tle() -> dict:
                 lines = [ln.strip() for ln in (await self._text(ISS_TLE)).splitlines() if ln.strip()]
                 l1 = next(ln for ln in lines if ln.startswith("1 "))
                 l2 = next(ln for ln in lines if ln.startswith("2 "))
@@ -874,10 +906,10 @@ class MoreFeeds:
         if st["recs"] is None:
             try:
                 saved = await asyncio.to_thread(lambda: json.loads(store.read_text()))
-                self._osm_set(st, saved[name], float(saved.get("fetched", 0)))
+                self._osm_set(st, saved[name], float(saved.get("fetched", 0)) if saved.get("scope") == OSM_SCOPE else 0.0)
             except (OSError, ValueError, KeyError, TypeError):
                 pass
-        if time.time() - st["fetched"] > OSM_REFRESH_S and time.time() > st["retry_at"] \
+        if time.time() - st["fetched"] > self._osm_refresh_s(name) and time.time() > st["retry_at"] \
                 and (not st["task"] or st["task"].done()):
             st["task"] = self.spawn(self._refresh_osm_points(name, st, store))
         if st["recs"] is None:
@@ -887,15 +919,29 @@ class MoreFeeds:
                 name: hits[:cap], "truncated": len(hits) > cap}
 
     @staticmethod
+    def _osm_refresh_s(name: str) -> float:
+        """Weekly, but each dataset a day apart from the next (7, 8, 9 ... days) so that after the first
+        download they drift apart instead of all hitting Overpass on the same day."""
+        return (7 + list(OSM_POINTS).index(name)) * 86400
+
+    @staticmethod
     def _osm_set(st: dict, recs: list[dict], fetched: float) -> None:
         recs.sort(key=lambda r: r["lat"])
         st["recs"], st["lats"], st["fetched"] = recs, [r["lat"] for r in recs], fetched
 
     async def _refresh_osm_points(self, name: str, st: dict, store) -> None:
-        from .feeds import OVERPASS_MIRRORS, UA
         tags, _f, parse, _span, _cap = OSM_POINTS[name]
-        parts = "".join(f'nwr["{k}"="{v}"]({OSM_UK_BOX});' for k, v in (t.split("=") for t in tags))
-        query = f'[out:json][timeout:400];({parts});out center tags;'
+        # the UK's own boundary (ISO 3166-1 GB), so Ireland, France and the Crown dependencies are left out
+        parts = "".join(f'nwr["{k}"="{v}"](area.uk);' for k, v in (t.split("=") for t in tags))
+        query = f'[out:json][timeout:400];area["ISO3166-1"="GB"][admin_level=2]->.uk;({parts});out center tags;'
+        if self._osm_lock is None:
+            self._osm_lock = asyncio.Lock()
+        async with self._osm_lock:
+            await self._download_osm_points(name, st, store, query, parse)
+            await asyncio.sleep(OSM_GAP_S)
+
+    async def _download_osm_points(self, name: str, st: dict, store, query: str, parse) -> None:
+        from .feeds import OVERPASS_MIRRORS, UA
         for mirror in OVERPASS_MIRRORS:
             try:
                 async with self.session.post(mirror, data={"data": query}, headers=UA,
@@ -910,7 +956,7 @@ class MoreFeeds:
             if not recs:
                 continue
             now = time.time()
-            await asyncio.to_thread(lambda: store.write_text(json.dumps({"fetched": now, name: recs}, separators=(",", ":"))))
+            await asyncio.to_thread(lambda: store.write_text(json.dumps({"fetched": now, "scope": OSM_SCOPE, name: recs}, separators=(",", ":"))))
             self._osm_set(st, recs, now)
             _LOGGER.info("OSM %s refreshed: %d", name, len(recs))
             return

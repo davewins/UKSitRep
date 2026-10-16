@@ -113,6 +113,7 @@ class Config:
     rail_disruptions_key: str | None = None
     bods_key: str | None = None
     ocm_key: str | None = None
+    open_meteo_daily_calls: int = 4000
     bus_timetable_regions: list[str] = field(default_factory=list)
 
     def home(self, key: str | None = None) -> Home | None:
@@ -160,6 +161,7 @@ class Config:
             rail_disruptions_key=os.environ.get("RAIL_DISRUPTIONS_KEY") or None,
             bods_key=os.environ.get("BODS_API_KEY") or None,
             ocm_key=os.environ.get("OCM_API_KEY") or None,
+            open_meteo_daily_calls=int(os.environ.get("OPEN_METEO_DAILY_CALLS", "4000")),
             bus_timetable_regions=_bus_regions(),
         )
 
