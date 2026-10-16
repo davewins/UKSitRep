@@ -1138,15 +1138,31 @@ async function startCamVideo(v) {
       url = (await r.json()).playlist[0].sources.find(x => /mpegurl/i.test(x.type))?.file;
     }
     if (!url) throw new Error("no stream");
-    if (v.canPlayType("application/vnd.apple.mpegurl")) { v.src = url; }   // Safari / iOS play HLS natively
-    else {
+    // Two ways to play HLS: the browser's own player (Safari, iPhones, and now recent Chrome) or hls.js (Media Source).
+    // Apple browsers try native first, everything else hls.js first; an error, or no picture within 12 s, tries the other.
+    // (Recent Chrome plays HLS natively but fails on some streams, e.g. the 2.7K Livermead one; hls.js copes.)
+    const canNative = !!v.canPlayType("application/vnd.apple.mpegurl");
+    const viaNative = async () => { if (!canNative) throw new Error("no native HLS"); v.src = url; };
+    const viaHls = async () => {
       await loadHls();
-      if (!Hls.isSupported()) throw new Error("no HLS");
+      if (!Hls.isSupported()) throw new Error("no Media Source");
       const h = new Hls({ capLevelToPlayerSize: true, maxBufferLength: 10, liveSyncDurationCount: 3 });
-      h.on(Hls.Events.ERROR, (_, e) => { if (e.fatal) camVideoFail(v); });
+      h.on(Hls.Events.ERROR, (_, e) => { if (e.fatal) v.dispatchEvent(new Event("error")); });
       h.loadSource(url); h.attachMedia(v); v._hls = h;
-    }
-    v.play().catch(() => {});   // muted autoplay is allowed; if blocked the native controls are there
+    };
+    const apple = /apple/i.test(navigator.vendor || "");
+    const order = apple ? [viaNative, viaHls] : [viaHls, viaNative];
+    const attempt = (i) => {
+      if (i >= order.length) return camVideoFail(v);
+      let done = false, timer;
+      const next = () => { if (done || !v.isConnected) return; done = true; clearTimeout(timer); cleanup(); stopCamVideo(v); attempt(i + 1); };
+      const ok = () => { done = true; clearTimeout(timer); cleanup(); };
+      const cleanup = () => { v.removeEventListener("error", next); v.removeEventListener("playing", ok); };
+      v.addEventListener("error", next); v.addEventListener("playing", ok);
+      timer = setTimeout(next, 12000);
+      order[i]().then(() => v.play().catch(() => {}), next);
+    };
+    attempt(0);   // (muted autoplay is allowed; if blocked the native controls are there)
   } catch { camVideoFail(v); }
 }
 function camVideoFail(v) {
