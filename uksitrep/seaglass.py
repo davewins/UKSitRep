@@ -26,6 +26,7 @@ BOARD_URL = BASE + "/this-weeks-best-sea-glass-beaches/"
 MAP_URL = BASE + "/map/"
 BOARD_TTL = 3 * 3600
 BEACH_REFRESH_S = 7 * 86400
+STORE_VERSION = 2
 UK_BOX = (49.0, -9.0, 61.5, 2.5)   # S, W, N, E: positions outside are ignored
 MIN_ROWS = 10    # fewer parsed rows than this means the page changed, not that the sea went flat
 
@@ -78,8 +79,9 @@ def parse_beaches(page: str) -> dict[str, dict]:
                     lat = lon = None
                 if lat is not None and UK_BOX[0] <= lat <= UK_BOX[2] and UK_BOX[1] <= lon <= UK_BOX[3]:
                     addr = o.get("address")
+                    region = addr.get("addressRegion") if isinstance(addr, dict) else addr
                     out[m.group(1)] = {"name": html.unescape(str(o.get("name") or "")), "lat": round(lat, 5),
-                                       "lon": round(lon, 5), "region": addr if isinstance(addr, str) else None}
+                                       "lon": round(lon, 5), "region": region if isinstance(region, str) else None}
             for v in o.values():
                 walk(v)
         elif isinstance(o, list):
@@ -106,7 +108,9 @@ class SeaGlass:
         if self._sg_beaches is None:
             try:
                 saved = await asyncio.to_thread(lambda: json.loads(store.read_text()))
-                self._sg_beaches, self._sg_beaches_at = saved["beaches"], float(saved.get("fetched", 0))
+                # a copy saved by an older version lacks regions: use it now, refresh it straight away
+                self._sg_beaches = saved["beaches"]
+                self._sg_beaches_at = float(saved.get("fetched", 0)) if saved.get("v") == STORE_VERSION else 0.0
             except (OSError, ValueError, KeyError, TypeError):
                 self._sg_beaches = {}
         if time.time() - self._sg_beaches_at > BEACH_REFRESH_S and time.time() > self._sg_retry_at:
@@ -115,7 +119,7 @@ class SeaGlass:
                 if len(found) < 20:
                     raise ValueError(f"only {len(found)} beaches found on the map page")
                 now = time.time()
-                await asyncio.to_thread(lambda: store.write_text(json.dumps({"fetched": now, "beaches": found}, separators=(",", ":"))))
+                await asyncio.to_thread(lambda: store.write_text(json.dumps({"v": STORE_VERSION, "fetched": now, "beaches": found}, separators=(",", ":"))))
                 self._sg_beaches, self._sg_beaches_at = found, now
                 _LOGGER.info("sea glass: %d beach positions", len(found))
             except Exception as err:  # noqa: BLE001 - keep the positions we have
@@ -139,7 +143,12 @@ class SeaGlass:
                     beaches.append({**r, "lat": p["lat"], "lon": p["lon"], "url": f"{BASE}/beach/{r['slug']}"})
             if not beaches:
                 raise ValueError("sea glass: none of the leaderboard beaches has a position")
+            # every other beach the site maps: its score is not published, only the Top 25's is
+            ranked = {b["slug"] for b in beaches}
+            others = sorted(({"slug": s, "name": p["name"], "region": p.get("region"), "lat": p["lat"], "lon": p["lon"],
+                              "url": f"{BASE}/beach/{s}"} for s, p in positions.items() if s not in ranked),
+                            key=lambda b: b["name"])
             return {"updated": datetime.now(timezone.utc).isoformat(), "source_updated": board["updated"],
-                    "beaches": beaches, "source": BOARD_URL}
+                    "beaches": beaches, "others": others, "source": BOARD_URL}
 
         return await self.cache.get("seaglass", BOARD_TTL, fetch)

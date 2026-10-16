@@ -175,6 +175,7 @@
   .navsel { font-size: 11px; background: #18212c; color: var(--muted); border: 1px solid #2a3544; border-radius: 6px; padding: 2px 4px; }
   .drop-pin { font-size: 24px; line-height: 24px; filter: drop-shadow(0 1px 2px #000); }
   .osmpt { width: 18px; height: 18px; border-radius: 50%; border: 1px solid #0b1118; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
+  .sgo { width: 10px; height: 10px; border-radius: 50%; background: #64748b; border: 1.5px solid #cbd5e1; opacity: .85; }
   .sgm { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #0b1118; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #04121a; }
   #seaglass .sg { padding: 3px 0; cursor: pointer; }
   #seaglass .sg:hover b.sgn { text-decoration: underline; }
@@ -2512,11 +2513,15 @@ function refreshOsm(key) {
 const refreshOsmAll = () => Object.keys(OSM_LAYERS).forEach(refreshOsm);
 
 /* ------------------------------------------------------------ sea glass: seaglasshunting.com weekly Top 25 (optional) */
-const SEAGLASS_MIN_ZOOM = 7;
-let lastSeaGlass = [], seaGlassUpdated = null, sgShown = false;
+const SEAGLASS_MIN_ZOOM = 7, SEAGLASS_ALL_ZOOM = 9;   // the ranked ones from 7, every other mapped beach from 9
+let lastSeaGlass = [], lastSeaGlassOthers = [], seaGlassUpdated = null, sgShown = null;
 const sgMarkers = new Map();
 const sgCol = (b) => b.score >= 80 ? "#2dd4bf" : b.score >= 70 ? "#38bdf8" : b.score >= 60 ? "#a78bfa" : "#94a3b8";
 function seaGlassPopup(b) {
+  if (b.rank == null) return `<b>🐚 ${esc(b.name)}</b>${b.region ? `<br><span class="muted">${esc(b.region)}</span>` : ""}
+    <br>Not in this week's Top 25
+    <br><span class="muted" style="font-size:11px">seaglasshunting.com only publishes scores for the Top 25</span>
+    <br><a href="${esc(b.url)}" target="_blank" rel="noopener">Beach guide ↗</a>`;
   return `<b>🐚 #${b.rank} ${esc(b.name)}</b>${b.region ? `<br><span class="muted">${esc(b.region)}</span>` : ""}
     <br>Hunting potential <b style="color:${sgCol(b)}">${b.score}</b>/100${b.label ? ` · ${esc(b.label)}` : ""}
     ${b.sea ? `<br>${esc(b.sea)}` : ""}${b.note ? `${b.sea ? " · " : "<br>"}${esc(b.note)}` : ""}
@@ -2525,7 +2530,7 @@ function seaGlassPopup(b) {
     <br><a href="${esc(b.url)}" target="_blank" rel="noopener">Beach guide ↗</a>`;
 }
 function goSeaGlass(slug) {
-  const b = lastSeaGlass.find(x => x.slug === slug);
+  const b = lastSeaGlass.find(x => x.slug === slug) || lastSeaGlassOthers.find(x => x.slug === slug);
   if (!b) return;
   map.flyTo([b.lat, b.lon], 11, { duration: 1 });
   setTimeout(() => sgMarkers.get(slug)?.openPopup(), 1300);  // after the flight, once the markers are redrawn
@@ -2537,28 +2542,40 @@ function renderSeaGlassPanel() {
   $("seaglass").innerHTML = lastSeaGlass.slice(0, 5).map(b => `<div class="sg" data-slug="${esc(b.slug)}">
       <div class="row"><span><b class="sgn">#${b.rank} ${esc(b.name)}</b> <span class="muted">${esc(b.region || "")}</span></span><b style="color:${sgCol(b)}">${b.score}</b></div>
       <div class="muted" style="font-size:11px">${esc([b.sea, b.window && "best " + b.window].filter(Boolean).join(" · "))}</div></div>`).join("")
-    + `<div class="muted" style="font-size:11px;margin-top:4px">Top 25 on the map (zoom ${SEAGLASS_MIN_ZOOM}+) · <a href="https://seaglasshunting.com/this-weeks-best-sea-glass-beaches/" target="_blank" rel="noopener">seaglasshunting.com</a>${seaGlassUpdated ? ` · ${esc(seaGlassUpdated)}` : ""}</div>`;
+    + `<div class="muted" style="font-size:11px;margin-top:4px">Top 25 on the map from zoom ${SEAGLASS_MIN_ZOOM}, all ${lastSeaGlass.length + lastSeaGlassOthers.length} beaches from zoom ${SEAGLASS_ALL_ZOOM} · <a href="https://seaglasshunting.com/this-weeks-best-sea-glass-beaches/" target="_blank" rel="noopener">seaglasshunting.com</a>${seaGlassUpdated ? ` · ${esc(seaGlassUpdated)}` : ""}</div>`;
 }
 function renderSeaGlass(d) {
   if (d) {
     lastSeaGlass = d.error ? [] : d.beaches || [];
+    lastSeaGlassOthers = d.error ? [] : d.others || [];
     seaGlassUpdated = d.source_updated || null;
     renderSeaGlassPanel();
     sgShown = null;  // force a redraw
   }
-  const show = !!S.layers.seaglass && map.getZoom() >= SEAGLASS_MIN_ZOOM && lastSeaGlass.length > 0;
-  if (show === sgShown) return;
-  sgShown = show;
+  const z = map.getZoom(), on = !!S.layers.seaglass;
+  const state = `${on && z >= SEAGLASS_MIN_ZOOM && lastSeaGlass.length ? 1 : 0}${on && z >= SEAGLASS_ALL_ZOOM && lastSeaGlassOthers.length ? 1 : 0}`;
+  if (state === sgShown) return;
+  sgShown = state;
   G.seaglass.clearLayers(); sgMarkers.clear();
-  if (!show) { counts.seaglass = undefined; renderCounts(); return; }
-  for (const b of lastSeaGlass) {
-    const m = fav(L.marker([b.lat, b.lon], { icon: L.divIcon({ className: "", iconSize: [22, 22], iconAnchor: [11, 11],
-        html: `<div class="sgm" style="background:${sgCol(b)}">${b.rank}</div>` }), zIndexOffset: 120 })
-      .bindPopup(() => seaGlassPopup(b), { maxWidth: 300 }).bindTooltip(`#${b.rank} ${esc(b.name)} · ${b.score}/100`, { direction: "top", offset: [0, -10] })
-      .addTo(G.seaglass), "seaglass", { ...b, id: b.slug });
-    sgMarkers.set(b.slug, m);
+  let n = 0;
+  if (state[1] === "1") {  // the beaches without a published score: small grey dots under the ranked ones
+    for (const b of lastSeaGlassOthers) {
+      const m = fav(L.marker([b.lat, b.lon], { icon: L.divIcon({ className: "", iconSize: [12, 12], iconAnchor: [6, 6], html: '<div class="sgo"></div>' }), zIndexOffset: 60 })
+        .bindPopup(() => seaGlassPopup(b), { maxWidth: 280 }).bindTooltip(esc(b.name), { direction: "top", offset: [0, -6] })
+        .addTo(G.seaglass), "seaglass", { ...b, id: b.slug });
+      sgMarkers.set(b.slug, m); n++;
+    }
   }
-  counts.seaglass = lastSeaGlass.length; renderCounts();
+  if (state[0] === "1") {
+    for (const b of lastSeaGlass) {
+      const m = fav(L.marker([b.lat, b.lon], { icon: L.divIcon({ className: "", iconSize: [22, 22], iconAnchor: [11, 11],
+          html: `<div class="sgm" style="background:${sgCol(b)}">${b.rank}</div>` }), zIndexOffset: 120 })
+        .bindPopup(() => seaGlassPopup(b), { maxWidth: 300 }).bindTooltip(`#${b.rank} ${esc(b.name)} · ${b.score}/100`, { direction: "top", offset: [0, -10] })
+        .addTo(G.seaglass), "seaglass", { ...b, id: b.slug });
+      sgMarkers.set(b.slug, m); n++;
+    }
+  }
+  counts.seaglass = n || undefined; renderCounts();
 }
 document.addEventListener("click", (e) => { const r = e.target.closest?.("#seaglass .sg"); if (r) goSeaGlass(r.dataset.slug); });
 
@@ -2581,7 +2598,7 @@ const FAV_KINDS = {
   pin: { icon: "📍", name: "Pin", popup: (o) => pinPopup(o), opts: { maxWidth: 280 } },
   defib: { icon: "❤️", name: "Defibrillator", popup: (o) => defibPopup(o), opts: { maxWidth: 300 } },
   watersafety: { icon: "🛟", name: "Water safety", popup: (o) => waterPopup(o), opts: { maxWidth: 300 } },
-  seaglass: { icon: "🐚", name: "Sea glass beach", popup: (o) => seaGlassPopup(o), opts: { maxWidth: 300 }, live: () => lastSeaGlass.map(b => ({ ...b, id: b.slug })) },
+  seaglass: { icon: "🐚", name: "Sea glass beach", popup: (o) => seaGlassPopup(o), opts: { maxWidth: 300 }, live: () => [...lastSeaGlass, ...lastSeaGlassOthers].map(b => ({ ...b, id: b.slug })) },
   hospital: { icon: "🏥", name: "Hospital", popup: (o) => hospitalPopup(o), opts: { maxWidth: 300 } },
   toilet: { icon: "🚻", name: "Public toilets", popup: (o) => toiletPopup(o), opts: { maxWidth: 300 } },
   atm: { icon: "🏧", name: "Cash machine", popup: (o) => atmPopup(o), opts: { maxWidth: 300 } },
@@ -2667,38 +2684,39 @@ const LAYER_UI = [
   ["Aviation", [["ac_civil", "Civil aircraft", "--civil"], ["ac_military", "Military", "--military"], ["ac_police", "Police (NPAS)", "--police"],
     ["ac_hems", "Air ambulance", "--hems"], ["ac_sar", "Coastguard / SAR", "--sar"], ["ac_trails", "Trails", "#64748b"],
     ["mil_dest", "Military destination guess", "#22c55e"], ["airfields", "Military airfields", "#93c5fd"], ["army", "Army bases", "#86efac"]]],
-  ["Emergency services", [["hems_scene", "Air ambulance on scene (inferred)", "#facc15"], ["rnli", "RNLI lifeboat launches", "#f97316"],
-    ["defibs", "Defibrillators (zoom 14+)", "#16a34a"], ["watersafety", "Life rings & lifeguard posts (zoom 13+)", "#f97316"],
-    ["hospitals", "Hospitals & A&E (zoom 9+)", "#dc2626"],
+  ["Emergency & safety", [["hems_scene", "Air ambulance on scene (inferred)", "#facc15"], ["rnli", "RNLI lifeboat launches", "#f97316"],
     ["fire", "Fire & rescue incidents", "#dc2626", [["fire_dsfrs", "Devon & Somerset"], ["fire_avon", "Avon"],
       ["fire_bucks", "Buckinghamshire & MK"], ["fire_cheshire", "Cheshire"], ["fire_cleveland", "Cleveland"],
-      ["fire_hants", "Hampshire & Isle of Wight"], ["fire_rbfrs", "Royal Berkshire"], ["fire_shropshire", "Shropshire"]]]]],
-  ["Cameras", [["webcams", "Public webcams (zoom in to see)", "#0d9488"]]],
+      ["fire_hants", "Hampshire & Isle of Wight"], ["fire_rbfrs", "Royal Berkshire"], ["fire_shropshire", "Shropshire"]]],
+    ["hospitals", "Hospitals & A&E (zoom 9+)", "#dc2626"], ["watersafety", "Life rings & lifeguard posts (zoom 13+)", "#f97316"],
+    ["defibs", "Defibrillators (zoom 14+)", "#16a34a"]]],
+  ["Cameras", [["webcams", "Public webcams (zoom 9+)", "#0d9488"]]],
   ["Maritime", [["vs_special", "Navy / RNLI / SAR / gov", "#f97316"], ["vs_civil", "All other vessels", "#0891b2"],
-    ["tides", "Tide times (zoom in to see)", "#60a5fa"], ["sea", "Sea state (waves / wind)", "#38bdf8"],
-    ["seaglass", "Sea glass beaches (weekly top 25, zoom 7+)", "#2dd4bf"]]],
+    ["tides", "Tide times (zoom 9+)", "#60a5fa"], ["sea", "Sea state (waves / wind)", "#38bdf8"]]],
+  ["Beaches", [["bathing", "Bathing waters (zoom 9+)", "#2563eb"],
+    ["seaglass", "Sea glass: weekly top 25 (zoom 7+), all beaches (zoom 9+)", "#2dd4bf"]]],
   ["Weather & environment", [["warnings", "Met Office warnings", "#facc15"], ["cityweather", "City weather", "#cbd5e1"],
     ["radar", "Rain radar", "#22d3ee"], ["wind", "Wind arrows", "#4ade80"], ["temps", "Temperature grid", "#fde047"],
     ["lightning", "Lightning (last 2 h)", "#fde047"],
     ["air", "Air quality & pollen", "#a3e635"], ["fires", "Satellite fire hotspots (NASA)", "#ef4444"],
     ["satimg", "Satellite image, yesterday (NASA)", "#e2e8f0"]]],
-  ["Water", [["floods", "EA flood warnings", "#f97316"], ["rivers", "River levels (high: always; all: zoom in)", "#38bdf8"], ["sewage", "Sewage discharging now", "#a16207"], ["sewage_recent", "Sewage, stopped in last 48 h (zoom in)", "#ca8a04"],
-    ["bathing", "Bathing waters (zoom in)", "#2563eb"]]],
+  ["Water", [["floods", "EA flood warnings", "#f97316"], ["rivers", "River levels (high: always; all: zoom 9+)", "#38bdf8"],
+    ["sewage", "Sewage discharging now", "#a16207"], ["sewage_recent", "Sewage, stopped in last 48 h (zoom 8+)", "#ca8a04"]]],
   ["Travel & transport", [["roads_incidents", "Road incidents (live)", "#ef4444"],
     ["roads_closures", "Road closures (planned)", "#f59e0b"], ["roads_works", "Lane restrictions", "#94a3b8"],
-    ["fuel", "Fuel prices (zoom 11+)", "#22c55e"],
     ["rail_disruptions", "Rail disruptions (live)", "#e11d48"], ["rail_stations", "Rail stations & live departures (zoom 11+)", "#fda4af"],
     ["buses", "Live buses (zoom 12+)", "#f59e0b"], ["bus_stops", "Bus stops & timetables (zoom 15+)", "#fcd34d"], ["bus_disruptions", "Bus disruptions (zoom 9+)", "#d97706"],
-    ["atms", "Cash machines (zoom 15+)", "#22c55e"], ["toilets", "Public toilets (zoom 14+)", "#6366f1"], ["postboxes", "Post boxes (zoom 16+)", "#dc2626"],
     ["tfl", "TfL disruption (Info panel)", "#dc2626"]]],
+  ["Local services", [["fuel", "Fuel prices (zoom 11+)", "#22c55e"], ["chargers", "EV chargers (zoom 13+)", "#22c55e"],
+    ["toilets", "Public toilets (zoom 14+)", "#6366f1"], ["atms", "Cash machines (zoom 15+)", "#22c55e"],
+    ["postboxes", "Post boxes (zoom 16+)", "#dc2626"]]],
   ["Energy", [["cuts", "Power cuts (UKPN, SSEN)", "#fbbf24"], ["interconnectors", "Power interconnectors (flows)", "#e879f9"],
     ["grid_regions", "Regions: carbon, solar & Agile price", "#4ade80"], ["windfarms", "Wind farms (live output)", "#7dd3fc"],
-    ["plants", "Power stations (live output)", "#f472b6"], ["chargers", "EV chargers (zoom 13+)", "#22c55e"]]],
-  ["Crime", [["crime", "Street crime, last month (zoom 14+)", "#c084fc"]]],
+    ["plants", "Power stations (live output)", "#f472b6"]]],
+  ["Crime & news", [["crime", "Street crime, last month (zoom 14+)", "#c084fc"], ["news", "BBC incidents", "#ef4444"]]],
   ["Space & geological", [["quakes", "BGS earthquakes", "#f472b6"], ["meteors", "UK Meteor Network", "#a5b4fc"],
-    ["iss", "ISS position & visible passes", "#e2e8f0"], ["allsky", "Allsky cameras (zoom in)", "#6366f1"],
-    ["observatories", "Observatories & telescopes (zoom in)", "#facc15"]]],
-  ["News", [["news", "BBC incidents", "#ef4444"]]],
+    ["iss", "ISS position & visible passes", "#e2e8f0"], ["allsky", "Allsky cameras (zoom 9+)", "#6366f1"],
+    ["observatories", "Observatories & telescopes (zoom 9+)", "#facc15"]]],
 ];
 function countFor(k) {
   const a = counts.aircraft || {};
@@ -2714,13 +2732,15 @@ const VIEWS = {
   favourites: ["Favourites", ["favs"]],
   military: ["Military", ["ac_military", "ac_trails", "mil_dest", "airfields", "army", "vs_special"]],
   emergency: ["Emergency", ["ac_police", "ac_hems", "ac_sar", "ac_trails", "hems_scene", "rnli", "fire", ...FIRE_KIDS, "vs_special",
-    "warnings", "floods", "roads_incidents", "hospitals", "defibs", "watersafety", "news"]],
+    "hospitals", "watersafety", "defibs", "warnings", "floods", "roads_incidents", "news"]],
   transport: ["Travel & transport", ["ac_civil", "ac_military", "ac_police", "ac_hems", "ac_sar", "vs_civil", "vs_special",
-    "roads_incidents", "roads_closures", "roads_works", "tfl", "rail_disruptions", "rail_stations", "buses", "bus_stops", "bus_disruptions", "fuel", "atms", "postboxes", "toilets", "webcams"]],
+    "roads_incidents", "roads_closures", "roads_works", "tfl", "rail_disruptions", "rail_stations", "buses", "bus_stops", "bus_disruptions",
+    "fuel", "chargers", "webcams"]],
+  services: ["Local services", ["fuel", "chargers", "toilets", "atms", "postboxes", "hospitals", "defibs", "bus_stops", "rail_stations"]],
   weather: ["Weather & water", ["warnings", "cityweather", "radar", "wind", "temps", "lightning", "floods", "rivers", "sea",
     "sewage", "air"]],
-  coast: ["Coast & sea", ["vs_special", "vs_civil", "ac_sar", "tides", "sea", "bathing", "sewage", "sewage_recent", "rnli", "watersafety", "seaglass",
-    "warnings", "webcams"]],
+  coast: ["Coast & sea", ["vs_special", "vs_civil", "ac_sar", "tides", "sea", "bathing", "seaglass", "sewage", "sewage_recent", "rnli",
+    "watersafety", "toilets", "warnings", "webcams"]],
   space: ["Space", ["iss", "meteors", "quakes", "allsky", "observatories"]],
   energy: ["Energy", ["cuts", "interconnectors", "grid_regions", "windfarms", "plants", "chargers"]],
 };
