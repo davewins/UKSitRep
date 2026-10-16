@@ -59,6 +59,10 @@ ships, live buses) don't get the button.
 and the nearest postcode (postcodes.io, Great Britain), the Navigate button, **☆** to save it as a favourite and
 **Remove pin**.
 
+**🆘 Where am I?** (button under ⌂ ◎ UK, and a link in a dropped pin's popup) opens a panel with a sentence to read out to the
+emergency services: nearest postcode and area, OS grid reference, latitude/longitude, Plus Code and GPS accuracy, with Call 999,
+Copy and Share buttons. The grid reference and Plus Code are worked out in the page; only the postcode lookup needs the server.
+
 ## Favourites
 
 Open a station, bus stop, webcam, allsky camera, observatory, tide station, river gauge,

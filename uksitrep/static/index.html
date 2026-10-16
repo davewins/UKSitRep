@@ -160,6 +160,21 @@
   #btnLayers, #btnInfo, .sheet-close { display: none; }
   @media (min-width: 761px) { body:not(.hide-panels):not(.kiosk) .leaflet-bottom.leaflet-left { left: 286px; } }
   .view-ctl a { font-weight: 700; font-size: 12px; }
+  #sos { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; padding: 12px; }
+  #sos.open { display: flex; }
+  #sos .box { background: var(--panel, #0d1219); color: var(--text); border: 1px solid var(--line); border-radius: 8px; width: min(520px, 100%);
+    max-height: 100%; overflow: auto; padding: 14px 16px; box-shadow: 0 8px 30px rgba(0,0,0,.6); }
+  #sos h2 { margin: 0 0 8px; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+  #sos h2 button { background: none; border: 0; color: var(--muted); font-size: 22px; cursor: pointer; line-height: 1; }
+  #sos .say { background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-size: 15px; line-height: 1.45; margin: 8px 0; user-select: all; }
+  #sos table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0; }
+  #sos td { padding: 3px 0; vertical-align: top; } #sos td:first-child { color: var(--muted); width: 38%; padding-right: 8px; }
+  #sos .acts { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 6px; }
+  #sos .acts a, #sos .acts button { background: #18212c; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px;
+    font: inherit; font-size: 14px; cursor: pointer; text-decoration: none; }
+  #sos .acts a.call { background: #b91c1c; border-color: #ef4444; color: #fff; font-weight: 700; }
+  #sos .note { color: var(--muted); font-size: 11.5px; line-height: 1.4; margin-top: 8px; }
+  #sos .warn { color: #fbbf24; }
   .view-ctl #btnLocate { font-size: 18px; font-weight: 400; }
   .view-ctl #btnLocate.busy { color: #3b82f6; }
   .region-lbl { background: rgba(10,15,22,.72); border: 0; color: #f1f5f9; font: 600 11px/1.2 system-ui, sans-serif; padding: 1px 5px; box-shadow: none; }
@@ -605,9 +620,10 @@ const ViewCtl = L.Control.extend({
   options: { position: "bottomleft" },
   onAdd() {
     const d = L.DomUtil.create("div", "leaflet-bar view-ctl");
-    d.innerHTML = '<span class="zoom-now" id="zoomBadge" title="Map zoom level: the zoom hints in the Layers panel use this number">zoom<b>-</b></span><a href="#" role="button" title="Home (H): your location when no home is set">⌂</a><a href="#" role="button" id="btnLocate" title="My location (L)">◎</a><a href="#" role="button" title="Whole UK (U)">UK</a>';
+    d.innerHTML = '<span class="zoom-now" id="zoomBadge" title="Map zoom level: the zoom hints in the Layers panel use this number">zoom<b>-</b></span><a href="#" role="button" title="Home (H): your location when no home is set">⌂</a><a href="#" role="button" id="btnLocate" title="My location (L)">◎</a><a href="#" role="button" title="Whole UK (U)">UK</a><a href="#" role="button" title="Where am I? What to tell the emergency services">🆘</a>';
     L.DomEvent.disableClickPropagation(d);
-    const [h, me, u] = d.querySelectorAll("a");   // (the zoom readout is a span)
+    const [h, me, u, sos] = d.querySelectorAll("a");   // (the zoom readout is a span)
+    sos.onclick = (e) => { e.preventDefault(); openSos(); };
     me.onclick = (e) => { e.preventDefault(); locate(); };
     h.onclick = (e) => { e.preventDefault(); goHome(); };
     u.onclick = (e) => { e.preventDefault(); map.flyTo(...UK_VIEW(), { duration: 1 }); };
@@ -2452,9 +2468,126 @@ map.on("popupopen", (e) => {
   p._navFn = () => addNav(p); p.on("contentupdate", p._navFn);
 });
 
+
+/* ------------------------------------------------------------ "Where am I?": what to tell the emergency services */
+// Everything but the postcode lookup is worked out here in the page (no service, no key), so it still works with a poor connection.
+const OSGB_LETTERS = "ABCDEFGHJKLMNOPQRSTUVWXYZ";
+function osGridRef(lat, lon) {
+  const rad = Math.PI / 180, a = 6378137, f = 1 / 298.257223563, e2w = 2 * f - f * f;
+  const ph = lat * rad, la = lon * rad, sp = Math.sin(ph), cp = Math.cos(ph), nu0 = a / Math.sqrt(1 - e2w * sp * sp);
+  let x = nu0 * cp * Math.cos(la), y = nu0 * cp * Math.sin(la), z = nu0 * (1 - e2w) * sp;
+  const s1 = 20.4894e-6 + 1, as = Math.PI / 180 / 3600, rx = -0.1502 * as, ry = -0.2470 * as, rz = -0.8421 * as;   // WGS84 -> OSGB36 Helmert
+  [x, y, z] = [-446.448 + x * s1 - y * rz + z * ry, 125.157 + x * rz + y * s1 - z * rx, -542.060 - x * ry + y * rx + z * s1];
+  const A = 6377563.396, B = 6356256.909, e2 = 1 - (B * B) / (A * A), p = Math.hypot(x, y);
+  let phi = Math.atan2(z, p * (1 - e2));
+  for (let i = 0; i < 10; i++) { const nu = A / Math.sqrt(1 - e2 * Math.sin(phi) ** 2); phi = Math.atan2(z + e2 * nu * Math.sin(phi), p); }
+  const lam = Math.atan2(y, x), F0 = 0.9996012717, p0 = 49 * rad, l0 = -2 * rad, N0 = -100000, E0 = 400000, n = (A - B) / (A + B);
+  const sn = Math.sin(phi), cs = Math.cos(phi), t = Math.tan(phi), nu = A * F0 / Math.sqrt(1 - e2 * sn * sn);
+  const rho = A * F0 * (1 - e2) / Math.pow(1 - e2 * sn * sn, 1.5), eta2 = nu / rho - 1, dp = phi - p0, sm = phi + p0;
+  const M = B * F0 * ((1 + n + 1.25 * n * n + 1.25 * n ** 3) * dp - (3 * n + 3 * n * n + 21 / 8 * n ** 3) * Math.sin(dp) * Math.cos(sm)
+    + (15 / 8 * n * n + 15 / 8 * n ** 3) * Math.sin(2 * dp) * Math.cos(2 * sm) - 35 / 24 * n ** 3 * Math.sin(3 * dp) * Math.cos(3 * sm));
+  const dl = lam - l0, I = M + N0, II = nu / 2 * sn * cs, III = nu / 24 * sn * cs ** 3 * (5 - t * t + 9 * eta2),
+    IIIA = nu / 720 * sn * cs ** 5 * (61 - 58 * t * t + t ** 4), IV = nu * cs, V = nu / 6 * cs ** 3 * (nu / rho - t * t),
+    VI = nu / 120 * cs ** 5 * (5 - 18 * t * t + t ** 4 + 14 * eta2 - 58 * t * t * eta2);
+  const N = I + II * dl ** 2 + III * dl ** 4 + IIIA * dl ** 6, E = E0 + IV * dl + V * dl ** 3 + VI * dl ** 5;
+  const e1 = Math.floor(E / 1e5), n1 = Math.floor(N / 1e5);
+  if (e1 < 0 || e1 > 6 || n1 < 0 || n1 > 12) return null;   // outside Great Britain's grid
+  const l1 = 19 - n1 - ((19 - n1) % 5) + Math.floor((e1 + 10) / 5), l2 = ((19 - n1) * 5) % 25 + (e1 % 5);
+  const d = (v) => String(Math.floor((v % 1e5) / 10)).padStart(4, "0");
+  return { letters: OSGB_LETTERS[l1] + OSGB_LETTERS[l2], e: d(E), n: d(N) };
+}
+function plusCode(lat, lon) {
+  const AL = "23456789CFGHJMPQRVWX", la = Math.min(Math.floor((lat + 90) * 8000 + 1e-6), 180 * 8000 - 1), lo = Math.floor(((lon + 180) % 360) * 8000 + 1e-6);
+  let out = "", a = la, b = lo;
+  const ds = [];
+  for (let i = 0; i < 5; i++) { ds.unshift([a % 20, b % 20]); a = Math.floor(a / 20); b = Math.floor(b / 20); }
+  for (const [x, y] of ds) out += AL[x] + AL[y];
+  return out.slice(0, 8) + "+" + out.slice(8);
+}
+const spell = (s) => s.replace(/[A-Z0-9]/g, (c) => c + " ").trim();
+function sosText(o) {
+  const g = o.grid, ns = o.lat >= 0 ? "north" : "south", ew = o.lon >= 0 ? "east" : "west";
+  const where = o.postcode ? `near postcode ${spell(o.postcode.replace(/\s/g, ""))}${o.metres > 60 ? `, about ${Math.round(o.metres / 10) * 10} metres away` : ""}${o.place ? `, in ${o.place}` : ""}` : "";
+  const parts = [`I need the emergency services.${o.name && !/^(You|Dropped pin|Map centre)/.test(o.name) ? " " + o.name + "." : ""}`];
+  if (where) parts.push(`${o.mine ? "My location is" : "The place is"} ${where}.`);
+  if (g) parts.push(`Ordnance Survey grid reference ${spell(g.letters)} ${spell(g.e)} ${spell(g.n)}.`);
+  parts.push(`Latitude ${Math.abs(o.lat).toFixed(5)} degrees ${ns}, longitude ${Math.abs(o.lon).toFixed(5)} degrees ${ew}.`);
+  if (o.acc) parts.push(`My phone puts me within about ${o.acc < 1000 ? Math.round(o.acc) + " metres" : (o.acc / 1000).toFixed(1) + " kilometres"}.`);
+  return parts.join(" ");
+}
+let sosEl = null, sosSeq = 0;
+function sosBox() {
+  if (sosEl) return sosEl;
+  sosEl = document.createElement("div"); sosEl.id = "sos";
+  sosEl.innerHTML = '<div class="box" role="dialog" aria-label="Where am I"></div>';
+  sosEl.addEventListener("click", (e) => { if (e.target === sosEl) closeSos(); });
+  document.body.append(sosEl);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && sosEl.classList.contains("open")) closeSos(); });
+  return sosEl;
+}
+const closeSos = () => { sosSeq++; sosEl?.classList.remove("open"); };
+function openSos(pt) {
+  const box = sosBox().querySelector(".box"); sosEl.classList.add("open");
+  const seq = ++sosSeq;
+  const head = (t) => `<h2><span>🆘 ${t}</span><button aria-label="Close">×</button></h2>`;
+  const done = () => { box.querySelector("h2 button").onclick = closeSos; };
+  if (!pt) {   // this device's location, fresh
+    box.innerHTML = head("Where am I?") + '<p class="muted">Finding your location…</p>' +
+      '<div class="note">If it asks, allow location for this site.</div>'; done();
+    const fail = (msg) => {
+      if (seq !== sosSeq) return;
+      const pin = pinMarker?.fav?.[1], c = map.getCenter();
+      box.innerHTML = head("Where am I?") + `<p class="warn">${esc(msg)}</p><div class="acts">
+        ${pin ? '<button data-use="pin">Use my dropped pin</button>' : ""}<button data-use="centre">Use the middle of the map</button>
+        <a class="call" href="tel:999">📞 Call 999</a></div>
+        <div class="note">Calling 999 or 112 from a phone also shares your location with the call handler automatically.</div>`;
+      done();
+      box.querySelector('[data-use="pin"]')?.addEventListener("click", () => openSos({ lat: pin.lat, lon: pin.lon, label: "Dropped pin", pin }));
+      box.querySelector('[data-use="centre"]').addEventListener("click", () => openSos({ lat: c.lat, lon: c.lng, label: "Map centre (not your own position)" }));
+    };
+    if (!navigator.geolocation || !window.isSecureContext) return fail("This browser can't give your location here (it needs an https address and permission).");
+    navigator.geolocation.getCurrentPosition((p) => {
+      if (seq !== sosSeq) return;
+      showMe([p.coords.latitude, p.coords.longitude], p.coords.accuracy, "You are here");
+      openSos({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy, label: "Your location", at: Date.now() });
+    }, (err) => fail(err.code === 1 ? "Location is blocked: allow it for this site in the browser or app settings, then try again." : "Couldn't get a location fix. Try again, or move to an open spot."),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+    return;
+  }
+  const o = { lat: pt.lat, lon: pt.lon, acc: pt.acc || 0, name: pt.label || "", mine: !!pt.at, grid: osGridRef(pt.lat, pt.lon), postcode: null, place: "", metres: 0 };
+  const render = () => {
+    const g = o.grid, say = sosText(o);
+    const row = (k, v) => v ? `<tr><td>${k}</td><td>${v}</td></tr>` : "";
+    box.innerHTML = head(esc(pt.label || "Where am I?")) +
+      `<div class="say" id="sosSay">${esc(say)}</div>
+       <div class="acts"><a class="call" href="tel:999">📞 Call 999</a><button id="sosCopy">Copy</button>${navigator.share ? '<button id="sosShare">Share</button>' : ""}</div>
+       <table>${row("Nearest postcode", o.postcode ? `${esc(o.postcode)}${o.metres > 60 ? ` <span class="muted">(~${Math.round(o.metres / 10) * 10} m away)</span>` : ""}` : o.postcode === null ? '<span class="muted">looking up…</span>' : '<span class="muted">none within 500 m</span>')}
+        ${row("Area", esc(o.place))}
+        ${row("OS grid reference", g ? `${g.letters} ${g.e} ${g.n} <span class="muted">(${g.letters} ${g.e.slice(0, 3)} ${g.n.slice(0, 3)} to 100 m)</span>` : '<span class="muted">not in Great Britain</span>')}
+        ${row("Latitude, longitude", `${o.lat.toFixed(5)}, ${o.lon.toFixed(5)}`)}
+        ${row("Plus Code", esc(plusCode(o.lat, o.lon)))}
+        ${row("Accuracy", o.acc ? `within about ${o.acc < 1000 ? Math.round(o.acc) + " m" : (o.acc / 1000).toFixed(1) + " km"}${o.acc > 100 ? ' <span class="warn">(poor: say what you can see around you too)</span>' : ""}` : "")}</table>
+       <div class="note">Say what you can see too: the road, a building, the beach or path you are on, and which way you are facing. At the coast ask for the <b>Coastguard</b>; inland, for the <b>Police</b>, <b>Fire</b> or <b>Ambulance</b>. Calling 999 or 112 from a phone also shares its location automatically. Can't speak? Text 999 if you registered at emergencysms.net first.<br>
+       Worked out in this page from the position above; check it against what you can see. This is a help, not a safety service.</div>`;
+    done();
+    box.querySelector("#sosCopy").onclick = async (e) => {
+      try { await navigator.clipboard.writeText(say); e.target.textContent = "Copied ✓"; }
+      catch { const r = document.createRange(); r.selectNodeContents(box.querySelector("#sosSay")); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); e.target.textContent = "Selected: press copy"; }
+    };
+    const sh = box.querySelector("#sosShare"); if (sh) sh.onclick = () => navigator.share({ text: say }).catch(() => {});
+  };
+  render();
+  getFeed("reverse", `?lat=${o.lat.toFixed(5)}&lon=${o.lon.toFixed(5)}`).then((d) => {
+    if (seq !== sosSeq) return;
+    if (d?.postcode) { o.postcode = d.postcode; o.metres = d.metres || 0; o.place = Array.isArray(d.district) ? d.district.join(", ") : d.district || d.region || ""; }
+    else o.postcode = "";
+    render();
+  }).catch(() => { if (seq === sosSeq) { o.postcode = ""; render(); } });
+}
+
 let pinMarker = null, pinAt = 0, longPressed = false;
 const pinPopup = (o) => `<b>📍 ${esc(o.name)}</b><br><span class="muted">${o.lat.toFixed(5)}, ${o.lon.toFixed(5)}</span>
-  ${o.place ? `<br>${esc(o.place)}` : ""}${pinMarker?.fav?.[1] === o ? '<br><a href="#" class="pin-clear" style="font-size:11px">Remove pin</a>' : ""}`;
+  ${o.place ? `<br>${esc(o.place)}` : ""}<br><a href="#" class="sos-pin" style="font-size:11px">🆘 What to tell the emergency services</a>${pinMarker?.fav?.[1] === o ? ' &nbsp; <a href="#" class="pin-clear" style="font-size:11px">Remove pin</a>' : ""}`;
 function dropPin(ll) {
   if (Date.now() - pinAt < 1000) return;  // a long press can raise both pointer and contextmenu events
   pinAt = Date.now();
@@ -2471,6 +2604,7 @@ function dropPin(ll) {
   });
 }
 document.addEventListener("click", (ev) => {
+  if (ev.target.closest?.(".sos-pin") && pinMarker) { ev.preventDefault(); const o = pinMarker.fav?.[1]; if (o) openSos({ lat: o.lat, lon: o.lon, label: "Dropped pin", pin: o }); return; }
   if (!ev.target.closest?.(".pin-clear")) return;
   ev.preventDefault();
   pinMarker?.remove(); pinMarker = null;
