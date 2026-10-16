@@ -167,6 +167,7 @@
   @media (prefers-reduced-motion: reduce) { .gen .blades { animation: none; } }
   .spark { display: flex; align-items: flex-end; gap: 1px; height: 46px; margin: 4px 0 2px; }
   .spark i { flex: 1; min-width: 2px; border-radius: 1px 1px 0 0; }
+  .atm { width: 16px; height: 16px; border-radius: 50%; border: 1px solid #0b1118; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
   .ev { width: 16px; height: 16px; border-radius: 4px; border: 1px solid #0b1118; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff; }
   .leaflet-popup.has-fav .leaflet-popup-content { margin-right: 40px; }
   .leaflet-container a.fav-star { position: absolute; top: 3px; right: 24px; width: 20px; height: 20px; line-height: 20px; text-align: center;
@@ -459,7 +460,7 @@ const DEFAULTS = {
   layers: { ac_civil: true, ac_military: true, ac_police: true, ac_hems: true, ac_sar: true,
     ac_trails: true, mil_dest: true, airfields: true, army: true,
     vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
-    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, grid_regions: false, windfarms: true, plants: true, chargers: true, home: true, favs: true, quakes: true, meteors: true, allsky: true, observatories: true, rail_stations: true, rail_disruptions: true, buses: true, bus_stops: true, bus_disruptions: true, news: true },
+    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, grid_regions: false, windfarms: true, plants: true, chargers: true, atms: true, home: true, favs: true, quakes: true, meteors: true, allsky: true, observatories: true, rail_stations: true, rail_disruptions: true, buses: true, bus_stops: true, bus_disruptions: true, news: true },
   regionMode: "carbon", basemap: "dark", theme: "standard", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
 };
 let S;
@@ -640,7 +641,7 @@ const FEED_NAMES = { aircraft: "ADS-B aircraft", vessels: "AIS ships", weather_w
   city_weather: "Open-Meteo weather", grid: "Electricity grid", roads: "National Highways", power_cuts: "Power cuts", space: "Space weather",
   quakes: "BGS earthquakes", news: "BBC news", meteors: "UK Meteor Network", sea: "Sea state", wind_grid: "Wind grid", radar: "Rain radar",
   favourites: "Favourites", home_info: "Home location", energy_regions: "Energy regions", energy_live: "Carbon, solar & Agile",
-  generators: "Generation (Elexon)", chargers: "EV chargers (OCM)", rnli: "RNLI launches", fire: "Fire & rescue", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage overflows", bathing: "Bathing waters",
+  generators: "Generation (Elexon)", chargers: "EV chargers (OCM)", atms: "Cash machines (OSM)", rnli: "RNLI launches", fire: "Fire & rescue", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage overflows", bathing: "Bathing waters",
   rivers: "River levels", lightning: "Lightning", air_quality: "Air quality", fires: "NASA fire hotspots", tfl: "TfL status", iss: "ISS", allsky: "Allsky cameras", observatories: "Observatories", rail_stations: "Rail stations", rail_disruptions: "Rail disruptions", buses: "Live buses", bus_stops: "Bus stops", bus_board: "Bus departures", bus_disruptions: "Bus disruptions",
   crime: "Street crime", fuel: "Fuel prices", home: "Near home" };
 // "off" = an optional feed with no key / switched off: not a fault
@@ -2283,6 +2284,40 @@ function refreshChargers() {
   }, 500);
 }
 
+const ATM_MIN_ZOOM = 15;
+let atmKey = null, atmTimer = null;
+// fee is often untagged in OSM, so grey means unknown, never "free"
+const atmCol = (a) => a.fee === "no" ? "#16a34a" : a.fee === "yes" ? "#dc2626" : a.fee === "some" ? "#f59e0b" : "#64748b";
+const ATM_FEE = { no: "Free to use", some: "Fee for some customers", yes: "Charges a fee" };
+function atmPopup(a) {
+  return `<b>🏧 ${esc(a.name)}</b>${a.operator && a.operator !== a.name ? `<br><span class="muted">${esc(a.operator)}</span>` : ""}
+    <br>${a.fee ? `<b>${ATM_FEE[a.fee]}</b>${a.charge ? ` · ${esc(a.charge)}` : ""}` : '<span class="muted">Fee not recorded</span>'}
+    ${a.cash_in ? "<br>Accepts deposits" : ""}${a.indoor ? "<br>Indoors" : ""}${a.wheelchair ? `<br><span style="font-size:11px">Wheelchair access: ${esc(a.wheelchair)}</span>` : ""}
+    ${a.hours ? `<br><span style="font-size:11px">${esc(a.hours)}</span>` : ""}
+    <br><span class="muted" style="font-size:11px">Mapped position; machines may be out of cash or removed</span>
+    <br><a href="${esc(a.url)}" target="_blank" rel="noopener">OpenStreetMap ↗</a>`;
+}
+function refreshAtms() {
+  clearTimeout(atmTimer);
+  if (!S.layers.atms || map.getZoom() < ATM_MIN_ZOOM) { G.atms.clearLayers(); atmKey = null; counts.atms = undefined; renderCounts(); return; }
+  const b = map.getBounds().pad(0.1);
+  const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(v => v.toFixed(2)).join(",");
+  if (bbox === atmKey) return;
+  atmTimer = setTimeout(async () => {
+    atmKey = bbox;
+    const d = await getFeed("atms", `?bbox=${bbox}`);
+    if (d?.error?.startsWith("loading")) { atmKey = null; atmTimer = setTimeout(refreshAtms, 30000); return; }  // first download still running
+    if (!d || !d.atms || atmKey !== bbox) return;
+    G.atms.clearLayers();
+    for (const a of d.atms)
+      fav(L.marker([a.lat, a.lon], { icon: L.divIcon({ className: "", iconSize: [16, 16], iconAnchor: [8, 8],
+        html: `<div class="atm" style="background:${atmCol(a)}">£</div>` }), zIndexOffset: 150 })
+        .bindPopup(() => atmPopup(a), { maxWidth: 300 }).bindTooltip(esc(a.name), { direction: "top", offset: [0, -8] })
+        .addTo(G.atms), "atm", a);
+    counts.atms = d.atms.length; renderCounts();
+  }, 500);
+}
+
 /* ------------------------------------------------------------ favourites */
 // ☆ in a popup saves the place. The list lives on the server, one per home (the link's token picks it),
 // so the HA panel, a phone and a wall display all share it.
@@ -2298,6 +2333,7 @@ const FAV_KINDS = {
   fuel: { icon: "⛽", name: "Fuel", popup: fuelPopup, opts: {} },
   plant: { icon: "🏭", name: "Generator", popup: (o) => genPopup(o), opts: { maxWidth: 300 }, live: () => lastPlants.map(p => ({ ...p, id: p.name })) },
   charger: { icon: "🔌", name: "EV charger", popup: (o) => chargerPopup(o), opts: { maxWidth: 300 } },
+  atm: { icon: "🏧", name: "Cash machine", popup: (o) => atmPopup(o), opts: { maxWidth: 300 } },
 };
 let favs = [];
 const favMarkers = new Map();
@@ -2399,6 +2435,7 @@ const LAYER_UI = [
     ["fuel", "Fuel prices (zoom 11+)", "#22c55e"],
     ["rail_disruptions", "Rail disruptions (live)", "#e11d48"], ["rail_stations", "Rail stations & live departures (zoom 11+)", "#fda4af"],
     ["buses", "Live buses (zoom 12+)", "#f59e0b"], ["bus_stops", "Bus stops & timetables (zoom 15+)", "#fcd34d"], ["bus_disruptions", "Bus disruptions (zoom 9+)", "#d97706"],
+    ["atms", "Cash machines (zoom 15+)", "#22c55e"],
     ["tfl", "TfL disruption (Info panel)", "#dc2626"]]],
   ["Energy", [["cuts", "Power cuts (UKPN, SSEN)", "#fbbf24"], ["interconnectors", "Power interconnectors (flows)", "#e879f9"],
     ["grid_regions", "Regions: carbon, solar & Agile price", "#4ade80"], ["windfarms", "Wind farms (live output)", "#7dd3fc"],
@@ -2414,7 +2451,7 @@ function countFor(k) {
   return { ac_civil: a.civil, ac_military: a.military, ac_police: a.police, ac_hems: a.hems, ac_sar: a.sar,
     vs_special: counts.vessels?.special, vs_civil: counts.vessels?.total, floods: counts.floods, cuts: counts.cuts,
     quakes: counts.quakes, news: counts.news,
-    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, fuel: counts.fuel, allsky: counts.allsky, observatories: counts.observatories, rail_stations: counts.rail_stations, rail_disruptions: counts.rail_disruptions, buses: counts.buses, bus_stops: counts.bus_stops, bus_disruptions: counts.bus_disruptions, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length, favs: counts.favs, windfarms: counts.windfarms, plants: counts.plants, chargers: counts.chargers }[k] ?? (k.startsWith("fire_") ? counts[k] : undefined);
+    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, fuel: counts.fuel, allsky: counts.allsky, observatories: counts.observatories, rail_stations: counts.rail_stations, rail_disruptions: counts.rail_disruptions, buses: counts.buses, bus_stops: counts.bus_stops, bus_disruptions: counts.bus_disruptions, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length, favs: counts.favs, windfarms: counts.windfarms, plants: counts.plants, chargers: counts.chargers, atms: counts.atms }[k] ?? (k.startsWith("fire_") ? counts[k] : undefined);
 }
 function renderCounts() { for (const el of document.querySelectorAll("[data-count]")) { const n = countFor(el.dataset.count); el.textContent = n ?? ""; } }
 // Views: switch many layers at once. Anything not listed is turned off.
@@ -2425,7 +2462,7 @@ const VIEWS = {
   emergency: ["Emergency", ["ac_police", "ac_hems", "ac_sar", "ac_trails", "hems_scene", "rnli", "fire", ...FIRE_KIDS, "vs_special",
     "warnings", "floods", "roads_incidents", "news"]],
   transport: ["Travel & transport", ["ac_civil", "ac_military", "ac_police", "ac_hems", "ac_sar", "vs_civil", "vs_special",
-    "roads_incidents", "roads_closures", "roads_works", "tfl", "rail_disruptions", "rail_stations", "buses", "bus_stops", "bus_disruptions", "fuel", "webcams"]],
+    "roads_incidents", "roads_closures", "roads_works", "tfl", "rail_disruptions", "rail_stations", "buses", "bus_stops", "bus_disruptions", "fuel", "atms", "webcams"]],
   weather: ["Weather & water", ["warnings", "cityweather", "radar", "wind", "temps", "lightning", "floods", "rivers", "sea",
     "sewage", "air"]],
   coast: ["Coast & sea", ["vs_special", "vs_civil", "ac_sar", "tides", "sea", "bathing", "sewage", "sewage_recent", "rnli",
@@ -2470,6 +2507,7 @@ function afterToggle(keys) {
   if (has(k => k === "grid_regions")) renderRegions();
   if (has(k => k === "windfarms" || k === "plants")) renderGen();
   if (has(k => k === "chargers")) { chargerKey = null; refreshChargers(); }
+  if (has(k => k === "atms")) { atmKey = null; refreshAtms(); }
   if (has(k => k === "tfl" || k === "iss")) renderAlerts();
   syncGroupBoxes();
 }
@@ -2659,7 +2697,7 @@ function start() {
   setInterval(() => renderNews(), 60000);
   checkVersion(); setInterval(checkVersion, 3600 * 1000);  // age out expired incidents
   map.on("zoomend", () => { renderAircraft(lastAircraft); renderVessels(); if (lastGrid) renderInterconnectors(lastGrid); });
-  const moved = () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderAllsky(); renderObs(); renderRailStations(); renderBusDis(); refreshBuses(); refreshBusStops(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); refreshChargers(); };
+  const moved = () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderAllsky(); renderObs(); renderRailStations(); renderBusDis(); refreshBuses(); refreshBusStops(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); refreshChargers(); refreshAtms(); };
   // redrawing a layer would close the popup that just auto-panned the map, so wait until it's closed
   let openPop = null, movedUnder = false;
   map.on("popupopen", (e) => { openPop = e.popup; });

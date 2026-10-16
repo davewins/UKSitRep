@@ -208,8 +208,44 @@ def _eci_to_latlon(r: tuple[float, float, float], dt: datetime) -> tuple[float, 
     return lat, lon, alt
 
 
+ATM_MAX_SPAN = (0.1, 0.2)   # degrees lat, lon: about zoom 15 on a big screen
+ATM_MAX = 500
+ATM_UK_BOX = "49.8,-8.7,60.9,1.9"   # S, W, N, E
+ATM_REFRESH_S = 7 * 86400
+
+
+def parse_osm_atms(els: list[dict]) -> list[dict]:
+    """Overpass elements tagged amenity=atm -> small flat records. `fee` stays None when the tag
+    is missing: most UK machines aren't tagged, so unknown must not be shown as free."""
+    out = []
+    for el in els:
+        t = el.get("tags") or {}
+        lat = el.get("lat") if el.get("lat") is not None else (el.get("center") or {}).get("lat")
+        lon = el.get("lon") if el.get("lon") is not None else (el.get("center") or {}).get("lon")
+        if lat is None or lon is None:
+            continue
+        operator = t.get("operator") or t.get("brand") or t.get("network")
+        fee = t.get("fee") if t.get("fee") in ("no", "some", "yes") else None
+        out.append({
+            "id": f"{el.get('type', 'node')[0]}{el.get('id')}", "lat": round(lat, 5), "lon": round(lon, 5),
+            "name": t.get("name") or operator or "Cash machine", "operator": operator,
+            "fee": fee, "charge": (t.get("charge") or "")[:30] or None,
+            "cash_in": t.get("cash_in") == "yes" or None,
+            "hours": (t.get("opening_hours") or "")[:60] or None,
+            "indoor": t.get("indoor") == "yes" or None,
+            "wheelchair": t.get("wheelchair") if t.get("wheelchair") in ("yes", "limited", "no") else None,
+            "url": f"https://www.openstreetmap.org/{el.get('type', 'node')}/{el.get('id')}",
+        })
+    return out
+
+
 class MoreFeeds:
     """Mixin for Situation."""
+
+    _atm_list: list[dict] | None = None   # cash machines, loaded from DATA_DIR or the first refresh
+    _atm_fetched = 0.0
+    _atm_retry_at = 0.0
+    _atm_task: asyncio.Task | None = None
 
     # ------------------------------------------------------------ river levels
     async def rivers(self) -> dict:
@@ -729,6 +765,54 @@ class MoreFeeds:
                     break
                 await asyncio.sleep(0.7)  # stay well under 100 requests a minute
         return out
+
+    async def atms(self, bbox: tuple[float, float, float, float] | None) -> dict:
+        """Cash machines from OpenStreetMap (amenity=atm) inside the viewer's box. The whole UK list is
+        fetched from Overpass once a week in the background and kept in memory, so viewers never wait on
+        Overpass. OSM has no live status: these are mapped positions."""
+        if not bbox:
+            return {"error": "bbox required"}
+        s, w, n, e = bbox
+        if not (-90 <= s < n <= 90 and -180 <= w < e <= 180) or n - s > ATM_MAX_SPAN[0] or e - w > ATM_MAX_SPAN[1]:
+            return {"error": "zoom in", "atms": []}
+        store = self.cfg.data_dir / "osm_atms.json"
+        if self._atm_list is None:
+            try:
+                saved = await asyncio.to_thread(lambda: json.loads(store.read_text()))
+                self._atm_list, self._atm_fetched = saved["atms"], float(saved.get("fetched", 0))
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
+        if time.time() - self._atm_fetched > ATM_REFRESH_S and time.time() > self._atm_retry_at \
+                and (not self._atm_task or self._atm_task.done()):
+            self._atm_task = self.spawn(self._refresh_atms(store))
+        if self._atm_list is None:
+            return {"error": "loading: the cash machine list is downloading, try again in a few minutes"}
+        hits = [a for a in self._atm_list if s <= a["lat"] <= n and w <= a["lon"] <= e]
+        return {"updated": datetime.fromtimestamp(self._atm_fetched, timezone.utc).isoformat(),
+                "atms": hits[:ATM_MAX], "truncated": len(hits) > ATM_MAX}
+
+    async def _refresh_atms(self, store) -> None:
+        from .feeds import OVERPASS_MIRRORS, UA
+        query = f'[out:json][timeout:240];nwr["amenity"="atm"]({ATM_UK_BOX});out center tags;'
+        for mirror in OVERPASS_MIRRORS:
+            try:
+                async with self.session.post(mirror, data={"data": query}, headers=UA,
+                                             timeout=aiohttp.ClientTimeout(total=300)) as r:
+                    r.raise_for_status()
+                    els = (await r.json(content_type=None)).get("elements", [])
+            except Exception as err:  # noqa: BLE001 - try the next mirror
+                _LOGGER.info("overpass %s failed: %s", mirror, err)
+                continue
+            atms = parse_osm_atms(els)
+            if not atms:
+                continue
+            now = time.time()
+            await asyncio.to_thread(lambda: store.write_text(json.dumps({"fetched": now, "atms": atms})))
+            self._atm_list, self._atm_fetched = atms, now
+            _LOGGER.info("OSM cash machines refreshed: %d", len(atms))
+            return
+        self._atm_retry_at = time.time() + 1800
+        _LOGGER.warning("OSM cash machines: all Overpass mirrors failed, retrying in 30 min")
 
     async def fuel(self, bbox: tuple[float, float, float, float] | None = None) -> dict:
         """Forecourt prices. The full list is ~2.5 MB, so viewers ask for their bounding box (S,W,N,E)."""
