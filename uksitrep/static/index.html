@@ -31,9 +31,9 @@
   #top h1 .ver { font: 10px/1 system-ui, sans-serif; letter-spacing: 0; color: var(--muted); margin-left: 6px; vertical-align: middle; }
   #top h1 .ver.new { color: #fbbf24; }
   #verLine.new { color: #fbbf24; }
-  #zoomBadge { position: absolute; right: 8px; bottom: 38px; z-index: 500; background: var(--panel); color: var(--muted);
-    border: 1px solid var(--line); border-radius: 4px; padding: 2px 7px; font: 11px/1.3 system-ui, sans-serif;
-    font-variant-numeric: tabular-nums; pointer-events: none; }
+  .view-ctl .zoom-now { display: block; padding: 3px 2px; text-align: center; font-size: 11px; line-height: 1.2; color: var(--text);
+    background: #fff; background: var(--panel, #fff); border-bottom: 1px solid var(--line, #ccc); font-variant-numeric: tabular-nums; cursor: default; }
+  .view-ctl .zoom-now b { display: block; font-size: 15px; }
   #clock { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
   #chips { display: flex; gap: 6px; overflow: hidden; flex: 1; min-width: 0; }
   #chips .chip.sum { cursor: pointer; background: #1e293b; color: var(--fg, #e2e8f0); }
@@ -431,7 +431,6 @@
 </style>
 </head>
 <body>
-<div id="zoomBadge" title="Map zoom level (layer hints in the Layers panel use this number)">Zoom 6</div>
 <div id="top">
   <h1>🇬🇧 UK<span class="full"> SITREP</span><span class="ver" id="verTop"></span></h1>
   <div id="clock"></div>
@@ -479,7 +478,7 @@ const DEFAULTS = {
     ac_trails: true, mil_dest: true, airfields: true, army: true,
     vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
     cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, grid_regions: false, windfarms: true, plants: true, chargers: true, atms: true, postboxes: true, defibs: true, watersafety: true, toilets: true, hospitals: true, seaglass: true, home: true, favs: true, quakes: true, meteors: true, allsky: true, observatories: true, rail_stations: true, rail_disruptions: true, buses: true, bus_stops: true, bus_disruptions: true, news: true },
-  regionMode: "carbon", basemap: "dark", theme: "standard", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
+  regionMode: "carbon", basemap: "dark", theme: "standard", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36, iconScale: "auto",
 };
 let S;
 try { S = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem("ukSit") || "{}"));
@@ -493,15 +492,25 @@ const HOME_ZOOM = 12;
 const UK_VIEW = () => [[54.6, -3.2], phone.matches ? 5 : 6];
 // Open on the home (remembered from the last visit, else as soon as the home feed says where it is).
 // ?uk or ?z=6 opens on the whole country instead, as before.
+// Icon size: markers are scaled with the CSS scale property about their anchor point (Leaflet moves them with
+// transform, so the two do not fight), and round markers get a bigger radius. Changing the setting reloads the page.
+const ISC = (() => { const v = S.iconScale || "auto";
+  if (v !== "auto") return +v || 1;
+  return screen.width >= 1500 && !matchMedia("(pointer: coarse)").matches ? 1.3 : 1; })();
+if (ISC !== 1) {
+  const setStyles = L.Icon.prototype._setIconStyles;
+  L.Icon.prototype._setIconStyles = function (el, name) {
+    setStyles.call(this, el, name);
+    if (name === "icon") { el.style.scale = ISC; el.style.transformOrigin = `${-parseFloat(el.style.marginLeft) || 0}px ${-parseFloat(el.style.marginTop) || 0}px`; }
+  };
+  const ccInit = L.CircleMarker.prototype.initialize;
+  L.CircleMarker.prototype.initialize = function (ll, o) { ccInit.call(this, ll, o); this._radius *= ISC; };
+}
 const startUK = params.has("uk") || params.has("z");
 let wantHome = !startUK;
 const map = L.map("map", { zoomControl: false, preferCanvas: true, worldCopyJump: false, tap: true });
 if (!startUK && S.homeAt) { map.setView(S.homeAt, HOME_ZOOM); wantHome = false; }
 else map.setView(UK_VIEW()[0], params.get("z") ? +params.get("z") : UK_VIEW()[1]);
-// zoom level readout (the Layers panel hints refer to this number)
-const zoomBadge = document.getElementById("zoomBadge");
-const showZoom = () => { const z = map.getZoom(); zoomBadge.textContent = "Zoom " + (Number.isInteger(z) ? z : z.toFixed(1)); };
-map.on("zoom zoomend", showZoom); showZoom();
 // the installed app (iPhone home screen, Mac Dock) must open with the same token this page was opened with
 if (params.get("token")) document.getElementById("manifestLink").href = "icons/site.webmanifest?token=" + encodeURIComponent(params.get("token"));
 let noHome = false, homeAt = null;  // no home configured: ⌂ and the opening view use this device's location
@@ -591,9 +600,9 @@ const ViewCtl = L.Control.extend({
   options: { position: "bottomleft" },
   onAdd() {
     const d = L.DomUtil.create("div", "leaflet-bar view-ctl");
-    d.innerHTML = '<a href="#" role="button" title="Home (H): your location when no home is set">⌂</a><a href="#" role="button" id="btnLocate" title="My location (L)">◎</a><a href="#" role="button" title="Whole UK (U)">UK</a>';
+    d.innerHTML = '<span class="zoom-now" id="zoomBadge" title="Map zoom level: the zoom hints in the Layers panel use this number">zoom<b>-</b></span><a href="#" role="button" title="Home (H): your location when no home is set">⌂</a><a href="#" role="button" id="btnLocate" title="My location (L)">◎</a><a href="#" role="button" title="Whole UK (U)">UK</a>';
     L.DomEvent.disableClickPropagation(d);
-    const [h, me, u] = d.querySelectorAll("a");
+    const [h, me, u] = d.querySelectorAll("a");   // (the zoom readout is a span)
     me.onclick = (e) => { e.preventDefault(); locate(); };
     h.onclick = (e) => { e.preventDefault(); goHome(); };
     u.onclick = (e) => { e.preventDefault(); map.flyTo(...UK_VIEW(), { duration: 1 }); };
@@ -601,6 +610,8 @@ const ViewCtl = L.Control.extend({
   },
 });
 new ViewCtl().addTo(map);
+const showZoom = () => { const z = map.getZoom(); document.querySelector("#zoomBadge b").textContent = Number.isInteger(z) ? z : z.toFixed(1); };
+map.on("zoom zoomend", showZoom); showZoom();
 // All keyless tile sources
 const DATA_ATTR = " | ADS-B: adsb.lol | AIS: aisstream.io | Weather: <a href=\"https://open-meteo.com\" target=\"_blank\" rel=\"noopener\">Open-Meteo.com</a> | National Highways | UKMON | Met Office, EA, BGS, NOAA, Elexon, BBC | Rail: National Rail | Contains public sector information licensed under the <a href=\"https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/\" target=\"_blank\" rel=\"noopener\">Open Government Licence v3.0</a>";
 // the map layers built from OpenStreetMap data (ODbL) need crediting whatever the base map is
@@ -2868,11 +2879,12 @@ function buildLeft() {
     <div class="row"><span>Incident age</span><select id="fNewsH"><option value="1">1 h</option><option value="3">3 h</option><option value="6">6 h</option><option value="12">12 h</option><option value="24">24 h</option></select></div>
     <div class="row"><span>Incident severity</span><select id="fNewsSev"><option value="1">All</option><option value="2">Medium +</option><option value="3">High only</option></select></div>
     <div class="row"><span>Quakes</span><select id="fQuake"><option value="1">24 h</option><option value="7">7 days</option><option value="30">30 days</option><option value="365">All</option></select></div>
+    <div class="row"><span>Icon size</span><select id="fIcons"><option value="auto">Auto</option><option value="1">Normal</option><option value="1.3">Large</option><option value="1.6">Extra large</option><option value="2">Huge</option></select></div>
     <div class="row"><span>Meteors</span><select id="fMeteor"><option value="12">12 h</option><option value="36">36 h</option><option value="72">3 nights</option></select></div>
     <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>/</b> search · <b>P</b> panels · <b>F</b> full screen · <b>H</b> home · <b>L</b> my location · <b>U</b> whole UK<br>Add <code>?kiosk</code> to the URL for an always-on display, <code>?uk</code> to open on the whole country, and <code>?view=military</code> (or favourites, emergency, transport, weather, coast, space, everything) to open in a view, and <code>?theme=spy</code> (or alien, tron, expanse, minority) for a film style.</p>`;
   $("left").innerHTML = h + '<p class="muted" id="verLine" style="font-size:11px"></p><div class="sheet-close" data-close>Close</div>';
   showVersion();
-  $("fTheme").value = S.theme || "standard"; $("fBase").value = S.basemap; $("fLabels").value = S.labels; $("fAlt").value = S.minAltFt; $("fNewsH").value = S.newsHours; $("fNewsSev").value = S.newsMinSev; $("fQuake").value = S.quakeDays; $("fMeteor").value = S.meteorHours;
+  $("fTheme").value = S.theme || "standard"; $("fBase").value = S.basemap; $("fLabels").value = S.labels; $("fAlt").value = S.minAltFt; $("fNewsH").value = S.newsHours; $("fNewsSev").value = S.newsMinSev; $("fQuake").value = S.quakeDays; $("fMeteor").value = S.meteorHours; $("fIcons").value = S.iconScale || "auto";
   syncGroupBoxes();
   $("left").addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-bulk]");
@@ -2901,6 +2913,7 @@ function buildLeft() {
     if (t.id === "fNewsH") { S.newsHours = +t.value; renderNews(); }
     if (t.id === "fNewsSev") { S.newsMinSev = +t.value; renderNews(); }
     if (t.id === "fMeteor") { S.meteorHours = +t.value; renderMeteors(); }
+    if (t.id === "fIcons") { S.iconScale = t.value; save(); location.reload(); return; }
     if (t.id === "fQuake") { S.quakeDays = +t.value; renderQuakes({ quakes: lastQuakes }); }
     save();
   });
