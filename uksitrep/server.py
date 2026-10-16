@@ -30,6 +30,17 @@ LOOKUPS = web.AppKey("lookups", dict)
 
 
 @web.middleware
+async def compress_middleware(request: web.Request, handler):
+    """gzip the JSON feeds (the aircraft feed alone is ~250 KB every 10 s) for clients that ask for it."""
+    resp = await handler(request)
+    if (type(resp) is web.Response and resp.body is not None and len(resp.body) > 1024
+            and (resp.content_type or "").startswith(("application/json", "text/html"))
+            and "gzip" in request.headers.get("Accept-Encoding", "")):
+        resp.enable_compression()
+    return resp
+
+
+@web.middleware
 async def auth_middleware(request: web.Request, handler):
     cfg = request.app[CFG]
     token = cfg.access_token
@@ -71,8 +82,10 @@ async def token_root(request: web.Request) -> web.Response:
     raise web.HTTPFound(f"/k/{request.match_info['tok']}/")
 
 
-async def index(request: web.Request) -> web.FileResponse:
-    return web.FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
+async def index(request: web.Request) -> web.Response:
+    # read into memory so that it can be gzipped like the feeds (the page is ~240 KB)
+    body = await asyncio.to_thread((STATIC / "index.html").read_bytes)
+    return web.Response(body=body, content_type="text/html", charset="utf-8", headers={"Cache-Control": "no-cache"})
 
 
 async def feed(request: web.Request) -> web.Response:
@@ -266,7 +279,7 @@ async def _cleanup(app: web.Application) -> None:
 
 
 def make_app(cfg: Config) -> web.Application:
-    app = web.Application(middlewares=[auth_middleware])
+    app = web.Application(middlewares=[compress_middleware, auth_middleware])
     app[CFG] = cfg
     app.router.add_get("/healthz", healthz)
     app.router.add_get("/favicon.ico", favicon)

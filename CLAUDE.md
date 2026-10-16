@@ -171,6 +171,7 @@ compose file, README/NOTICE.
   Prefer official open data; record every source and licence in `NOTICE.md`.
 - **Say when data is old or approximate.** Label fallbacks (crime "older data"), approximate
   locations ("placed at the station"), and model data ("not for navigation").
+- **Keep the page fast with everything on (measured in headless Chrome; county zoom, ~800 aircraft).** Put an aircraft's label inside its icon, never a Leaflet tooltip per moving marker (that cost ~0.7 s per refresh). A renderer that rebuilds its markers for the current view must be wrapped with `guardView` (see the block before `OM_GATE`) so a pan or zoom within the area already drawn doesn't rebuild it (that cost ~1 s per move). Per-view point layers keep `coverage` so they don't refetch inside the area already loaded. Don't read `getComputedStyle` inside a per-marker loop. Compress anything over 1 KB (`compress_middleware`).
 - **Write for an always-on screen and a phone.** No layer should flood the map at country zoom:
   gate dense layers by zoom or show only the noteworthy subset (e.g. raised river gauges).
 

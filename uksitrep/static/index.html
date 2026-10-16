@@ -120,6 +120,8 @@
   .leaflet-tooltip.lbl { background: rgba(10,14,20,.75); color: var(--text); border: none; box-shadow: none;
     padding: 0 4px; font-size: 10.5px; line-height: 1.3; border-radius: 3px; }
   .leaflet-tooltip.lbl::before { display: none; }
+  .aclbl { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); white-space: nowrap; pointer-events: none;
+    background: rgba(10,14,20,.75); color: var(--text); padding: 0 4px; font-size: 10.5px; line-height: 1.3; border-radius: 3px; }
   .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #111821; color: var(--text); }
   .leaflet-popup-content { margin: 10px 12px; font-size: 12.5px; }
   .leaflet-popup-content b { color: #fff; }
@@ -216,7 +218,7 @@
   body[data-theme] #top button, body[data-theme] select, body[data-theme] .bulk button, body[data-theme] #searchBox button,
   body[data-theme] #searchQ, body[data-theme] .chip, body[data-theme] .radar-ctl button { background: var(--btn); border-color: var(--line); color: var(--text); font-family: inherit; }
   body[data-theme] #searchBox, body[data-theme] #feedList, body[data-theme] .radar-ctl { background: var(--popup); border-color: var(--line); }
-  body[data-theme] .leaflet-tooltip.lbl { background: var(--popup); color: var(--text); }
+  body[data-theme] .leaflet-tooltip.lbl, body[data-theme] .aclbl { background: var(--popup); color: var(--text); }
   body[data-theme] .leaflet-bar a { background: var(--btn); color: var(--accent); border-color: var(--line); }
   body[data-theme] .leaflet-control-attribution { background: var(--panel); color: var(--muted); }
   body[data-theme] .leaflet-control-attribution a { color: var(--muted); }
@@ -751,7 +753,7 @@ const acTypeName = (a) => (AC_TYPES[a.type] || [])[0] || null;
 const isHeli = (a) => a.cat === "A7" || ((AC_TYPES[a.type] || [])[1] || "").startsWith("H")
   || /^(EC|AS|H1|H6|A1|A13|A16|S92|AW|B06|B407|B429|EH10|MD9|NH90|H47|H64|MERL|PUMA|WILD|LYNX)/.test(a.type || "");
 
-function acIcon(a, col) {
+function acIcon(a, col, label) {
   const pulse = a.emergency ? " pulse" : "";
   const c = a.emergency ? css("--emerg") : col;
   const rot = a.track ?? 0;
@@ -760,7 +762,7 @@ function acIcon(a, col) {
     : `<path d="M0,-9 L2,-3 L9,1 L9,3 L2,1 L1.5,6 L4,8 L4,9.5 L0,8.5 L-4,9.5 L-4,8 L-1.5,6 L-2,1 L-9,3 L-9,1 L-2,-3 Z" fill="${c}" stroke="#000" stroke-width=".7"/>`;
   const size = a.cls === "civil" && !a.emergency ? 0.85 : 1.15;
   return L.divIcon({ className: "ac" + pulse, iconSize: [22, 22], iconAnchor: [11, 11],
-    html: `<svg width="22" height="22" viewBox="-11 -11 22 22"><g transform="rotate(${rot}) scale(${size})">${shape}</g></svg>` });
+    html: `<svg width="22" height="22" viewBox="-11 -11 22 22"><g transform="rotate(${rot}) scale(${size})">${shape}</g></svg>${label ? `<span class="aclbl">${label}</span>` : ""}` });
 }
 function acLabel(a) {
   const alt = a.alt === "ground" ? "GND" : (a.alt != null ? `FL${String(Math.round(a.alt / 100)).padStart(3, "0")}` : "");
@@ -831,31 +833,33 @@ function renderAircraft(list) {
   lastAircraft = list;
   const seen = new Set();
   const zoom = map.getZoom();
+  const colOf = {};   // computed styles once per refresh: reading them per aircraft forced a style recalculation each time
   for (const a of list) {
     const layerOn = S.layers["ac_" + a.cls] || a.emergency;
     if (!layerOn) continue;
     if (S.minAltFt && typeof a.alt === "number" && a.alt < S.minAltFt && a.cls === "civil" && !a.emergency) continue;
     seen.add(a.hex);
-    const col = css(AC_COL[a.cls]);
-    const key = `${a.cls}|${Math.round((a.track ?? 0) / 5)}|${a.emergency}|${isHeli(a)}`;
+    const col = colOf[a.cls] ??= css(AC_COL[a.cls]);
+    const wantLabel = S.labels === "all" || (S.labels === "special" && (a.cls !== "civil" || a.emergency || zoom >= 9));
+    const label = wantLabel ? acLabel(a) : "";
+    // the label lives inside the marker's icon: rebuilt with the icon, or just its text changed in place
+    const key = `${a.cls}|${Math.round((a.track ?? 0) / 5)}|${a.emergency}|${isHeli(a)}|${wantLabel}`;
     let e = acMarkers.get(a.hex);
     if (!e) {
-      const m = L.marker([a.lat, a.lon], { icon: acIcon(a, col), zIndexOffset: a.cls === "civil" ? 0 : 500 });
+      const m = L.marker([a.lat, a.lon], { icon: acIcon(a, col, label), zIndexOffset: a.cls === "civil" ? 0 : 500 });
       m.bindPopup(() => acPopup(e.a));
-      e = { m, key, a };
+      e = { m, key, a, label };
       acMarkers.set(a.hex, e);
       m.addTo(map);
+      e.lbl = wantLabel ? m.getElement()?.querySelector(".aclbl") : null;
     } else {
       e.m.setLatLng([a.lat, a.lon]);
-      if (e.key !== key) { e.m.setIcon(acIcon(a, col)); e.key = key; }
+      if (e.key !== key) {
+        e.m.setIcon(acIcon(a, col, label)); e.key = key; e.label = label;
+        e.lbl = wantLabel ? e.m.getElement()?.querySelector(".aclbl") : null;
+      } else if (wantLabel && e.label !== label && e.lbl) { e.lbl.innerHTML = label; e.label = label; }
     }
     e.a = a;
-    // labels
-    const wantLabel = S.labels === "all" || (S.labels === "special" && (a.cls !== "civil" || a.emergency || zoom >= 9));
-    if (wantLabel) {
-      if (!e.m.getTooltip()) e.m.bindTooltip(acLabel(a), { permanent: true, className: "lbl", direction: "right", offset: [9, 0] });
-      else e.m.setTooltipContent(acLabel(a));
-    } else if (e.m.getTooltip()) e.m.unbindTooltip();
     // trails
     const wantTrail = S.layers.ac_trails && a.trail && a.trail.length > 1 && (a.cls !== "civil" || a.emergency || zoom >= 8);
     if (wantTrail) {
@@ -2281,6 +2285,7 @@ function chargerPopup(c) {
 function refreshChargers() {
   clearTimeout(chargerTimer);
   if (!S.layers.chargers || map.getZoom() < CHARGER_MIN_ZOOM) { G.chargers.clearLayers(); chargerKey = null; counts.chargers = undefined; renderCounts(); return; }
+  if (chargerKey && covers("chargers")) return;
   const b = map.getBounds().pad(0.1);
   const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(v => v.toFixed(2)).join(",");
   if (bbox === chargerKey) return;
@@ -2295,6 +2300,7 @@ function refreshChargers() {
         .bindPopup(() => chargerPopup(c), { maxWidth: 300 }).bindTooltip(`${esc(c.name)}${c.kw ? ` · ${c.kw} kW` : ""}`, { direction: "top", offset: [0, -8] })
         .addTo(G.chargers), "charger", c);
     counts.chargers = d.chargers.length; renderCounts();
+    coverage.chargers = { area: b, truncated: !!d.truncated || d.chargers.length >= 500 };
   }, 500);
 }
 
@@ -2314,6 +2320,7 @@ function atmPopup(a) {
 function refreshAtms() {
   clearTimeout(atmTimer);
   if (!S.layers.atms || map.getZoom() < ATM_MIN_ZOOM) { G.atms.clearLayers(); atmKey = null; counts.atms = undefined; renderCounts(); return; }
+  if (atmKey && covers("atms")) return;
   const b = map.getBounds().pad(0.1);
   const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(v => v.toFixed(2)).join(",");
   if (bbox === atmKey) return;
@@ -2329,6 +2336,7 @@ function refreshAtms() {
         .bindPopup(() => atmPopup(a), { maxWidth: 300 }).bindTooltip(esc(a.name), { direction: "top", offset: [0, -8] })
         .addTo(G.atms), "atm", a);
     counts.atms = d.atms.length; renderCounts();
+    coverage.atms = { area: b, truncated: !!d.truncated };
   }, 500);
 }
 
@@ -2347,6 +2355,7 @@ function postboxPopup(p) {
 function refreshPostboxes() {
   clearTimeout(postboxTimer);
   if (!S.layers.postboxes || map.getZoom() < POSTBOX_MIN_ZOOM) { G.postboxes.clearLayers(); postboxKey = null; counts.postboxes = undefined; renderCounts(); return; }
+  if (postboxKey && covers("postboxes")) return;
   const b = map.getBounds().pad(0.1);
   const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(v => v.toFixed(3)).join(",");
   if (bbox === postboxKey) return;
@@ -2362,6 +2371,7 @@ function refreshPostboxes() {
         .bindPopup(() => postboxPopup(p), { maxWidth: 300 }).bindTooltip(esc(p.ref || "Post box"), { direction: "top", offset: [0, -7] })
         .addTo(G.postboxes), "postbox", p);
     counts.postboxes = d.postboxes.length; renderCounts();
+    coverage.postboxes = { area: b, truncated: !!d.truncated };
   }, 500);
 }
 
@@ -2441,6 +2451,10 @@ map.on("contextmenu", (e) => dropPin(e.latlng));
 
 /* ------------------------------------------------------------ OSM point layers: defibrillators, water safety, public toilets */
 // Same pattern as the chargers: zoom-gated, the server filters its weekly UK-wide OpenStreetMap download to the view.
+// The server returns every point in the (padded) box asked for, so while the view stays inside the last box (and the list was
+// not cut short) there is nothing new to fetch: panning a few metres used to refetch and rebuild up to 500 markers.
+const coverage = {};
+const covers = (k) => { const c = coverage[k]; return !!c && !c.truncated && c.area.contains(map.getBounds()); };
 const osmUrl = (id) => `https://www.openstreetmap.org/${{ n: "node", w: "way", r: "relation" }[id[0]] || "node"}/${id.slice(1)}`;
 const ACCESS_TXT = { yes: "Public access", permissive: "Public access (permissive)", customers: "Customers only", private: "Private",
   no: "Not public", permit: "Permit needed" };
@@ -2493,6 +2507,7 @@ function refreshOsm(key) {
   const c = OSM_LAYERS[key];
   clearTimeout(osmTimers[key]);
   if (!S.layers[key] || map.getZoom() < c.min) { G[key].clearLayers(); osmKeys[key] = null; counts[key] = undefined; renderCounts(); return; }
+  if (osmKeys[key] && covers(key)) return;
   const b = map.getBounds().pad(0.1);
   const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(v => v.toFixed(3)).join(",");
   if (bbox === osmKeys[key]) return;
@@ -2508,6 +2523,7 @@ function refreshOsm(key) {
         .bindPopup(() => c.popup(o), { maxWidth: 300 }).bindTooltip(esc(c.tip(o)), { direction: "top", offset: [0, -8] })
         .addTo(G[key]), c.kind, o);
     counts[key] = d[key].length; renderCounts();
+    coverage[key] = { area: b, truncated: !!d.truncated };
   }, 500);
 }
 const refreshOsmAll = () => Object.keys(OSM_LAYERS).forEach(refreshOsm);
@@ -2954,11 +2970,44 @@ const refresh = {
   energy_live: async () => { const d = await getFeed("energy_live"); if (d?.regions) { regionLive = Object.fromEntries(d.regions.map(r => [r.pes, r])); renderRegions(); } },
   generators: async () => { const d = await getFeed("generators"); if (d?.plants) { lastPlants = d.plants; genUpdated = d.updated; renderGen(); } },
 };
+// Layers drawn for the current view used to throw away and recreate every marker on each pan or zoom (~1 s at county zoom
+// with everything on). Skip that when nothing they draw can have changed: called without new data, same settings, and the
+// view still inside the (padded) area drawn last time. New data, a toggle or a bigger move still redraws as before.
+const drawnView = {};
+function guardView(name, sig, pad) {
+  const orig = window[name];
+  window[name] = function (d) {
+    if (d === undefined) {
+      const rec = drawnView[name], p = pad();
+      if (rec && rec.key === sig() && (p == null ? rec.area == null : rec.area && rec.area.contains(map.getBounds()))) return;
+    }
+    const r = orig.apply(this, arguments);
+    const p = pad();
+    drawnView[name] = name === "renderVessels" && vsHeld ? null : { key: sig(), area: p == null ? null : map.getBounds().pad(p) };
+    return r;
+  };
+}
+{
+  const z = () => map.getZoom(), on = (k) => !!S.layers[k];
+  guardView("renderCams", () => `${on("webcams")}|${z() >= WEBCAM_MIN_ZOOM}`, () => 0.3);
+  guardView("renderAllsky", () => `${on("allsky")}|${z() >= SKY_MIN_ZOOM}`, () => 0.3);
+  guardView("renderObs", () => `${on("observatories")}|${z() >= SKY_MIN_ZOOM}`, () => 0.3);
+  guardView("renderBusDis", () => `${on("bus_disruptions")}|${z() >= BUS_DIS_MIN_ZOOM}`, () => 0.3);
+  guardView("renderTides", () => `${on("tides")}|${z() >= TIDE_MIN_ZOOM}`, () => 0.3);
+  guardView("renderBathing", () => `${on("bathing")}|${z() >= BATHING_MIN_ZOOM}`, () => 0.3);
+  guardView("renderSewage", () => `${on("sewage")}|${on("sewage_recent")}|${z() >= SEWAGE_RECENT_MIN_ZOOM}`, () => on("sewage_recent") && z() >= SEWAGE_RECENT_MIN_ZOOM ? 0.3 : null);
+  guardView("renderRivers", () => `${on("rivers")}|${z() >= RIVER_MIN_ZOOM}`, () => z() >= RIVER_MIN_ZOOM ? 0.2 : null);
+  guardView("renderVessels", () => `${z()}|${S.labels}`, () => z() >= VS_ARROW_ZOOM ? 0.2 : null);
+}
 // Open-Meteo has a free daily quota: fetch its feeds only while their layer is on and the tab is visible
 const OM_GATE = { city_weather: () => S.layers.cityweather, sea: () => S.layers.sea, wind_grid: () => S.layers.wind || S.layers.temps,
   air_quality: () => S.layers.air };
 for (const [k, on] of Object.entries(OM_GATE)) { const fn = refresh[k]; refresh[k] = async () => { if (on() && !document.hidden) await fn(); }; }
 document.addEventListener("visibilitychange", () => { if (!document.hidden) for (const k of Object.keys(OM_GATE)) refresh[k](); });
+// ...and pause the busiest live feeds while the tab is hidden (a phone in a pocket, a minimised window), catching up on return
+const HIDDEN_PAUSE = ["aircraft", "vessels", "radar", "lightning"];
+for (const k of HIDDEN_PAUSE) { const fn = refresh[k]; refresh[k] = async () => { if (!document.hidden) await fn(); }; }
+document.addEventListener("visibilitychange", () => { if (!document.hidden) for (const k of HIDDEN_PAUSE) refresh[k](); });
 const INTERVAL = { aircraft: 10, vessels: 30, weather_warnings: 600, floods: 600,
   grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 3600, seaglass: 3 * 3600, rnli: 180, fire: 900, webcams: 6 * 3600, allsky: 600, observatories: 6 * 3600, rail_stations: 86400, rail_disruptions: 300, bus_disruptions: 300, tide_stations: 86400, sewage: 600, home: 120, bathing: 3 * 3600, rivers: 600, lightning: 30, air_quality: 3 * 3600, fires: 1800, tfl: 300, iss: 30, wind_grid: 3 * 3600, radar: 300, city_weather: 3600, energy_regions: 86400, energy_live: 300, generators: 300 };
 
