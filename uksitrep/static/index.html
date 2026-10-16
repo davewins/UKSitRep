@@ -492,8 +492,8 @@ const HOME_ZOOM = 12;
 const UK_VIEW = () => [[54.6, -3.2], phone.matches ? 5 : 6];
 // Open on the home (remembered from the last visit, else as soon as the home feed says where it is).
 // ?uk or ?z=6 opens on the whole country instead, as before.
-// Icon size: markers are scaled with the CSS scale property about their anchor point (Leaflet moves them with
-// transform, so the two do not fight), and round markers get a bigger radius. Changing the setting reloads the page.
+// Icon size: markers are scaled inside Leaflet's own transform (translate then scale, about the icon's anchor point,
+// so the anchor stays on its coordinate), and round markers get a bigger radius. Changing the setting reloads the page.
 const ISC = (() => { const v = S.iconScale || "auto";
   if (v !== "auto") return +v || 1;
   return screen.width >= 1500 && !matchMedia("(pointer: coarse)").matches ? 1.3 : 1; })();
@@ -501,7 +501,12 @@ if (ISC !== 1) {
   const setStyles = L.Icon.prototype._setIconStyles;
   L.Icon.prototype._setIconStyles = function (el, name) {
     setStyles.call(this, el, name);
-    if (name === "icon") { el.style.scale = ISC; el.style.transformOrigin = `${-parseFloat(el.style.marginLeft) || 0}px ${-parseFloat(el.style.marginTop) || 0}px`; }
+    if (name === "icon") el.style.transformOrigin = `${-parseFloat(el.style.marginLeft) || 0}px ${-parseFloat(el.style.marginTop) || 0}px`;
+  };
+  const setPos = L.Marker.prototype._setPos;
+  L.Marker.prototype._setPos = function (pos) {
+    setPos.call(this, pos);
+    if (this._icon) this._icon.style.transform += ` scale(${ISC})`;
   };
   const ccInit = L.CircleMarker.prototype.initialize;
   L.CircleMarker.prototype.initialize = function (ll, o) { ccInit.call(this, ll, o); this._radius *= ISC; };
