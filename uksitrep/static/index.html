@@ -361,6 +361,125 @@
   body[data-theme="lcars"] #ticker { border-top: 4px solid #cc6666; }
   body[data-theme="lcars"] #fx .vig { background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.5) 100%); }
 
+  /* ===== more film themes: Blade Runner, Dune, The Fifth Element, Metropolis, 2001, The Matrix, Ex Machina ===== */
+  /* Falling/drifting effects are oversized layers moved with transform only (compositor, no repaint); each layer's pattern repeats
+     at the distance it travels, so the loop is seamless at any screen size. */
+  @media (prefers-reduced-motion: reduce) { body[data-theme] #fx *, body[data-theme] #fx { animation: none !important; } }
+  @keyframes fall200 { from { transform: skewX(-9deg) translateY(0); } to { transform: skewX(-9deg) translateY(200px); } }
+  @keyframes fall300 { from { transform: skewX(-9deg) translateY(0); } to { transform: skewX(-9deg) translateY(300px); } }
+  @keyframes slide200 { from { transform: translateX(0); } to { transform: translateX(200px); } }
+  @keyframes slide320 { from { transform: translateX(0); } to { transform: translateX(-320px); } }
+  @keyframes drift { from { transform: translate(-4%, 2%); } to { transform: translate(4%, -2%); } }
+  @keyframes breathe { from { opacity: .35; } to { opacity: 1; } }
+  @keyframes flick { 0% { opacity: .55; transform: translateX(0); } 25% { opacity: .9; transform: translateX(-37px); } 50% { opacity: .6; transform: translateX(21px); } 75% { opacity: 1; transform: translateX(-9px); } 100% { opacity: .7; transform: translateX(52px); } }
+  @keyframes halpulse { from { opacity: .65; transform: translateX(-50%) scale(.96); } to { opacity: 1; transform: translateX(-50%) scale(1.04); } }
+
+  /* --- Blade Runner: night, rain, orange and teal neon --- */
+  body[data-theme="bladerunner"] {
+    --bg: #07090d; --panel: rgba(10,13,19,.86); --line: #27414a; --text: #d9e6e8; --muted: #7f9aa0; --accent: #ff8a3d; --accent-hi: #ffd2a8;
+    --glow: rgba(255,138,61,.28); --popup: rgba(9,12,18,.96); --btn: #101a20; --ticker-bg: #0f6a7d; --ticker-fg: #fff; --cap: #ff8a3d;
+    --font: "Chakra Petch", system-ui, sans-serif; --font-head: "Rajdhani", var(--font);
+    --tile-filter: grayscale(1) sepia(1) hue-rotate(155deg) saturate(2.2) brightness(.55) contrast(1.35);
+    --label-filter: grayscale(1) sepia(1) hue-rotate(160deg) saturate(2.5) brightness(1.2); }
+  body[data-theme="bladerunner"] .panel { border-radius: 2px; border-top: 2px solid var(--accent); }
+  body[data-theme="bladerunner"] .panel h2, body[data-theme="bladerunner"] #top h1 { letter-spacing: .22em; text-shadow: 0 0 8px var(--glow); }
+  body[data-theme="bladerunner"] #fx .rain, body[data-theme="bladerunner"] #fx .rain2 { inset: auto; top: -300px; bottom: 0; left: -15%; right: -15%;
+    -webkit-mask-image: repeating-linear-gradient(180deg, #000 0 52px, transparent 52px 200px); mask-image: repeating-linear-gradient(180deg, #000 0 52px, transparent 52px 200px);
+    background: repeating-linear-gradient(90deg, transparent 0 23px, rgba(175,215,255,.5) 23px 24px, transparent 24px 71px, rgba(175,215,255,.35) 71px 72px, transparent 72px 117px);
+    opacity: .5; animation: fall200 .8s linear infinite; }
+  body[data-theme="bladerunner"] #fx .rain2 { -webkit-mask-image: repeating-linear-gradient(180deg, #000 0 90px, transparent 90px 300px); mask-image: repeating-linear-gradient(180deg, #000 0 90px, transparent 90px 300px);
+    background: repeating-linear-gradient(90deg, transparent 0 41px, rgba(175,215,255,.4) 41px 42px, transparent 42px 103px); opacity: .35; animation: fall300 1.4s linear infinite; }
+  body[data-theme="bladerunner"] #fx .neon { background: radial-gradient(ellipse at 12% 115%, rgba(255,60,130,.22), transparent 55%), radial-gradient(ellipse at 92% -10%, rgba(0,200,255,.2), transparent 50%); }
+  body[data-theme="bladerunner"] #fx .vig { background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,.68) 100%); }
+
+  /* --- Arrakis (Dune): sun-bleached sand, spice orange --- */
+  body[data-theme="dune"] {
+    --bg: #140d07; --panel: rgba(26,17,9,.88); --line: #6b4a22; --text: #f3e2c2; --muted: #b39668; --accent: #e8953a; --accent-hi: #ffd9a0;
+    --glow: rgba(232,149,58,.25); --popup: rgba(24,15,8,.96); --btn: #2a1b0d; --ticker-bg: #b5651d; --ticker-fg: #1a0f05; --cap: #e8953a;
+    --font: "Jost", system-ui, sans-serif; --font-head: "Cinzel", var(--font);
+    --tile-filter: grayscale(1) sepia(1) saturate(1.5) hue-rotate(-12deg) brightness(.72) contrast(1.15);
+    --label-filter: grayscale(1) sepia(1) saturate(2) hue-rotate(-8deg) brightness(1.2); }
+  body[data-theme="dune"] .panel, body[data-theme="dune"] #top, body[data-theme="dune"] #ticker { border-radius: 0; }
+  body[data-theme="dune"] .panel h2, body[data-theme="dune"] #top h1 { letter-spacing: .25em; }
+  body[data-theme="dune"] #fx .dust { inset: -15%; background: radial-gradient(ellipse 55% 40% at 28% 62%, rgba(232,149,58,.16), transparent 70%),
+    radial-gradient(ellipse 50% 35% at 76% 28%, rgba(255,210,150,.12), transparent 70%); animation: drift 38s ease-in-out infinite alternate; }
+  body[data-theme="dune"] #fx .sun { background: radial-gradient(circle at 88% -8%, rgba(255,205,130,.38), transparent 42%); }
+  body[data-theme="dune"] #fx .vig { background: radial-gradient(ellipse at center, transparent 55%, rgba(20,10,0,.6) 100%); }
+
+  /* --- The Fifth Element: orange, cyan and hot pink, flying-car traffic lanes --- */
+  body[data-theme="fifth"] {
+    --bg: #0a0716; --panel: rgba(14,9,30,.88); --line: #7a4a1c; --text: #fff1de; --muted: #b9a2d4; --accent: #ff8a1f; --accent-hi: #ffd27a;
+    --glow: rgba(255,138,31,.35); --popup: rgba(14,9,30,.96); --btn: #1d1236; --ticker-bg: #ff5a00; --ticker-fg: #fff; --cap: #22d3ee;
+    --font: "Exo 2", system-ui, sans-serif; --font-head: "Audiowide", var(--font);
+    --tile-filter: grayscale(1) sepia(1) hue-rotate(200deg) saturate(3) brightness(.62) contrast(1.2);
+    --label-filter: grayscale(1) sepia(1) hue-rotate(15deg) saturate(3) brightness(1.2); }
+  body[data-theme="fifth"] .panel, body[data-theme="fifth"] #searchBox { border-radius: 10px; border-left: 3px solid var(--accent); box-shadow: 0 0 14px rgba(255,138,31,.18); }
+  body[data-theme="fifth"] #top { border-bottom: 2px solid var(--accent); }
+  body[data-theme="fifth"] #top h1, body[data-theme="fifth"] .panel h2 { letter-spacing: .12em; }
+  body[data-theme="fifth"] #fx .lanes { background: repeating-linear-gradient(0deg, transparent 0 59px, rgba(34,211,238,.12) 59px 60px, transparent 60px 119px, rgba(255,138,31,.10) 119px 120px); }
+  body[data-theme="fifth"] #fx .cars, body[data-theme="fifth"] #fx .cars2 { inset: auto; left: -200px; right: -200px; top: 0; bottom: 0;
+    -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 26px, transparent 26px 200px); mask-image: repeating-linear-gradient(90deg, #000 0 26px, transparent 26px 200px);
+    background: repeating-linear-gradient(0deg, transparent 0 59px, rgba(255,160,60,.55) 59px 61px, transparent 61px 119px); opacity: .55; animation: slide200 3.2s linear infinite; }
+  body[data-theme="fifth"] #fx .cars2 { -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 16px, transparent 16px 320px); mask-image: repeating-linear-gradient(90deg, #000 0 16px, transparent 16px 320px);
+    background: repeating-linear-gradient(0deg, transparent 0 29px, rgba(34,211,238,.6) 29px 31px, transparent 31px 119px); left: -320px; opacity: .5; animation: slide320 5s linear infinite; }
+  body[data-theme="fifth"] #fx .vig { background: radial-gradient(ellipse at center, transparent 55%, rgba(10,0,30,.6) 100%); }
+
+  /* --- Metropolis (1927): silent-film black, white and gold; flicker, scratches, art-deco frame --- */
+  body[data-theme="metropolis"] {
+    --bg: #0c0b09; --panel: rgba(18,16,12,.9); --line: #6d5d2f; --text: #ece4cf; --muted: #a39877; --accent: #d9b44a; --accent-hi: #fff2c2;
+    --glow: rgba(217,180,74,.25); --popup: rgba(18,16,12,.96); --btn: #1d1a12; --ticker-bg: #d9b44a; --ticker-fg: #111; --cap: #d9b44a;
+    --font: "Josefin Sans", system-ui, sans-serif; --font-head: "Poiret One", var(--font);
+    --tile-filter: grayscale(1) sepia(.35) contrast(1.35) brightness(.7);
+    --label-filter: grayscale(1) sepia(.4) brightness(1.2); }
+  body[data-theme="metropolis"] .panel, body[data-theme="metropolis"] #top, body[data-theme="metropolis"] #ticker, body[data-theme="metropolis"] #searchBox { border-radius: 0; }
+  body[data-theme="metropolis"] .panel { border: 3px double var(--line); }
+  body[data-theme="metropolis"] .panel h2, body[data-theme="metropolis"] #top h1 { letter-spacing: .3em; font-weight: 400; }
+  body[data-theme="metropolis"] #fx .grain { inset: -60px; background: repeating-linear-gradient(90deg, transparent 0 97px, rgba(255,255,240,.22) 97px 98px, transparent 98px 241px, rgba(255,255,240,.14) 241px 242px, transparent 242px 313px),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.035) 0 2px, transparent 2px 5px); animation: flick .14s steps(1) infinite; }
+  body[data-theme="metropolis"] #fx .frame { inset: 10px; border: 1px solid rgba(217,180,74,.55); box-shadow: 0 0 0 4px transparent, 0 0 0 5px rgba(217,180,74,.28); }
+  body[data-theme="metropolis"] #fx .vig { background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.78) 100%); }
+
+  /* --- 2001: A Space Odyssey: white-on-black, HAL's red eye --- */
+  body[data-theme="odyssey"] {
+    --bg: #000; --panel: rgba(8,8,8,.88); --line: #3a3a3a; --text: #ececec; --muted: #8c8c8c; --accent: #ff2d1f; --accent-hi: #fff;
+    --glow: rgba(255,45,31,.35); --popup: rgba(8,8,8,.96); --btn: #151515; --ticker-bg: #ff2d1f; --ticker-fg: #fff; --cap: #9a9a9a;
+    --font: "Jost", system-ui, sans-serif; --font-head: "Jost", var(--font);
+    --tile-filter: grayscale(1) contrast(1.2) brightness(.7);
+    --label-filter: grayscale(1) brightness(1.3); }
+  body[data-theme="odyssey"] .panel, body[data-theme="odyssey"] #top, body[data-theme="odyssey"] #ticker, body[data-theme="odyssey"] #searchBox { border-radius: 0; }
+  body[data-theme="odyssey"] .panel h2, body[data-theme="odyssey"] #top h1 { letter-spacing: .32em; font-weight: 400; text-transform: uppercase; }
+  body[data-theme="odyssey"] #fx .hal { inset: auto; left: 50%; bottom: 54px; width: 30px; height: 30px; border-radius: 50%; transform: translateX(-50%);
+    background: radial-gradient(circle, #fff3a8 0 7%, #ff3b22 14%, #b3120a 48%, #3a0300 72%, #111 74% 100%); border: 3px solid #2a2a2a;
+    box-shadow: 0 0 14px rgba(255,45,31,.7), 0 0 34px rgba(255,45,31,.35); animation: halpulse 3.4s ease-in-out infinite alternate; }
+  body[data-theme="odyssey"] #fx .vig { background: radial-gradient(ellipse at center, transparent 58%, rgba(0,0,0,.6) 100%); }
+
+  /* --- The Matrix: green phosphor and falling code --- */
+  body[data-theme="matrix"] {
+    --bg: #000; --panel: rgba(0,10,0,.82); --line: #0a5c1c; --text: #b8ffc8; --muted: #4fae66; --accent: #00ff41; --accent-hi: #d7ffe0;
+    --glow: rgba(0,255,65,.4); --popup: rgba(0,12,2,.95); --btn: #021a07; --ticker-bg: #00c030; --ticker-fg: #000; --cap: #00ff41;
+    --font: "Share Tech Mono", ui-monospace, Menlo, Consolas, monospace; --font-head: var(--font);
+    --tile-filter: grayscale(1) sepia(1) hue-rotate(60deg) saturate(5) brightness(.5) contrast(1.4);
+    --label-filter: grayscale(1) sepia(1) hue-rotate(65deg) saturate(5) brightness(1.15); }
+  body[data-theme="matrix"] .panel, body[data-theme="matrix"] #top, body[data-theme="matrix"] #ticker, body[data-theme="matrix"] #searchBox { border-radius: 0; }
+  body[data-theme="matrix"] .panel, body[data-theme="matrix"] #top, body[data-theme="matrix"] .leaflet-popup-content { text-shadow: 0 0 5px rgba(0,255,65,.4); }
+  body[data-theme="matrix"] .panel h2, body[data-theme="matrix"] #top h1 { letter-spacing: .2em; }
+  body[data-theme="matrix"] #fx .codecv { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .5; }
+  body[data-theme="matrix"] #fx .scan { background: repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 1px, transparent 1px 3px); }
+  body[data-theme="matrix"] #fx .vig { background: radial-gradient(ellipse at center, transparent 50%, rgba(0,20,0,.7) 100%); }
+
+  /* --- Ex Machina: graphite glass, a warm amber glow like Ava's cell --- */
+  body[data-theme="machina"] {
+    --bg: #080b0a; --panel: rgba(18,24,22,.72); --line: rgba(255,255,255,.14); --text: #eef3f1; --muted: #8fa39c; --accent: #ff7a3d; --accent-hi: #ffd0b8;
+    --glow: rgba(255,122,61,.28); --popup: rgba(16,22,20,.95); --btn: #17201d; --ticker-bg: #ff7a3d; --ticker-fg: #0a0e0c; --cap: #eef3f1;
+    --font: "Inter", system-ui, sans-serif; --font-head: "Inter", var(--font);
+    --tile-filter: grayscale(1) sepia(.3) hue-rotate(110deg) saturate(1.2) brightness(.72) contrast(1.15);
+    --label-filter: grayscale(1) brightness(1.25); }
+  body[data-theme="machina"] .panel, body[data-theme="machina"] #searchBox { border-radius: 14px; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+  body[data-theme="machina"] .panel h2, body[data-theme="machina"] #top h1 { letter-spacing: .28em; font-weight: 300; }
+  body[data-theme="machina"] #fx .dots { background: radial-gradient(circle, rgba(255,255,255,.14) 1px, transparent 1.5px) 0 0 / 28px 28px; }
+  body[data-theme="machina"] #fx .breath { background: radial-gradient(ellipse at center, transparent 55%, rgba(255,122,61,.22) 100%); animation: breathe 6s ease-in-out infinite alternate; }
+  body[data-theme="machina"] #fx .vig { background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.55) 100%); }
+
   /* --- Imperial (Star Wars): steel grey and red, targeting reticle, opening crawl --- */
   body[data-theme="imperial"] {
     --bg: #050506; --panel: rgba(12,12,14,.9); --line: #34343b; --text: #e6e6ea; --muted: #8a8a93; --accent: #e11d2a; --accent-hi: #fff;
@@ -3254,6 +3373,27 @@ const THEMES = {
     caps: ["LCARS 47 // STELLAR CARTOGRAPHY // SECTOR 001", () => `STARDATE ${stardate()}`], fx: ["vig"],
     boot: ["LCARS 47 // LIBRARY COMPUTER ACCESS AND RETRIEVAL SYSTEM", "STELLAR CARTOGRAPHY ... ONLINE", "LONG-RANGE SENSORS: SECTOR 001, EARTH",
       "SCAN TARGET: UNITED KINGDOM", "COMPUTER: WORKING."] },
+  bladerunner: { name: "Blade Runner", base: "dark", font: "family=Chakra+Petch:wght@400;600&family=Rajdhani:wght@600;700", title: " // VOIGHT-KAMPFF",
+    caps: ["LAPD // BLADE RUNNER UNIT // SECTOR: UNITED KINGDOM", "ENHANCE."], fx: ["neon", "rain", "rain2", "vig"],
+    boot: ["TYRELL CORPORATION // MORE HUMAN THAN HUMAN", "VOIGHT-KAMPFF BASELINE ... CALIBRATING", "REPLICANT SIGNATURES: NONE IN SECTOR", "ENHANCE 224 TO 176 ... ENHANCE.", "LOOK INTO THE MAP."] },
+  dune: { name: "Arrakis (Dune)", base: "satellite", font: "family=Cinzel:wght@500;700&family=Jost:wght@300;400;500", title: " // ARRAKIS SURVEY",
+    caps: ["IMPERIAL PLANETOLOGICAL SURVEY // SECTOR: UNITED KINGDOM", "FEAR IS THE MIND-KILLER"], fx: ["sun", "dust", "vig"],
+    boot: ["IMPERIAL PLANETOLOGIST // LINK ESTABLISHED", "FREMEN SIETCH NETWORK ... CONNECTED", "WATER DISCIPLINE: ACTIVE", "WORM SIGN: NONE DETECTED", "THE SPICE MUST FLOW."] },
+  fifth: { name: "The Fifth Element", base: "dark", font: "family=Audiowide&family=Exo+2:wght@400;600", title: " // FLIGHT CONTROL",
+    caps: ["FHLOSTON PARADISE // AIR TRAFFIC // LEVEL 2,000 LANES"], fx: ["lanes", "cars", "cars2", "vig"],
+    boot: ["MULTIPASS ... ACCEPTED", "AIR TRAFFIC CONTROL // ALL LANES OPEN", "ELEMENTS: EARTH, WIND, FIRE, WATER", "FIFTH ELEMENT: PRESENT", "PLEASE ENJOY YOUR FLIGHT."] },
+  metropolis: { name: "Metropolis (1927)", base: "dark", font: "family=Poiret+One&family=Josefin+Sans:wght@300;400;600", title: " // METROPOLIS",
+    caps: ["NEW TOWER OF BABEL // CENTRAL RECORDS // UNITED KINGDOM", "THE MEDIATOR BETWEEN HEAD AND HANDS MUST BE THE HEART"], fx: ["frame", "grain", "vig"],
+    boot: ["METROPOLIS", "THE MIND THAT DEVISED THEM ...", "... AND THE HANDS THAT BUILT THEM", "THE MEDIATOR BETWEEN HEAD AND HANDS MUST BE THE HEART."] },
+  odyssey: { name: "2001: A Space Odyssey", base: "dark", font: "family=Jost:wght@300;400;500", title: " // HAL 9000",
+    caps: ["HAL 9000 // DISCOVERY ONE", "THE 9000 SERIES IS THE MOST RELIABLE COMPUTER EVER MADE"], fx: ["hal", "vig"],
+    boot: ["HAL 9000 // ONLINE", "ALL SYSTEMS FUNCTIONING NORMALLY.", "GOOD EVENING, DAVE.", "THE MAP IS READY."] },
+  matrix: { name: "The Matrix", base: "dark", font: "family=Share+Tech+Mono", title: " // THE MATRIX",
+    caps: ["NEBUCHADNEZZAR // OPERATOR CONSOLE // SECTOR: UNITED KINGDOM", "FOLLOW THE WHITE RABBIT"], fx: ["code", "scan", "vig"],
+    boot: ["WAKE UP, NEO...", "THE MATRIX HAS YOU...", "FOLLOW THE WHITE RABBIT.", "KNOCK, KNOCK."] },
+  machina: { name: "Ex Machina", base: "dark", font: "family=Inter:wght@300;400;600", title: " // EVALUATION",
+    caps: ["AVA // TURING EVALUATION // SESSION 3", "SUBJECT: UNITED KINGDOM"], fx: ["dots", "breath", "vig"],
+    boot: ["BLUEBOOK SEARCH LINK ESTABLISHED", "EVALUATION SESSION 3 ... STARTED", "SUBJECT: UNITED KINGDOM", "DO YOU THINK I AM A GOOD MAP?"] },
   imperial: { name: "Imperial (Star Wars)", base: "dark", font: "family=Michroma&family=Titillium+Web:wght@400;600&family=News+Cycle:wght@700",
     title: " // IMPERIAL SECURITY BUREAU", caps: ["IMPERIAL SECURITY BUREAU // SECTOR: UNITED KINGDOM", "A long time ago in a galaxy far, far away…"],
     fx: ["reticle", "scan", "vig"],
@@ -3275,6 +3415,35 @@ map.on("move zoomend resize viewreset", placeFx);
 function stardate() {  // the films' year.day form: 13 Oct 2026 -> 2026.286
   const n = new Date(), day = Math.floor((n - new Date(n.getFullYear(), 0, 0)) / 864e5);
   return `${n.getFullYear()}.${String(day).padStart(3, "0")}`;
+}
+
+// The Matrix's falling code: a canvas in the effects layer, ~14 frames a second, drawn only while the tab is visible
+let rainState = null;
+function stopRain() { if (rainState) { cancelAnimationFrame(rainState.raf); rainState.ro.disconnect(); rainState = null; } }
+function startRain() {
+  stopRain();
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const cv = document.createElement("canvas"); cv.className = "codecv"; fx.querySelector(".code")?.append(cv);
+  const ctx = cv.getContext("2d"), SZ = 16, GL = "ｦｧｨｩｪｫｬｭｮｯｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789";
+  let drops = [], last = 0;
+  const size = () => { cv.width = fx.clientWidth || 1; cv.height = fx.clientHeight || 1; drops = Array.from({ length: Math.ceil(cv.width / SZ) }, () => -Math.floor(Math.random() * 60)); };
+  const st = rainState = { raf: 0, ro: new ResizeObserver(size) };
+  st.ro.observe(fx); size();
+  const frame = (t) => {
+    if (rainState !== st) return;
+    st.raf = requestAnimationFrame(frame);
+    if (document.hidden || t - last < 70) return;
+    last = t;
+    ctx.globalCompositeOperation = "destination-out"; ctx.fillStyle = "rgba(0,0,0,.14)"; ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.globalCompositeOperation = "source-over"; ctx.font = SZ + "px monospace";
+    for (let i = 0; i < drops.length; i++) {
+      const y = drops[i] * SZ, ch = GL[Math.floor(Math.random() * GL.length)];
+      ctx.fillStyle = "#00ff41"; ctx.fillText(ch, i * SZ, y);
+      ctx.fillStyle = "#d7ffe0"; ctx.fillText(GL[Math.floor(Math.random() * GL.length)], i * SZ, y + SZ);
+      if (y > cv.height && Math.random() > 0.975) drops[i] = -2; else drops[i]++;
+    }
+  };
+  st.raf = requestAnimationFrame(frame);
 }
 let bootTimer = null;
 function bootSequence(t) {
@@ -3330,6 +3499,7 @@ function setTheme(key, picked = false) {
   fx.innerHTML = (th.fx || []).map(c => `<div class="${c}"></div>`).join("")
     + (th.caps || []).map((c, i) => `<div class="cap${i ? " b" : ""}">${esc(typeof c === "function" ? c() : c)}</div>`).join("");
   placeFx();
+  stopRain(); if (th.fx?.includes("code")) startRain();
   if (picked && th.base && BASEMAPS[th.base]) { S.basemap = setBasemap(th.base); if ($("fBase")) $("fBase").value = S.basemap; }
   if (picked || !params.has("kiosk")) bootSequence(th);
   save();
