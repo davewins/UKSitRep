@@ -10,6 +10,7 @@ import math
 from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
+from urllib.parse import urlencode
 
 import aiohttp
 from aiohttp import web
@@ -74,6 +75,14 @@ async def icon_file(request: web.Request) -> web.StreamResponse:
     f = ICONS / request.match_info["name"]
     if f.parent != ICONS or not f.is_file():
         raise web.HTTPNotFound()
+    if f.name == "site.webmanifest":
+        # an installed web app opens start_url with no cookies or headers, so the token has to be inside it
+        manifest = json.loads(await asyncio.to_thread(f.read_text))
+        given = request.query.get("token", "")
+        if given and any(hmac.compare_digest(given, k) for k in request.app[CFG].tokens()):
+            manifest["start_url"] = "../?" + urlencode({"token": given})
+        manifest["id"] = manifest["start_url"]
+        return web.json_response(manifest, content_type="application/manifest+json", headers={"Cache-Control": "no-store"})
     return web.FileResponse(f, headers={"Cache-Control": "max-age=604800"})
 
 

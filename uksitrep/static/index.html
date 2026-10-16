@@ -9,7 +9,7 @@
 <link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
-<link rel="manifest" href="icons/site.webmanifest">
+<link rel="manifest" id="manifestLink" href="icons/site.webmanifest">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -31,6 +31,9 @@
   #top h1 .ver { font: 10px/1 system-ui, sans-serif; letter-spacing: 0; color: var(--muted); margin-left: 6px; vertical-align: middle; }
   #top h1 .ver.new { color: #fbbf24; }
   #verLine.new { color: #fbbf24; }
+  #zoomBadge { position: absolute; right: 8px; bottom: 38px; z-index: 500; background: var(--panel); color: var(--muted);
+    border: 1px solid var(--line); border-radius: 4px; padding: 2px 7px; font: 11px/1.3 system-ui, sans-serif;
+    font-variant-numeric: tabular-nums; pointer-events: none; }
   #clock { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
   #chips { display: flex; gap: 6px; overflow: hidden; flex: 1; min-width: 0; }
   #chips .chip.sum { cursor: pointer; background: #1e293b; color: var(--fg, #e2e8f0); }
@@ -428,6 +431,7 @@
 </style>
 </head>
 <body>
+<div id="zoomBadge" title="Map zoom level (layer hints in the Layers panel use this number)">Zoom 6</div>
 <div id="top">
   <h1>🇬🇧 UK<span class="full"> SITREP</span><span class="ver" id="verTop"></span></h1>
   <div id="clock"></div>
@@ -494,6 +498,12 @@ let wantHome = !startUK;
 const map = L.map("map", { zoomControl: false, preferCanvas: true, worldCopyJump: false, tap: true });
 if (!startUK && S.homeAt) { map.setView(S.homeAt, HOME_ZOOM); wantHome = false; }
 else map.setView(UK_VIEW()[0], params.get("z") ? +params.get("z") : UK_VIEW()[1]);
+// zoom level readout (the Layers panel hints refer to this number)
+const zoomBadge = document.getElementById("zoomBadge");
+const showZoom = () => { const z = map.getZoom(); zoomBadge.textContent = "Zoom " + (Number.isInteger(z) ? z : z.toFixed(1)); };
+map.on("zoom zoomend", showZoom); showZoom();
+// the installed app (iPhone home screen, Mac Dock) must open with the same token this page was opened with
+if (params.get("token")) document.getElementById("manifestLink").href = "icons/site.webmanifest?token=" + encodeURIComponent(params.get("token"));
 let noHome = false, homeAt = null;  // no home configured: ⌂ and the opening view use this device's location
 function goHome() {
   const h = lastHome?.home || homeAt;
