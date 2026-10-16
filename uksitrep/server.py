@@ -7,6 +7,7 @@ import hmac
 import json
 import logging
 import math
+from functools import partial
 from pathlib import Path
 
 import aiohttp
@@ -15,6 +16,7 @@ from aiohttp import web
 from . import __version__, lookups
 from .config import Config
 from .feeds import Situation
+from .more_feeds import OSM_POINTS
 
 _LOGGER = logging.getLogger("uksitrep")
 STATIC = Path(__file__).parent / "static"
@@ -86,14 +88,14 @@ async def feed(request: web.Request) -> web.Response:
     if name == "aircraft_info":
         return web.json_response(await sit.aircraft_info(request.query.get("hex", ""), request.query.get("callsign", "")),
                                  headers={"Cache-Control": "max-age=3600"})
-    if name in ("fuel", "buses", "bus_stops", "chargers", "atms", "postboxes"):
+    if name in ("fuel", "buses", "bus_stops", "chargers", *OSM_POINTS):
         try:
             bbox = tuple(float(x) for x in request.query["bbox"].split(","))
             if len(bbox) != 4:
                 raise ValueError
         except (KeyError, ValueError):
             bbox = None
-        fn = {"buses": sit.buses, "bus_stops": sit.bus_stops, "fuel": sit.fuel, "chargers": sit.chargers, "atms": sit.atms, "postboxes": sit.postboxes}[name]
+        fn = {"buses": sit.buses, "bus_stops": sit.bus_stops, "fuel": sit.fuel, "chargers": sit.chargers}.get(name) or partial(sit._osm_points, name)
         return web.json_response(await fn(bbox))
     if name == "reverse":
         try:

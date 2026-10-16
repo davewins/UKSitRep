@@ -174,6 +174,7 @@
   .leaflet-container a.navgo { padding: 3px 9px; border-radius: 6px; background: #2563eb; color: #fff; font-size: 12px; text-decoration: none; white-space: nowrap; }
   .navsel { font-size: 11px; background: #18212c; color: var(--muted); border: 1px solid #2a3544; border-radius: 6px; padding: 2px 4px; }
   .drop-pin { font-size: 24px; line-height: 24px; filter: drop-shadow(0 1px 2px #000); }
+  .osmpt { width: 18px; height: 18px; border-radius: 50%; border: 1px solid #0b1118; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
   .ev { width: 16px; height: 16px; border-radius: 4px; border: 1px solid #0b1118; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff; }
   .leaflet-popup.has-fav .leaflet-popup-content { margin-right: 40px; }
   .leaflet-container a.fav-star { position: absolute; top: 3px; right: 24px; width: 20px; height: 20px; line-height: 20px; text-align: center;
@@ -466,7 +467,7 @@ const DEFAULTS = {
   layers: { ac_civil: true, ac_military: true, ac_police: true, ac_hems: true, ac_sar: true,
     ac_trails: true, mil_dest: true, airfields: true, army: true,
     vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
-    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, grid_regions: false, windfarms: true, plants: true, chargers: true, atms: true, postboxes: true, home: true, favs: true, quakes: true, meteors: true, allsky: true, observatories: true, rail_stations: true, rail_disruptions: true, buses: true, bus_stops: true, bus_disruptions: true, news: true },
+    cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, grid_regions: false, windfarms: true, plants: true, chargers: true, atms: true, postboxes: true, defibs: true, watersafety: true, toilets: true, home: true, favs: true, quakes: true, meteors: true, allsky: true, observatories: true, rail_stations: true, rail_disruptions: true, buses: true, bus_stops: true, bus_disruptions: true, news: true },
   regionMode: "carbon", basemap: "dark", theme: "standard", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36,
 };
 let S;
@@ -647,7 +648,7 @@ const FEED_NAMES = { aircraft: "ADS-B aircraft", vessels: "AIS ships", weather_w
   city_weather: "Open-Meteo weather", grid: "Electricity grid", roads: "National Highways", power_cuts: "Power cuts", space: "Space weather",
   quakes: "BGS earthquakes", news: "BBC news", meteors: "UK Meteor Network", sea: "Sea state", wind_grid: "Wind grid", radar: "Rain radar",
   favourites: "Favourites", home_info: "Home location", reverse: "Pin lookup", energy_regions: "Energy regions", energy_live: "Carbon, solar & Agile",
-  generators: "Generation (Elexon)", chargers: "EV chargers (OCM)", atms: "Cash machines (OSM)", postboxes: "Post boxes (OSM)", rnli: "RNLI launches", fire: "Fire & rescue", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage overflows", bathing: "Bathing waters",
+  generators: "Generation (Elexon)", chargers: "EV chargers (OCM)", atms: "Cash machines (OSM)", postboxes: "Post boxes (OSM)", defibs: "Defibrillators (OSM)", watersafety: "Water safety (OSM)", toilets: "Public toilets (OSM)", rnli: "RNLI launches", fire: "Fire & rescue", webcams: "Webcams", tide_stations: "Tides", sewage: "Sewage overflows", bathing: "Bathing waters",
   rivers: "River levels", lightning: "Lightning", air_quality: "Air quality", fires: "NASA fire hotspots", tfl: "TfL status", iss: "ISS", allsky: "Allsky cameras", observatories: "Observatories", rail_stations: "Rail stations", rail_disruptions: "Rail disruptions", buses: "Live buses", bus_stops: "Bus stops", bus_board: "Bus departures", bus_disruptions: "Bus disruptions",
   crime: "Street crime", fuel: "Fuel prices", home: "Near home" };
 // "off" = an optional feed with no key / switched off: not a fault
@@ -2431,6 +2432,68 @@ map.on("contextmenu", (e) => dropPin(e.latlng));
   c.addEventListener("click", (e) => { if (longPressed) { longPressed = false; e.stopPropagation(); e.preventDefault(); } }, true);
 })();
 
+/* ------------------------------------------------------------ OSM point layers: defibrillators, water safety, public toilets */
+// Same pattern as the chargers: zoom-gated, the server filters its weekly UK-wide OpenStreetMap download to the view.
+const osmUrl = (id) => `https://www.openstreetmap.org/${{ n: "node", w: "way", r: "relation" }[id[0]] || "node"}/${id.slice(1)}`;
+const ACCESS_TXT = { yes: "Public access", permissive: "Public access (permissive)", customers: "Customers only", private: "Private",
+  no: "Not public", permit: "Permit needed" };
+const osmFoot = (d, note) => `<br><span class="muted" style="font-size:11px">${note}</span>
+  ${d.check ? `<br><span class="muted" style="font-size:11px">Last surveyed ${esc(d.check)}</span>` : ""}
+  <br><a href="${esc(osmUrl(d.id))}" target="_blank" rel="noopener">OpenStreetMap ↗</a>`;
+function defibPopup(d) {
+  return `<b>❤️ ${esc(d.name || "Defibrillator")}</b>
+    ${d.loc || d.desc ? `<br>${esc(d.loc || d.desc)}` : ""}
+    <br>${d.access ? esc(ACCESS_TXT[d.access] || d.access) : '<span class="muted">Access not recorded</span>'}${d.cabinet === "yes" ? " · in a cabinet" : ""}${d.indoor === "yes" ? " · indoors" : ""}
+    ${d.hours ? `<br>Available: ${esc(d.hours)}` : ""}${d.operator ? `<br><span class="muted">${esc(d.operator)}</span>` : ""}
+    <br><b>In an emergency call 999 first</b>: the call handler will give any cabinet code and guide you.
+    ${osmFoot(d, "Volunteer-mapped: may be missing, moved or out of service")}`;
+}
+function waterPopup(d) {
+  const guard = d.type === "lifeguard";
+  return `<b>${guard ? "🏊 Lifeguard post" : "🛟 Life ring"}</b>${d.name ? ` · ${esc(d.name)}` : ""}
+    ${d.desc ? `<br>${esc(d.desc)}` : ""}${d.hours ? `<br>Staffed: ${esc(d.hours)}` : ""}${d.seasonal === "yes" ? "<br>Seasonal" : ""}
+    ${d.operator ? `<br><span class="muted">${esc(d.operator)}</span>` : ""}
+    <br><b>Call 999</b>: ask for the Coastguard at the coast or on the sea, Fire &amp; Rescue inland. Don't enter the water to attempt a rescue.
+    ${osmFoot(d, "Volunteer-mapped: check it is still there")}`;
+}
+function toiletPopup(d) {
+  const wc = { yes: "Wheelchair accessible", limited: "Limited wheelchair access", no: "Not wheelchair accessible" }[d.wheelchair];
+  return `<b>🚻 ${esc(d.name || "Public toilets")}</b>${d.operator ? `<br><span class="muted">${esc(d.operator)}</span>` : ""}
+    <br>${d.fee === "yes" ? `<b>Charge</b>${d.charge ? ` · ${esc(d.charge)}` : ""}` : d.fee === "no" ? "<b>Free</b>" : '<span class="muted">Fee not recorded</span>'}${d.access && d.access !== "yes" ? ` · ${esc(ACCESS_TXT[d.access] || d.access)}` : ""}
+    ${d.hours ? `<br>Open: ${esc(d.hours)}` : ""}${wc ? `<br>${wc}` : ""}${d.changing === "yes" ? "<br>Baby changing" : ""}${d.desc ? `<br>${esc(d.desc)}` : ""}
+    ${osmFoot(d, "Volunteer-mapped; opening times may have changed")}`;
+}
+const OSM_LAYERS = {
+  defibs: { min: 14, kind: "defib", z: 170, popup: defibPopup, glyph: () => "♥", colour: () => "#16a34a", tip: (d) => d.name || "Defibrillator" },
+  watersafety: { min: 13, kind: "watersafety", z: 165, popup: waterPopup, glyph: (d) => d.type === "lifeguard" ? "+" : "◎",
+    colour: (d) => d.type === "lifeguard" ? "#0ea5e9" : "#f97316", tip: (d) => d.type === "lifeguard" ? "Lifeguard post" : "Life ring" },
+  toilets: { min: 14, kind: "toilet", z: 150, popup: toiletPopup, glyph: () => "WC", colour: (d) => d.fee === "yes" ? "#d97706" : d.fee === "no" ? "#6366f1" : "#64748b",
+    tip: (d) => d.name || "Public toilets" },
+};
+const osmKeys = {}, osmTimers = {};
+function refreshOsm(key) {
+  const c = OSM_LAYERS[key];
+  clearTimeout(osmTimers[key]);
+  if (!S.layers[key] || map.getZoom() < c.min) { G[key].clearLayers(); osmKeys[key] = null; counts[key] = undefined; renderCounts(); return; }
+  const b = map.getBounds().pad(0.1);
+  const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].map(v => v.toFixed(3)).join(",");
+  if (bbox === osmKeys[key]) return;
+  osmTimers[key] = setTimeout(async () => {
+    osmKeys[key] = bbox;
+    const d = await getFeed(key, `?bbox=${bbox}`);
+    if (d?.error?.startsWith("loading")) { osmKeys[key] = null; osmTimers[key] = setTimeout(() => refreshOsm(key), 30000); return; }  // first download still running
+    if (!d || !d[key] || osmKeys[key] !== bbox) return;
+    G[key].clearLayers();
+    for (const o of d[key])
+      fav(L.marker([o.lat, o.lon], { icon: L.divIcon({ className: "", iconSize: [18, 18], iconAnchor: [9, 9],
+        html: `<div class="osmpt" style="background:${c.colour(o)}${c.glyph(o).length > 1 ? ";font-size:8px" : ""}">${c.glyph(o)}</div>` }), zIndexOffset: c.z })
+        .bindPopup(() => c.popup(o), { maxWidth: 300 }).bindTooltip(esc(c.tip(o)), { direction: "top", offset: [0, -8] })
+        .addTo(G[key]), c.kind, o);
+    counts[key] = d[key].length; renderCounts();
+  }, 500);
+}
+const refreshOsmAll = () => Object.keys(OSM_LAYERS).forEach(refreshOsm);
+
 /* ------------------------------------------------------------ favourites */
 // ☆ in a popup saves the place. The list lives on the server, one per home (the link's token picks it),
 // so the HA panel, a phone and a wall display all share it.
@@ -2448,6 +2511,9 @@ const FAV_KINDS = {
   charger: { icon: "🔌", name: "EV charger", popup: (o) => chargerPopup(o), opts: { maxWidth: 300 } },
   postbox: { icon: "📮", name: "Post box", popup: (o) => postboxPopup(o), opts: { maxWidth: 300 } },
   pin: { icon: "📍", name: "Pin", popup: (o) => pinPopup(o), opts: { maxWidth: 280 } },
+  defib: { icon: "❤️", name: "Defibrillator", popup: (o) => defibPopup(o), opts: { maxWidth: 300 } },
+  watersafety: { icon: "🛟", name: "Water safety", popup: (o) => waterPopup(o), opts: { maxWidth: 300 } },
+  toilet: { icon: "🚻", name: "Public toilets", popup: (o) => toiletPopup(o), opts: { maxWidth: 300 } },
   atm: { icon: "🏧", name: "Cash machine", popup: (o) => atmPopup(o), opts: { maxWidth: 300 } },
 };
 let favs = [];
@@ -2532,6 +2598,7 @@ const LAYER_UI = [
     ["ac_hems", "Air ambulance", "--hems"], ["ac_sar", "Coastguard / SAR", "--sar"], ["ac_trails", "Trails", "#64748b"],
     ["mil_dest", "Military destination guess", "#22c55e"], ["airfields", "Military airfields", "#93c5fd"], ["army", "Army bases", "#86efac"]]],
   ["Emergency services", [["hems_scene", "Air ambulance on scene (inferred)", "#facc15"], ["rnli", "RNLI lifeboat launches", "#f97316"],
+    ["defibs", "Defibrillators (zoom 14+)", "#16a34a"], ["watersafety", "Life rings & lifeguard posts (zoom 13+)", "#f97316"],
     ["fire", "Fire & rescue incidents", "#dc2626", [["fire_dsfrs", "Devon & Somerset"], ["fire_avon", "Avon"],
       ["fire_bucks", "Buckinghamshire & MK"], ["fire_cheshire", "Cheshire"], ["fire_cleveland", "Cleveland"],
       ["fire_hants", "Hampshire & Isle of Wight"], ["fire_rbfrs", "Royal Berkshire"], ["fire_shropshire", "Shropshire"]]]]],
@@ -2550,7 +2617,7 @@ const LAYER_UI = [
     ["fuel", "Fuel prices (zoom 11+)", "#22c55e"],
     ["rail_disruptions", "Rail disruptions (live)", "#e11d48"], ["rail_stations", "Rail stations & live departures (zoom 11+)", "#fda4af"],
     ["buses", "Live buses (zoom 12+)", "#f59e0b"], ["bus_stops", "Bus stops & timetables (zoom 15+)", "#fcd34d"], ["bus_disruptions", "Bus disruptions (zoom 9+)", "#d97706"],
-    ["atms", "Cash machines (zoom 15+)", "#22c55e"], ["postboxes", "Post boxes (zoom 16+)", "#dc2626"],
+    ["atms", "Cash machines (zoom 15+)", "#22c55e"], ["toilets", "Public toilets (zoom 14+)", "#6366f1"], ["postboxes", "Post boxes (zoom 16+)", "#dc2626"],
     ["tfl", "TfL disruption (Info panel)", "#dc2626"]]],
   ["Energy", [["cuts", "Power cuts (UKPN, SSEN)", "#fbbf24"], ["interconnectors", "Power interconnectors (flows)", "#e879f9"],
     ["grid_regions", "Regions: carbon, solar & Agile price", "#4ade80"], ["windfarms", "Wind farms (live output)", "#7dd3fc"],
@@ -2566,7 +2633,7 @@ function countFor(k) {
   return { ac_civil: a.civil, ac_military: a.military, ac_police: a.police, ac_hems: a.hems, ac_sar: a.sar,
     vs_special: counts.vessels?.special, vs_civil: counts.vessels?.total, floods: counts.floods, cuts: counts.cuts,
     quakes: counts.quakes, news: counts.news,
-    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, fuel: counts.fuel, allsky: counts.allsky, observatories: counts.observatories, rail_stations: counts.rail_stations, rail_disruptions: counts.rail_disruptions, buses: counts.buses, bus_stops: counts.bus_stops, bus_disruptions: counts.bus_disruptions, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length, favs: counts.favs, windfarms: counts.windfarms, plants: counts.plants, chargers: counts.chargers, atms: counts.atms, postboxes: counts.postboxes }[k] ?? (k.startsWith("fire_") ? counts[k] : undefined);
+    meteors: counts.meteors, sea: counts.sea, rnli: counts.rnli, hems_scene: counts.hems_scene, fire: counts.fire, webcams: counts.webcams, tides: counts.tides, sewage: counts.sewage, sewage_recent: counts.sewage_recent, bathing: counts.bathing, rivers: counts.rivers, lightning: counts.lightning, air: counts.air, fires: counts.fires, tfl: counts.tfl, crime: counts.crime, fuel: counts.fuel, allsky: counts.allsky, observatories: counts.observatories, rail_stations: counts.rail_stations, rail_disruptions: counts.rail_disruptions, buses: counts.buses, bus_stops: counts.bus_stops, bus_disruptions: counts.bus_disruptions, roads_incidents: counts.roads?.incidents, roads_closures: counts.roads?.closures, roads_works: counts.roads?.works, airfields: AIRFIELDS.length, army: ARMY.length, favs: counts.favs, windfarms: counts.windfarms, plants: counts.plants, chargers: counts.chargers, atms: counts.atms, postboxes: counts.postboxes, defibs: counts.defibs, watersafety: counts.watersafety, toilets: counts.toilets }[k] ?? (k.startsWith("fire_") ? counts[k] : undefined);
 }
 function renderCounts() { for (const el of document.querySelectorAll("[data-count]")) { const n = countFor(el.dataset.count); el.textContent = n ?? ""; } }
 // Views: switch many layers at once. Anything not listed is turned off.
@@ -2575,12 +2642,12 @@ const VIEWS = {
   favourites: ["Favourites", ["favs"]],
   military: ["Military", ["ac_military", "ac_trails", "mil_dest", "airfields", "army", "vs_special"]],
   emergency: ["Emergency", ["ac_police", "ac_hems", "ac_sar", "ac_trails", "hems_scene", "rnli", "fire", ...FIRE_KIDS, "vs_special",
-    "warnings", "floods", "roads_incidents", "news"]],
+    "warnings", "floods", "roads_incidents", "defibs", "watersafety", "news"]],
   transport: ["Travel & transport", ["ac_civil", "ac_military", "ac_police", "ac_hems", "ac_sar", "vs_civil", "vs_special",
-    "roads_incidents", "roads_closures", "roads_works", "tfl", "rail_disruptions", "rail_stations", "buses", "bus_stops", "bus_disruptions", "fuel", "atms", "postboxes", "webcams"]],
+    "roads_incidents", "roads_closures", "roads_works", "tfl", "rail_disruptions", "rail_stations", "buses", "bus_stops", "bus_disruptions", "fuel", "atms", "postboxes", "toilets", "webcams"]],
   weather: ["Weather & water", ["warnings", "cityweather", "radar", "wind", "temps", "lightning", "floods", "rivers", "sea",
     "sewage", "air"]],
-  coast: ["Coast & sea", ["vs_special", "vs_civil", "ac_sar", "tides", "sea", "bathing", "sewage", "sewage_recent", "rnli",
+  coast: ["Coast & sea", ["vs_special", "vs_civil", "ac_sar", "tides", "sea", "bathing", "sewage", "sewage_recent", "rnli", "watersafety",
     "warnings", "webcams"]],
   space: ["Space", ["iss", "meteors", "quakes", "allsky", "observatories"]],
   energy: ["Energy", ["cuts", "interconnectors", "grid_regions", "windfarms", "plants", "chargers"]],
@@ -2624,6 +2691,7 @@ function afterToggle(keys) {
   if (has(k => k === "chargers")) { chargerKey = null; refreshChargers(); }
   if (has(k => k === "atms")) { atmKey = null; refreshAtms(); }
   if (has(k => k === "postboxes")) { postboxKey = null; refreshPostboxes(); }
+  if (has(k => k in OSM_LAYERS)) { for (const k of Object.keys(OSM_LAYERS)) osmKeys[k] = null; refreshOsmAll(); }
   if (has(k => k === "tfl" || k === "iss")) renderAlerts();
   syncGroupBoxes();
 }
@@ -2813,7 +2881,7 @@ function start() {
   setInterval(() => renderNews(), 60000);
   checkVersion(); setInterval(checkVersion, 3600 * 1000);  // age out expired incidents
   map.on("zoomend", () => { renderAircraft(lastAircraft); renderVessels(); if (lastGrid) renderInterconnectors(lastGrid); });
-  const moved = () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderAllsky(); renderObs(); renderRailStations(); renderBusDis(); refreshBuses(); refreshBusStops(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); refreshChargers(); refreshAtms(); refreshPostboxes(); };
+  const moved = () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderAllsky(); renderObs(); renderRailStations(); renderBusDis(); refreshBuses(); refreshBusStops(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); refreshChargers(); refreshAtms(); refreshPostboxes(); refreshOsmAll(); };
   // redrawing a layer would close the popup that just auto-panned the map, so wait until it's closed
   let openPop = null, movedUnder = false;
   map.on("popupopen", (e) => { openPop = e.popup; });

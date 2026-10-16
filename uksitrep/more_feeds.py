@@ -258,12 +258,80 @@ def parse_osm_postboxes(els: list[dict]) -> list[dict]:
     return out
 
 
-# name -> Overpass tag, saved file, record parser, biggest box one request may cover (degrees lat, lon), markers per request
-OSM_POINTS = {
-    "atms": ("amenity=atm", "osm_atms.json", parse_osm_atms, (0.1, 0.2), 500),
-    "postboxes": ("amenity=post_box", "osm_postboxes.json", parse_osm_postboxes, (0.05, 0.1), 500),
-}
 
+
+def _osm_base(el: dict) -> dict | None:
+    """id, position and survey date of an Overpass element (None when it has no position)."""
+    t = el.get("tags") or {}
+    lat = el.get("lat") if el.get("lat") is not None else (el.get("center") or {}).get("lat")
+    lon = el.get("lon") if el.get("lon") is not None else (el.get("center") or {}).get("lon")
+    if lat is None or lon is None:
+        return None
+    rec = {"id": f"{el.get('type', 'node')[0]}{el.get('id')}", "lat": round(lat, 5), "lon": round(lon, 5)}
+    day = t.get("check_date") or t.get("survey:date") or t.get("check_date:defibrillator")
+    if day:
+        rec["check"] = day[:10]
+    return rec
+
+
+def _osm_fill(rec: dict, t: dict, fields: tuple[tuple[str, str], ...], n: int = 100) -> dict:
+    """Copy the tags named in `fields` ((record key, OSM tag)) that have a value; empty ones are left out."""
+    for key, tag in fields:
+        if t.get(tag):
+            rec[key] = t[tag][:n]
+    return rec
+
+
+def parse_osm_defibs(els: list[dict]) -> list[dict]:
+    """emergency=defibrillator elements. The cabinet code tag is deliberately not kept."""
+    out = []
+    for el in els:
+        rec = _osm_base(el)
+        if rec:
+            t = el.get("tags") or {}
+            _osm_fill(rec, t, (("name", "name"), ("loc", "defibrillator:location"), ("desc", "description"),
+                               ("access", "access"), ("hours", "opening_hours"), ("operator", "operator"),
+                               ("indoor", "indoor"), ("cabinet", "defibrillator:cabinet")))
+            out.append(rec)
+    return out
+
+
+def parse_osm_watersafety(els: list[dict]) -> list[dict]:
+    """emergency=life_ring and emergency=lifeguard elements -> one list, `type` says which."""
+    out = []
+    for el in els:
+        rec = _osm_base(el)
+        if rec:
+            t = el.get("tags") or {}
+            rec["type"] = "lifeguard" if t.get("emergency") == "lifeguard" else "life_ring"
+            _osm_fill(rec, t, (("name", "name"), ("desc", "description"), ("operator", "operator"),
+                               ("hours", "opening_hours"), ("seasonal", "seasonal")))
+            out.append(rec)
+    return out
+
+
+def parse_osm_toilets(els: list[dict]) -> list[dict]:
+    """amenity=toilets elements. `fee` stays absent when untagged: unknown, not free."""
+    out = []
+    for el in els:
+        rec = _osm_base(el)
+        if rec:
+            t = el.get("tags") or {}
+            _osm_fill(rec, t, (("name", "name"), ("fee", "fee"), ("charge", "charge"), ("hours", "opening_hours"),
+                               ("wheelchair", "wheelchair"), ("access", "access"), ("operator", "operator"),
+                               ("changing", "changing_table"), ("desc", "description")))
+            out.append(rec)
+    return out
+
+
+# name -> Overpass tags (any of), saved file, record parser, biggest box one request may cover (degrees lat, lon), markers per request
+OSM_POINTS = {
+    "atms": (("amenity=atm",), "osm_atms.json", parse_osm_atms, (0.1, 0.2), 500),
+    "postboxes": (("amenity=post_box",), "osm_postboxes.json", parse_osm_postboxes, (0.05, 0.1), 500),
+    "defibs": (("emergency=defibrillator",), "osm_defibs.json", parse_osm_defibs, (0.15, 0.3), 500),
+    "watersafety": (("emergency=life_ring", "emergency=lifeguard"), "osm_watersafety.json", parse_osm_watersafety, (0.25, 0.5), 500),
+    "toilets": (("amenity=toilets",), "osm_toilets.json", parse_osm_toilets, (0.15, 0.3), 500),
+}
 
 class MoreFeeds:
     """Mixin for Situation."""
@@ -789,17 +857,11 @@ class MoreFeeds:
                 await asyncio.sleep(0.7)  # stay well under 100 requests a minute
         return out
 
-    async def atms(self, bbox: tuple[float, float, float, float] | None) -> dict:
-        return await self._osm_points("atms", bbox)
-
-    async def postboxes(self, bbox: tuple[float, float, float, float] | None) -> dict:
-        return await self._osm_points("postboxes", bbox)
-
     async def _osm_points(self, name: str, bbox: tuple[float, float, float, float] | None) -> dict:
         """Points of one kind from OpenStreetMap inside the viewer's box. The whole UK list is fetched from
         Overpass once a week in the background and kept in memory, so viewers never wait on Overpass.
         OSM has no live status: these are mapped positions and tags."""
-        _tag, fname, _parse, span, cap = OSM_POINTS[name]
+        _tags, fname, _parse, span, cap = OSM_POINTS[name]
         if not bbox:
             return {"error": "bbox required"}
         s, w, n, e = bbox
@@ -831,9 +893,9 @@ class MoreFeeds:
 
     async def _refresh_osm_points(self, name: str, st: dict, store) -> None:
         from .feeds import OVERPASS_MIRRORS, UA
-        tag, _f, parse, _span, _cap = OSM_POINTS[name]
-        k, v = tag.split("=")
-        query = f'[out:json][timeout:400];nwr["{k}"="{v}"]({OSM_UK_BOX});out center tags;'
+        tags, _f, parse, _span, _cap = OSM_POINTS[name]
+        parts = "".join(f'nwr["{k}"="{v}"]({OSM_UK_BOX});' for k, v in (t.split("=") for t in tags))
+        query = f'[out:json][timeout:400];({parts});out center tags;'
         for mirror in OVERPASS_MIRRORS:
             try:
                 async with self.session.post(mirror, data={"data": query}, headers=UA,
