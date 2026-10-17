@@ -92,27 +92,35 @@ fonts only, and are not affiliated with or endorsed by any film, show or game (s
 | Style | Look |
 |---|---|
 | **Spy HQ** | Satellite map in cold teal, grid, range rings and a radar sweep, typewriter font, "TOP SECRET // UK EYES ONLY" banners, target brackets on emergency squawks |
-| **Amber Terminal** | Amber CRT: scanlines, a rolling refresh bar, VT323 terminal font, ship-computer boot-up |
-| **Neon Grid** | Black and neon cyan, glowing panels and grid |
-| **Fleet Tactical** | Navy and blue with amber highlights, cut-corner panels, hex grid |
-| **Glass Foresight** | Frosted-glass panels in white and pale blue |
-| **Starship Console** | Black with orange, lilac and blue pill buttons, elbow-framed panels, ship-date banner |
-| **Space Opera** | Steel grey and red, a targeting reticle, and a receding-text crawl as the boot sequence |
+| **Retro Terminal (Amber CRT)** | Amber CRT: scanlines, a rolling refresh bar, VT323 terminal font, ship-computer boot-up |
+| **Neon Grid (Cyber)** | Black and neon cyan, glowing panels and grid |
+| **Fleet Tactical (Hard Sci-fi)** | Navy and blue with amber highlights, cut-corner panels, hex grid |
+| **Glass Foresight (Future UI)** | Frosted-glass panels in white and pale blue |
+| **Starship Console (Sci-fi Bridge)** | Black with orange, lilac and blue pill buttons, elbow-framed panels, ship-date banner |
+| **Space Opera (Crawl)** | Steel grey and red, a targeting reticle, and a receding-text crawl as the boot sequence |
 
 <table>
-<tr><td align="center" width="50%"><img src="docs/styles/style-spy.webp" alt="Spy HQ style"><br>Spy HQ</td><td align="center" width="50%"><img src="docs/styles/style-alien.webp" alt="Amber Terminal style"><br>Amber Terminal</td></tr>
-<tr><td align="center" width="50%"><img src="docs/styles/style-tron.webp" alt="Neon Grid style"><br>Neon Grid</td><td align="center" width="50%"><img src="docs/styles/style-expanse.webp" alt="Fleet Tactical style"><br>Fleet Tactical</td></tr>
-<tr><td align="center" width="50%"><img src="docs/styles/style-minority.webp" alt="Glass Foresight style"><br>Glass Foresight</td><td align="center" width="50%"><img src="docs/styles/style-lcars.webp" alt="Starship Console style"><br>Starship Console</td></tr>
-<tr><td align="center" width="50%"><img src="docs/styles/style-imperial.webp" alt="Space Opera style"><br>Space Opera</td></tr>
+<tr><td align="center" width="50%"><img src="docs/styles/style-spy.webp" alt="Spy HQ style"><br>Spy HQ</td><td align="center" width="50%"><img src="docs/styles/style-alien.webp" alt="Retro Terminal (Amber CRT) style"><br>Retro Terminal (Amber CRT)</td></tr>
+<tr><td align="center" width="50%"><img src="docs/styles/style-tron.webp" alt="Neon Grid (Cyber) style"><br>Neon Grid (Cyber)</td><td align="center" width="50%"><img src="docs/styles/style-expanse.webp" alt="Fleet Tactical (Hard Sci-fi) style"><br>Fleet Tactical (Hard Sci-fi)</td></tr>
+<tr><td align="center" width="50%"><img src="docs/styles/style-minority.webp" alt="Glass Foresight (Future UI) style"><br>Glass Foresight (Future UI)</td><td align="center" width="50%"><img src="docs/styles/style-lcars.webp" alt="Starship Console (Sci-fi Bridge) style"><br>Starship Console (Sci-fi Bridge)</td></tr>
+<tr><td align="center" width="50%"><img src="docs/styles/style-imperial.webp" alt="Space Opera (Crawl) style"><br>Space Opera (Crawl)</td></tr>
 </table>
 
-The later styles are Neon Noir (rain and neon), Desert Survey, Sky Lanes (flying-car lanes), Art Deco (1920s silent-film look),
+The later styles are Cyberpunk Noir (rain and neon), Desert Planet, Sky Lanes (flying-car lanes), Art Deco (1920s silent-film look),
 Red Eye (a glowing red computer eye), Digital Rain (falling code, drawn on a canvas that pauses in a hidden tab), Radar Ops
 (green phosphor tactical ops room: range rings, bearing ticks, radar sweep, aircraft and ship blips, and a status line with a Zulu
-date-time group, grid reference and warning condition; plus a red night version), Glass Lab, **Wayfarer's Map** (fantasy parchment,
-a slow compass rose and drifting embers), **Luminous Forest** (night-jungle glow with drifting light seeds), **Brass & Steam**
+date-time group, grid reference and warning condition; plus a red night version), Glass Lab, **Epic Fantasy / Wayfarer's Map** (parchment,
+a slow compass rose and drifting embers), **Luminous Forest** (night-jungle glow with drifting light seeds), **Steampunk**
 (copper, riveted frames, turning gears and rising steam) and **Bedtime Meadow** (a gentle twilight for children: soft indigo,
 pastel accents, round corners, a rainbow, stars and fireflies).
+**Inspired by** (a plain-text credit, no affiliation implied): Retro Terminal, 1970s-80s sci-fi horror ship computers; Neon Grid, early-80s
+computer-world sci-fi; Fleet Tactical, near-future space-opera naval displays; Glass Foresight, gesture-interface future-crime thrillers;
+Starship Console, the touch-panel bridge of a classic TV starship; Space Opera, the receding-text opening crawl of 1970s space fantasy;
+Cyberpunk Noir, rainy neon future-noir cinema; Desert Planet, sweeping desert-world epics; Sky Lanes, flying-car future cities;
+Art Deco, 1920s silent-film cities; Red Eye, the calm rogue-AI of 1960s space cinema; Digital Rain, the falling green code of late-90s hacker films;
+Glass Lab, minimalist AI-lab thrillers; Epic Fantasy, quest-map high fantasy; Luminous Forest, glowing alien-moon jungles;
+Steampunk and Bedtime Meadow are genres and need no credit.
+
 Each plays a short boot sequence (click to skip). Marker colours keep their meaning in every
 style, and radar and satellite imagery keep their real colours. Add `?theme=spy` (or `alien`,
 `tron`, `expanse`, `minority`, `lcars`, `imperial`, `bladerunner`, `dune`, `fifth`, `metropolis`, `odyssey`, `matrix`, `overwatch`, `overwatch_night`, `machina`, `wayfarer`, `luminous`, `steam`, `meadow`) to the URL for a wall display. The keys are the original short names and are kept so existing links keep working. Fonts load from Google Fonts.
