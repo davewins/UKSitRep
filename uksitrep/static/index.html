@@ -1518,7 +1518,8 @@ function obsPopup(o) {
   return `<b>${esc(o.name)}</b><br><span class="muted">${OBS_KIND[o.kind] || "Observatory"}${o.operator ? ` · ${esc(o.operator)}` : ""}</span>
     ${o.scopes > 1 ? `<br>${o.scopes} ${o.kind === "radio" ? "dishes / antennas" : "telescopes"} mapped here` : ""}
     ${o.diameter ? `<br>Aperture ${esc(o.diameter)} m` : ""}
-    <br>${[linkOut(o.url, "Website"), linkOut(o.osm, "OpenStreetMap")].filter(Boolean).join(" · ")}
+    ${o.cams ? `<div class="obs-cams">${o.cams.map(c => `<a href="${esc(o.cams_url || o.url)}" target="_blank" rel="noopener" title="${esc(c.label)}"><img src="${esc(c.image)}?t=${Date.now()}" alt="${esc(c.label)} live image" loading="lazy" style="width:100%;max-width:300px;display:block;margin:6px 0 0" onerror="this.parentNode.remove()"><span class="muted" style="font-size:11px">${esc(c.label)} · live image, about 1 min old</span></a>`).join("")}</div>` : ""}
+    <br>${[linkOut(o.url, "Website"), linkOut(o.cams_url, "Webcams"), linkOut(o.osm, "OpenStreetMap")].filter(Boolean).join(" · ")}
     ${o.public ? "" : '<br><span class="muted" style="font-size:11px">Check their site before visiting: many are private or open only on event nights.</span>'}`;
 }
 function renderAllsky(d) {

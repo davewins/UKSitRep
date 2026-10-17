@@ -52,6 +52,14 @@ CURATED_SITES = [
     ("Norman Lockyer Observatory", 50.6878, -3.2196, "optical", "https://www.normanlockyer.org/"),
     ("Coats Observatory", 55.8457, -4.4310, "optical", "https://www.renfrewshireleisure.com/coats-observatory/"),
 ]
+# live snapshot cameras shown in a site's popup, keyed by curated site name: (label, image URL), page URL
+OBS_CAMS = {
+    "Jodrell Bank Observatory": ("https://www.jodrellbank.manchester.ac.uk/about/webcams/", [
+        ("Lovell Telescope", "https://www.jodrellbank.manchester.ac.uk/uploads/webcams/lovell/webcam.jpg"),
+        ("Mark II", "https://www.jodrellbank.manchester.ac.uk/uploads/webcams/mkii/webcam.jpg"),
+        ("7m telescope", "https://www.jodrellbank.manchester.ac.uk/uploads/webcams/7m/webcam.jpg"),
+    ]),
+}
 MERGE_KM = 1.0  # telescopes this close to a named observatory are counted on it instead
 
 
@@ -217,7 +225,11 @@ class SkyWatch:
         due = time.time() - saved.get("fetched", 0) > 7 * 86400 and time.time() > self.obs_retry_at
         if due and (not self.obs_task or self.obs_task.done()):
             self.obs_task = self.spawn(self._refresh_observatories(store))
-        return {"sites": saved.get("sites", []), "fetched": saved.get("fetched")}
+        sites = []
+        for o in saved.get("sites", []):
+            cam = OBS_CAMS.get(o.get("name"))
+            sites.append({**o, "cams": [{"label": l, "image": i} for l, i in cam[1]], "cams_url": cam[0]} if cam else o)
+        return {"sites": sites, "fetched": saved.get("fetched")}
 
     async def _refresh_observatories(self, store: Path) -> None:
         from .feeds import OVERPASS_MIRRORS
