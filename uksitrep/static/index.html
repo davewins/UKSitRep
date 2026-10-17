@@ -3661,7 +3661,7 @@ function startBlips() {
   const host = fx.querySelector(".blips"), sweep = fx.querySelector(".sweep");
   if (!host || !sweep || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const cv = document.createElement("canvas"); host.append(cv);
-  const ctx = cv.getContext("2d"), FADE = 9000;
+  const ctx = cv.getContext("2d"), FADE = 4500;   // well inside one 7 s turn of the sweep, so blips never pile up
   const size = () => { cv.width = fx.clientWidth || 1; cv.height = fx.clientHeight || 1; };
   const st = blipState = { raf: 0, ro: new ResizeObserver(size), prev: null, hits: [] };
   st.ro.observe(fx); size();
@@ -3671,8 +3671,8 @@ function startBlips() {
   };
   const targets = () => {
     const b = map.getBounds(), out = [];
-    for (const e of acMarkers.values()) { if (!e.m._map) continue; const ll = e.m.getLatLng(); if (b.contains(ll)) out.push({ ll, kind: "ac", emerg: !!e.a.emergency }); }
-    for (const v of lastVessels) if (map.hasLayer(v.cls === "civil" ? G.vs_civil : G.vs_special) && b.contains([v.lat, v.lon])) out.push({ ll: L.latLng(v.lat, v.lon), kind: "vs", emerg: v.cls === "distress" });
+    for (const [id, e] of acMarkers) { if (!e.m._map) continue; const ll = e.m.getLatLng(); if (b.contains(ll)) out.push({ id: "a" + id, ll, kind: "ac", emerg: !!e.a.emergency }); }
+    for (const v of lastVessels) if (map.hasLayer(v.cls === "civil" ? G.vs_civil : G.vs_special) && b.contains([v.lat, v.lon])) out.push({ id: "v" + (v.mmsi ?? v.lat + "," + v.lon), ll: L.latLng(v.lat, v.lon), kind: "vs", emerg: v.cls === "distress" });
     return out;
   };
   const frame = (t) => {
@@ -3686,7 +3686,7 @@ function startBlips() {
       if (span > 0 && span < 40) {   // a long gap (tab was hidden, or the animation restarted) is skipped rather than lighting everything
         for (const g of targets()) {
           const p = map.latLngToContainerPoint(g.ll), brg = (Math.atan2(p.x - cx, cy - p.y) * 180 / Math.PI + 360) % 360;
-          if ((brg - st.prev + 360) % 360 <= span && (brg - st.prev + 360) % 360 > 0) st.hits.push({ ll: g.ll, kind: g.kind, emerg: g.emerg, t });
+          if ((brg - st.prev + 360) % 360 <= span && (brg - st.prev + 360) % 360 > 0) { st.hits = st.hits.filter(o => o.id !== g.id); st.hits.push({ id: g.id, ll: g.ll, kind: g.kind, emerg: g.emerg, t }); }   // a re-hit replaces the old blip
         }
       }
     }
@@ -3696,11 +3696,11 @@ function startBlips() {
     for (const b of st.hits) {
       const p = map.latLngToContainerPoint(b.ll), k = 1 - (t - b.t) / FADE;
       const hot = Math.max(0, 1 - (t - b.t) / 1200);   // bright flash as the sweep passes, then a slower fade
-      ctx.globalAlpha = Math.pow(k, 0.5); ctx.fillStyle = b.emerg ? "#ef4444" : col; ctx.strokeStyle = ctx.fillStyle; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 8 + 18 * k;
+      ctx.globalAlpha = k; ctx.fillStyle = b.emerg ? "#ef4444" : col; ctx.strokeStyle = ctx.fillStyle; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 6 + 12 * k;
       if (b.kind === "ac") { ctx.beginPath(); ctx.arc(p.x, p.y, 5 + 3 * hot, 0, 6.2832); ctx.fill(); }
       else ctx.fillRect(p.x - 4.5, p.y - 4.5, 9, 9);
       if (hot > 0) { ctx.fillStyle = "#fff"; ctx.globalAlpha = hot; ctx.beginPath(); ctx.arc(p.x, p.y, 2.5, 0, 6.2832); ctx.fill(); }
-      ctx.globalAlpha = Math.pow(k, 0.7); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, 7 + (1 - k) * 22, 0, 6.2832); ctx.stroke();
+      ctx.globalAlpha = k * k; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, 7 + (1 - k) * 16, 0, 6.2832); ctx.stroke();
     }
     ctx.globalAlpha = 1; ctx.shadowBlur = 0;
   };
