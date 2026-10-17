@@ -3256,7 +3256,7 @@ function buildLeft() {
     }
   });
   h += `<h2>Filters</h2>
-    <div class="row"><span>Style</span><select id="fTheme">${Object.entries(THEMES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join("")}</select></div>
+    <div class="row"><span>Style</span><select id="fTheme">${Object.entries(THEMES).sort(([a, x], [b, y]) => (a === "standard" ? -1 : b === "standard" ? 1 : x.name.localeCompare(y.name))).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join("")}</select></div>
     <div class="row"><span>Map</span><select id="fBase">${Object.entries(BASEMAPS).map(([k, b]) => `<option value="${k}">${b[0]}</option>`).join("")}</select></div>
     <div class="row"><span>Labels</span><select id="fLabels"><option value="off">Off</option><option value="special">Special only</option><option value="all">All</option></select></div>
     <div class="row"><span>Hide civil below</span><select id="fAlt"><option value="0">—</option><option value="5000">5,000 ft</option><option value="10000">10,000 ft</option><option value="20000">20,000 ft</option></select></div>
