@@ -144,6 +144,42 @@ SEWAGE_RECENT_H = 48  # SAS keeps an alert live for 48 h after a discharge stops
 # Admiralty EasyTide (UKHO): keyless, ~700 UK & Irish ports, 7-day predictions
 EASYTIDE = "https://easytide.admiralty.co.uk/Home/"
 TIDE_STATION_ID = re.compile(r"^\d{4}[A-Z]?$")
+TIDE_SNAP_KM = 2.0  # the Admiralty rounds positions to whole arc-minutes (up to ~1 km out); never move a marker further than this
+TIDE_SNAP_QUERY = ('nwr(around:{r},{lat},{lon})["man_made"~"^(pier|quay|breakwater|groyne|jetty)$"];'
+                   'nwr(around:{r},{lat},{lon})["harbour"];nwr(around:{r},{lat},{lon})["leisure"~"^(slipway|marina)$"];')
+
+
+def _km(a_lat: float, a_lon: float, b_lat: float, b_lon: float) -> float:
+    dy, dx = (b_lat - a_lat) * 111.2, (b_lon - a_lon) * 111.2 * math.cos(math.radians(a_lat))
+    return math.hypot(dx, dy)
+
+
+def snap_tide_station(st: dict, elements: list[dict]) -> tuple[float, float] | None:
+    """Best OSM harbour feature (quay, pier, slipway...) near a tide station, or None.
+
+    A feature whose name shares a word with the station name (e.g. "New Quay") is favoured over a nearer unnamed one.
+    """
+    # the bracketed part ("New Quay") is what tells places in one town apart; the town name itself matches everything
+    qual = re.search(r"\((.*?)\)", st["name"])
+    if re.search(r"approach|entrance|roads|anchorage|offshore|\bbar\b|\bbay\b", st["name"], re.I):
+        return None  # open-water stations: a nearby pier would be the wrong place
+    words = set(re.findall(r"[a-z]{3,}", (qual.group(1) if qual else st["name"]).lower())) - {"the", "and", "approaches", "harbour", "port", "bar"}
+    best, best_score = None, 1e9
+    for el in elements:
+        lat, lon = el.get("lat"), el.get("lon")
+        if lat is None:
+            c = el.get("center") or {}
+            lat, lon = c.get("lat"), c.get("lon")
+        if lat is None:
+            continue
+        d = _km(st["lat"], st["lon"], lat, lon)
+        if d > TIDE_SNAP_KM:
+            continue
+        nm = (el.get("tags") or {}).get("name", "").lower()
+        score = d - (1.5 if nm and words & set(re.findall(r"[a-z]{3,}", nm)) else 0)
+        if score < best_score:
+            best, best_score = (lat, lon), score
+    return best
 
 
 def parse_osm_webcams(els: list[dict]) -> list[dict]:
@@ -271,6 +307,8 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
         self.worldcam_task: asyncio.Task | None = None
         self.osm_task: asyncio.Task | None = None
         self.osm_retry_at = 0.0
+        self.tide_snap_task: asyncio.Task | None = None
+        self.tide_snap_retry_at = 0.0
         self._om_day, self._om_calls = "", 0   # Open-Meteo calls made today (UTC)
         self.obs_task: asyncio.Task | None = None
         self.obs_retry_at = 0.0
@@ -635,9 +673,56 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
                     stations = await asyncio.to_thread(lambda: json.loads(store.read_text()))
                 except (OSError, ValueError):
                     raise RuntimeError(f"EasyTide stations: {err}") from err
+            snapped = await self._tide_snaps(stations)
+            for st in stations:
+                sn = snapped.get(st["id"])
+                if sn and sn["from"] == [st["lat"], st["lon"]]:
+                    st["lat"], st["lon"] = sn["to"]
             return {"updated": datetime.now(timezone.utc).isoformat(), "stations": stations}
 
         return await self.cache.get("tide_stations", 7 * 86400, fetch)
+
+    async def _tide_snaps(self, stations: list[dict]) -> dict:
+        """Refined positions (keyed by station id) from a saved file; stations not yet refined are done in the background."""
+        store = self.cfg.data_dir / "tide_snaps.json"
+        try:
+            snaps = await asyncio.to_thread(lambda: json.loads(store.read_text()))
+        except (OSError, ValueError):
+            snaps = {}
+        todo = [st for st in stations if snaps.get(st["id"], {}).get("from") != [st["lat"], st["lon"]]]
+        if todo and time.time() > self.tide_snap_retry_at and (not self.tide_snap_task or self.tide_snap_task.done()):
+            self.tide_snap_task = self.spawn(self._refine_tides(store, snaps, todo))
+        return snaps
+
+    async def _refine_tides(self, store: Path, snaps: dict, todo: list[dict]) -> None:
+        """Ask Overpass for harbour features around each station, in chunks, and save as we go."""
+        done = 0
+        for i in range(0, len(todo), 30):
+            chunk = todo[i:i + 30]
+            query = "[out:json][timeout:90];(" + "".join(
+                TIDE_SNAP_QUERY.format(r=int(TIDE_SNAP_KM * 1000), lat=st["lat"], lon=st["lon"]) for st in chunk) + ");out center tags;"
+            els = None
+            for mirror in OVERPASS_MIRRORS:
+                try:
+                    async with self.session.post(mirror, data={"data": query}, headers=UA, timeout=aiohttp.ClientTimeout(total=120)) as r:
+                        r.raise_for_status()
+                        els = (await r.json(content_type=None)).get("elements", [])
+                    break
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.info("overpass %s failed: %s", mirror, err)
+            if els is None:
+                self.tide_snap_retry_at = time.time() + 1800
+                _LOGGER.warning("tide positions: Overpass unavailable, retrying in 30 min")
+                break
+            for st in chunk:
+                to = snap_tide_station(st, els)
+                snaps[st["id"]] = {"from": [st["lat"], st["lon"]], "to": list(to) if to else [st["lat"], st["lon"]]}
+            done += len(chunk)
+            await asyncio.to_thread(lambda: store.write_text(json.dumps(snaps)))
+            await asyncio.sleep(5)  # be gentle with the shared Overpass servers
+        if done:
+            self.cache._data.pop("tide_stations", None)  # next request picks up the refined positions
+            _LOGGER.info("tide stations refined against OSM: %d", done)
 
     async def tides(self, station: str) -> dict:
         """High/low water for one port, plus a height curve for the popup chart."""
