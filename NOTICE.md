@@ -33,7 +33,7 @@ Each is subject to its own terms.
 | [Allsky camera map](https://www.thomasjacquin.com/allsky-map/) (Thomas Jacquin's Allsky project) | Locations, links and latest images of allsky cameras whose owners chose to show them on the map; images are loaded from the owners' own sites | Owners' content; links and images shown as published, not stored |
 | [allsky-map.com](https://allsky-map.com) ([TN-1/allsky-map](https://github.com/TN-1/allsky-map), for [indi-allsky](https://github.com/aaronwmorris/indi-allsky)) | indi-allsky camera locations, online status and latest image | Owners' content, served by allsky-map.com; not stored |
 | [Jodrell Bank webcams](https://www.jodrellbank.manchester.ac.uk/about/webcams/) (University of Manchester) | Live snapshot images of the Lovell, Mark II and 7m telescopes, shown in the Jodrell Bank observatory popup and linked back to their page. No terms stated; hotlinked, not stored. |
-| [Google Fonts](https://fonts.google.com) (Share Tech Mono, VT323, Orbitron, Exo 2, Oxanium) | Fonts for the optional film styles, loaded only when one is picked | SIL Open Font License |
+| [Google Fonts](https://fonts.google.com) (see "Styles (themes)" below for the list) | Fonts for the optional styles, loaded only when one is picked | SIL Open Font License / Apache 2.0 |
 | [Rail Data Marketplace](https://raildata.org.uk) (Rail Delivery Group): Live Departure Board (Darwin) and National Rail Disruptions | Departure boards, delays, cancellations, disruption bulletins | Rail Data Marketplace licence terms for each product (free); requires your own keys |
 | [Bus Open Data Service](https://data.bus-data.dft.gov.uk) (DfT) | Live bus positions and bus disruptions | OGL v3; requires your own key |
 | [NESO Carbon Intensity API](https://carbonintensity.org.uk) | Regional carbon intensity, mix and forecast | CC BY 4.0 |
@@ -59,3 +59,13 @@ Each is subject to its own terms.
 | worldcam.eu *(optional)* | Webcam directory | Scraped. Check their terms before enabling |
 | Avon, Buckinghamshire, Cheshire, Cleveland, Hampshire & IoW, Royal Berkshire and Shropshire fire & rescue services | Incident reports (their public RSS / website JSON), geocoded with postcodes.io | Each service's website terms |
 | Devon & Somerset FRS *(optional)* | Incident pages | Scraped. Check their terms before enabling |
+
+## Styles (themes)
+
+The Layers → Style options are original homages to familiar visual genres. They contain no logos, artwork, music, dialogue,
+character or product names from any film, TV show or game, and use only generic names and original wording. Fonts come from
+[Google Fonts](https://fonts.google.com) under the SIL Open Font License or Apache licence (Share Tech Mono, VT323, Orbitron, Exo 2,
+Oxanium, Antonio, Chakra Petch, Rajdhani, Cinzel, Jost, Audiowide, Poiret One, Josefin Sans, Inter, Michroma, Titillium Web, News Cycle,
+Stardos Stencil, IM Fell English, MedievalSharp, Quicksand, Special Elite, Playfair Display SC, Baloo 2). Any resemblance to a
+particular work is stylistic only. The short style keys in URLs (for example `?theme=matrix`) are internal identifiers kept for
+backward compatibility. All trademarks belong to their owners; no affiliation or endorsement is implied.

@@ -503,6 +503,69 @@
   #fx .blips canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   @media (prefers-reduced-motion: reduce) { body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #fx .sweep { animation: none; } }
 
+  /* --- Wayfarer's Map: high-fantasy parchment, ink and gold, a slow compass rose and drifting embers --- */
+  body[data-theme="wayfarer"] {
+    --bg: #120d07; --panel: rgba(32,22,12,.87); --line: #7a5a2a; --text: #f2e6c8; --muted: #b6a07a; --accent: #d9b04a; --accent-hi: #ffe9a8;
+    --glow: rgba(217,176,74,.3); --popup: rgba(30,20,10,.96); --btn: #2b1d0e; --ticker-bg: #6e4a1e; --ticker-fg: #fbeccb; --cap: #e8c875;
+    --font: "IM Fell English", Georgia, serif; --font-head: "MedievalSharp", var(--font);
+    --tile-filter: sepia(1) saturate(1.5) hue-rotate(-8deg) brightness(.66) contrast(1.12);
+    --label-filter: sepia(1) saturate(1.6) brightness(1.1); }
+  body[data-theme="wayfarer"] .panel, body[data-theme="wayfarer"] #top, body[data-theme="wayfarer"] #ticker, body[data-theme="wayfarer"] #searchBox { border-radius: 2px; }
+  body[data-theme="wayfarer"] .panel h2, body[data-theme="wayfarer"] #top h1 { letter-spacing: .12em; font-weight: 400; }
+  body[data-theme="wayfarer"] .panel, body[data-theme="wayfarer"] #top { box-shadow: inset 0 0 0 1px rgba(217,176,74,.18); }
+  body[data-theme="wayfarer"] #fx .compass { inset: 50% auto auto 50%; width: min(86vmin, 640px); height: min(86vmin, 640px); margin: calc(min(86vmin, 640px) / -2) 0 0 calc(min(86vmin, 640px) / -2);
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-100 -100 200 200'%3E%3Cg fill='none' stroke='%23d9b04a' stroke-width='1.2'%3E%3Ccircle r='92'/%3E%3Ccircle r='72'/%3E%3Ccircle r='20'/%3E%3C/g%3E%3Cg fill='%23d9b04a'%3E%3Cpath d='M0-96L12-12L96 0L12 12L0 96L-12 12L-96 0L-12-12Z'/%3E%3C/g%3E%3Cg fill='none' stroke='%23d9b04a' stroke-width='1'%3E%3Cpath d='M-68-68L68 68M68-68L-68 68'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat; opacity: .13; animation: spin 420s linear infinite; }
+  body[data-theme="wayfarer"] #fx .frame { inset: 8px; border: 2px double rgba(217,176,74,.5); }
+  body[data-theme="wayfarer"] #fx .vig { background: radial-gradient(ellipse at center, transparent 52%, rgba(45,18,0,.7) 100%); }
+
+  /* --- Luminous Forest: night jungle glow, teal and violet, drifting glowing seeds --- */
+  body[data-theme="luminous"] {
+    --bg: #02060f; --panel: rgba(4,16,30,.7); --line: rgba(80,240,225,.32); --text: #dff9ff; --muted: #7fb8c4; --accent: #3ef0e0; --accent-hi: #d4fffa;
+    --glow: rgba(62,240,224,.4); --popup: rgba(4,16,30,.93); --btn: rgba(20,60,80,.55); --ticker-bg: #1aa59a; --ticker-fg: #00110f; --cap: #7ff7ec;
+    --font: "Quicksand", system-ui, sans-serif; --font-head: "Quicksand", var(--font);
+    --tile-filter: grayscale(1) sepia(1) hue-rotate(135deg) saturate(3) brightness(.5) contrast(1.3);
+    --label-filter: grayscale(1) sepia(1) hue-rotate(135deg) saturate(3) brightness(1.2); }
+  body[data-theme="luminous"] .panel, body[data-theme="luminous"] #searchBox { border-radius: 16px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: 0 0 18px var(--glow), inset 0 0 12px rgba(62,240,224,.08); }
+  body[data-theme="luminous"] #top, body[data-theme="luminous"] #ticker { box-shadow: 0 0 14px var(--glow); }
+  body[data-theme="luminous"] .panel h2, body[data-theme="luminous"] #top h1 { letter-spacing: .14em; text-shadow: 0 0 10px var(--accent); }
+  body[data-theme="luminous"] #fx .aura { background: radial-gradient(ellipse 60% 45% at 20% 105%, rgba(160,107,255,.28), transparent 70%), radial-gradient(ellipse 60% 45% at 80% 105%, rgba(62,240,224,.24), transparent 70%);
+    animation: breathe 7s ease-in-out infinite alternate; }
+  body[data-theme="luminous"] #fx .vig { background: radial-gradient(ellipse at center, transparent 55%, rgba(0,6,20,.7) 100%); }
+
+  /* --- Brass & Steam: copper and brass, riveted frames, turning gears, rising steam --- */
+  body[data-theme="steam"] {
+    --bg: #140c06; --panel: rgba(34,20,9,.88); --line: #8a5a24; --text: #f2dfb8; --muted: #b99a6c; --accent: #e0902f; --accent-hi: #ffd27a;
+    --glow: rgba(224,144,47,.3); --popup: rgba(32,19,8,.96); --btn: #3a2210; --ticker-bg: #b5651d; --ticker-fg: #1a0f05; --cap: #f0b45a;
+    --font: "Special Elite", "Courier New", monospace; --font-head: "Playfair Display SC", Georgia, serif;
+    --tile-filter: grayscale(1) sepia(.95) saturate(1.5) hue-rotate(-12deg) brightness(.62) contrast(1.2);
+    --label-filter: grayscale(1) sepia(1) saturate(1.8) hue-rotate(-8deg) brightness(1.1); }
+  body[data-theme="steam"] .panel, body[data-theme="steam"] #searchBox { border-radius: 4px; border: 2px solid var(--line);
+    box-shadow: inset 0 0 0 2px rgba(0,0,0,.5), inset 0 0 0 3px rgba(255,210,122,.18), 0 0 0 1px #000; }
+  body[data-theme="steam"] #top, body[data-theme="steam"] #ticker { border-radius: 0; border-color: var(--line); box-shadow: inset 0 -2px 0 rgba(255,210,122,.15); }
+  body[data-theme="steam"] .panel h2, body[data-theme="steam"] #top h1 { letter-spacing: .14em; font-weight: 700; }
+  body[data-theme="steam"] #fx .gears { inset: auto; right: -70px; top: 24px; width: 260px; height: 260px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='none' stroke='%23d9892b'%3E%3Ccircle cx='50' cy='50' r='40' stroke-width='12' stroke-dasharray='5.7 5.7'/%3E%3Ccircle cx='50' cy='50' r='34' stroke-width='5'/%3E%3Ccircle cx='50' cy='50' r='8' stroke-width='4'/%3E%3Cpath d='M50 16V84M16 50H84M26 26L74 74M74 26L26 74' stroke-width='3'/%3E%3C/svg%3E") center / contain no-repeat; opacity: .3; animation: spin 90s linear infinite; }
+  body[data-theme="steam"] #fx .gears2 { inset: auto; left: -50px; bottom: 60px; width: 190px; height: 190px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='none' stroke='%23d9892b'%3E%3Ccircle cx='50' cy='50' r='40' stroke-width='12' stroke-dasharray='5.7 5.7'/%3E%3Ccircle cx='50' cy='50' r='34' stroke-width='5'/%3E%3Ccircle cx='50' cy='50' r='8' stroke-width='4'/%3E%3Cpath d='M50 16V84M16 50H84M26 26L74 74M74 26L26 74' stroke-width='3'/%3E%3C/svg%3E") center / contain no-repeat; opacity: .26; animation: spin 68s linear infinite reverse; }
+  body[data-theme="steam"] #fx .frame { inset: 6px; border: 3px double rgba(224,144,47,.55); }
+  body[data-theme="steam"] #fx .vig { background: radial-gradient(ellipse at center, transparent 50%, rgba(30,12,0,.68) 100%); }
+
+  /* --- Bedtime Meadow: a gentle twilight for little ones. Soft indigo, pastel accents, round corners, stars and fireflies --- */
+  body[data-theme="meadow"] {
+    --bg: #141233; --panel: rgba(48,42,110,.84); --line: #8a80e8; --text: #fff6e6; --muted: #c9bdf2; --accent: #ffd166; --accent-hi: #fff2c2;
+    --glow: rgba(255,209,102,.35); --popup: rgba(44,38,100,.96); --btn: #4a40a8; --ticker-bg: #ff8fc7; --ticker-fg: #2b1b4d; --cap: #ffe08a;
+    --font: "Baloo 2", system-ui, sans-serif; --font-head: "Baloo 2", var(--font);
+    --tile-filter: grayscale(.35) sepia(.5) hue-rotate(205deg) saturate(1.7) brightness(.78) contrast(1.05);
+    --label-filter: grayscale(.3) sepia(.4) hue-rotate(205deg) saturate(1.5) brightness(1.15); }
+  body[data-theme="meadow"] .panel, body[data-theme="meadow"] #searchBox { border-radius: 22px; border: 2px solid var(--line); }
+  body[data-theme="meadow"] #top, body[data-theme="meadow"] #ticker { border-color: var(--line); }
+  body[data-theme="meadow"] #top button, body[data-theme="meadow"] #searchBox button { border-radius: 14px; border-width: 2px; }
+  body[data-theme="meadow"] .panel h2, body[data-theme="meadow"] #top h1 { letter-spacing: .06em; font-weight: 700; }
+  body[data-theme="meadow"] #fx .rainbow { background: radial-gradient(circle at 50% 150%, transparent 0 74%, rgba(255,120,130,.26) 74% 76%, rgba(255,190,100,.26) 76% 78%,
+    rgba(255,240,120,.26) 78% 80%, rgba(130,230,150,.26) 80% 82%, rgba(120,190,255,.26) 82% 84%, rgba(190,150,255,.26) 84% 86%, transparent 86%); }
+  body[data-theme="meadow"] #fx .vig { background: radial-gradient(ellipse at center, transparent 58%, rgba(20,10,60,.55) 100%); }
+  @media (prefers-reduced-motion: reduce) { body[data-theme="wayfarer"] #fx .compass, body[data-theme="steam"] #fx .gears, body[data-theme="steam"] #fx .gears2, body[data-theme="luminous"] #fx .aura { animation: none; } }
+  #fx .embers, #fx .seeds, #fx .puffs, #fx .twinkle { }
+  #fx .motecv { position: absolute; inset: 0; width: 100%; height: 100%; }
+
   /* --- Ex Machina: graphite glass, a warm amber glow like Ava's cell --- */
   body[data-theme="machina"] {
     --bg: #080b0a; --panel: rgba(18,24,22,.72); --line: rgba(255,255,255,.14); --text: #eef3f1; --muted: #8fa39c; --accent: #ff7a3d; --accent-hi: #ffd0b8;
@@ -540,11 +603,11 @@
   /* the opening crawl */
   #boot.crawl { background: #000 radial-gradient(1px 1px at 20px 30px, #fff, transparent) 0 0 / 97px 89px,
       radial-gradient(1px 1px at 60px 70px, #cfd8ff, transparent) 0 0 / 151px 131px, #000;
-    padding: 0; overflow: hidden; color: #ffe81f; text-shadow: none; font-family: "News Cycle", "Arial Narrow", sans-serif; letter-spacing: 0; }
+    padding: 0; overflow: hidden; color: #bfe3ff; text-shadow: none; font-family: "News Cycle", "Arial Narrow", sans-serif; letter-spacing: 0; }
   #boot.crawl .intro { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 10vw;
-    color: #4bd5ee; font-size: clamp(18px, 3.4vw, 34px); opacity: 0; }
+    color: #8fa9d9; font-size: clamp(18px, 3.4vw, 34px); opacity: 0; }
   #boot.crawl .logo { position: absolute; left: 50%; top: 50%; font: 900 clamp(48px, 13vw, 140px)/1 "News Cycle", sans-serif; letter-spacing: .06em;
-    color: #000; -webkit-text-stroke: 2px #ffe81f; transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    color: #000; -webkit-text-stroke: 2px #bfe3ff; transform: translate(-50%, -50%) scale(0); opacity: 0; }
   #boot.crawl .persp { position: absolute; left: 0; right: 0; bottom: 0; height: 75%; perspective: 340px; overflow: hidden;
     -webkit-mask-image: linear-gradient(transparent, #000 35%); mask-image: linear-gradient(transparent, #000 35%); }
   #boot.crawl .text { position: absolute; left: 50%; width: min(620px, 86vw); top: 100%; transform-origin: 50% 100%; text-align: justify;
@@ -3397,56 +3460,68 @@ const THEMES = {
   spy: { name: "Spy HQ", base: "satellite", font: "family=Share+Tech+Mono", title: " SITREP // TOP SECRET",
     caps: ["TOP SECRET // UK EYES ONLY", "TOP SECRET // UK EYES ONLY"], fx: ["grid", "rings", "sweep", "scan", "vig"],
     boot: ["SECURE TERMINAL // ESTABLISHING LINK", "ENCRYPTION AES-256 ... HANDSHAKE OK", "RETINAL SCAN ... MATCH", "CLEARANCE LEVEL: TOP SECRET", "ACCESS GRANTED. GOOD EVENING."] },
-  alien: { name: "Nostromo (Alien)", base: "dark", font: "family=VT323", title: " // MU-TH-UR 6000",
-    caps: ["MU-TH-UR 6000 // INTERFACE 2037", "USCSS NOSTROMO // 180924609"], fx: ["scan", "roll", "vig"],
-    boot: ["MU-TH-UR 6000", "INTERFACE 2037 READY FOR INQUIRY", "> WHAT IS THE SITUATION, MOTHER?", "SCANNING SECTOR: UNITED KINGDOM", "DISPLAYING ALL DATA"] },
-  tron: { name: "The Grid (Tron)", base: "dark", font: "family=Orbitron:wght@500;700&family=Exo+2:wght@400;600", title: " // THE GRID",
-    caps: ["ENCOM OS-12 // SECTOR: UNITED KINGDOM"], fx: ["grid", "vig"],
-    boot: ["ENCOM OS-12", "CONNECTING TO THE GRID ...", "PROGRAM: SITREP // USER AUTHORISED", "END OF LINE."] },
-  expanse: { name: "Tactical (The Expanse)", base: "dark", font: "family=Oxanium:wght@400;600", title: " // UNN TACTICAL",
-    caps: ["UNN TACTICAL NETWORK // EARTH // UK SECTOR"], fx: ["grid", "scan", "vig"],
-    boot: ["UNN TACTICAL NETWORK", "LIDAR SWEEP: UK SECTOR ... COMPLETE", "TRANSPONDER CODES ... RECEIVED", "PDC STATUS: STANDBY", "TACTICAL DISPLAY ONLINE"] },
-  minority: { name: "PreCrime (Minority Report)", base: "dark", font: "family=Exo+2:wght@300;400;600", title: " // PRECRIME",
-    caps: ["PRECRIME // DIVISION UK"], fx: ["grid", "vig"],
-    boot: ["PRECRIME DIVISION", "PRECOG FEED ... SYNCHRONISED", "PREVISUALISATION ENGINE ONLINE", "NO RED BALLS. ALL QUIET."] },
-  lcars: { name: "LCARS (Star Trek)", base: "dark", font: "family=Antonio:wght@400;600", title: " // LCARS",
-    caps: ["LCARS 47 // STELLAR CARTOGRAPHY // SECTOR 001", () => `STARDATE ${stardate()}`], fx: ["vig"],
-    boot: ["LCARS 47 // LIBRARY COMPUTER ACCESS AND RETRIEVAL SYSTEM", "STELLAR CARTOGRAPHY ... ONLINE", "LONG-RANGE SENSORS: SECTOR 001, EARTH",
-      "SCAN TARGET: UNITED KINGDOM", "COMPUTER: WORKING."] },
-  bladerunner: { name: "Blade Runner", base: "dark", font: "family=Chakra+Petch:wght@400;600&family=Rajdhani:wght@600;700", title: " // VOIGHT-KAMPFF",
-    caps: ["LAPD // BLADE RUNNER UNIT // SECTOR: UNITED KINGDOM", "ENHANCE."], fx: ["neon", "rain", "rain2", "vig"],
-    boot: ["TYRELL CORPORATION // MORE HUMAN THAN HUMAN", "VOIGHT-KAMPFF BASELINE ... CALIBRATING", "REPLICANT SIGNATURES: NONE IN SECTOR", "ENHANCE 224 TO 176 ... ENHANCE.", "LOOK INTO THE MAP."] },
-  dune: { name: "Arrakis (Dune)", base: "satellite", font: "family=Cinzel:wght@500;700&family=Jost:wght@300;400;500", title: " // ARRAKIS SURVEY",
-    caps: ["IMPERIAL PLANETOLOGICAL SURVEY // SECTOR: UNITED KINGDOM", "FEAR IS THE MIND-KILLER"], fx: ["sun", "dust", "vig"],
-    boot: ["IMPERIAL PLANETOLOGIST // LINK ESTABLISHED", "FREMEN SIETCH NETWORK ... CONNECTED", "WATER DISCIPLINE: ACTIVE", "WORM SIGN: NONE DETECTED", "THE SPICE MUST FLOW."] },
-  fifth: { name: "The Fifth Element", base: "dark", font: "family=Audiowide&family=Exo+2:wght@400;600", title: " // FLIGHT CONTROL",
-    caps: ["FHLOSTON PARADISE // AIR TRAFFIC // LEVEL 2,000 LANES"], fx: ["lanes", "cars", "cars2", "vig"],
-    boot: ["MULTIPASS ... ACCEPTED", "AIR TRAFFIC CONTROL // ALL LANES OPEN", "ELEMENTS: EARTH, WIND, FIRE, WATER", "FIFTH ELEMENT: PRESENT", "PLEASE ENJOY YOUR FLIGHT."] },
-  metropolis: { name: "Metropolis (1927)", base: "dark", font: "family=Poiret+One&family=Josefin+Sans:wght@300;400;600", title: " // METROPOLIS",
-    caps: ["NEW TOWER OF BABEL // CENTRAL RECORDS // UNITED KINGDOM", "THE MEDIATOR BETWEEN HEAD AND HANDS MUST BE THE HEART"], fx: ["frame", "grain", "vig"],
-    boot: ["METROPOLIS", "THE MIND THAT DEVISED THEM ...", "... AND THE HANDS THAT BUILT THEM", "THE MEDIATOR BETWEEN HEAD AND HANDS MUST BE THE HEART."] },
-  odyssey: { name: "2001: A Space Odyssey", base: "dark", font: "family=Jost:wght@300;400;500", title: " // HAL 9000",
-    caps: ["HAL 9000 // DISCOVERY ONE", "THE 9000 SERIES IS THE MOST RELIABLE COMPUTER EVER MADE"], fx: ["hal", "vig"],
-    boot: ["HAL 9000 // ONLINE", "ALL SYSTEMS FUNCTIONING NORMALLY.", "GOOD EVENING, DAVE.", "THE MAP IS READY."] },
-  matrix: { name: "The Matrix", base: "dark", font: "family=Share+Tech+Mono", title: " // THE MATRIX",
-    caps: ["NEBUCHADNEZZAR // OPERATOR CONSOLE // SECTOR: UNITED KINGDOM", "FOLLOW THE WHITE RABBIT"], fx: ["code", "scan", "vig"],
-    boot: ["WAKE UP, NEO...", "THE MATRIX HAS YOU...", "FOLLOW THE WHITE RABBIT.", "KNOCK, KNOCK."] },
-  overwatch: { name: "Overwatch (Tactical)", base: "dark", font: "family=Share+Tech+Mono&family=Stardos+Stencil:wght@700", title: " // OVERWATCH",
-    caps: ["OVERWATCH // AO: UNITED KINGDOM"], hud: true, fx: ["grid", "rings", "bearing", "sweep", "blips", "brackets", "scan", "vig"],
-    boot: ["OVERWATCH // TACTICAL OPERATIONS CENTRE", "COMMS CHECK ... FIVE BY FIVE", "AREA OF OPERATIONS: UNITED KINGDOM", "SECTOR SWEEP ... CLEAR", "STAND BY."] },
-  machina: { name: "Ex Machina", base: "dark", font: "family=Inter:wght@300;400;600", title: " // EVALUATION",
-    caps: ["AVA // TURING EVALUATION // SESSION 3", "SUBJECT: UNITED KINGDOM"], fx: ["dots", "breath", "vig"],
-    boot: ["BLUEBOOK SEARCH LINK ESTABLISHED", "EVALUATION SESSION 3 ... STARTED", "SUBJECT: UNITED KINGDOM", "DO YOU THINK I AM A GOOD MAP?"] },
-  imperial: { name: "Imperial (Star Wars)", base: "dark", font: "family=Michroma&family=Titillium+Web:wght@400;600&family=News+Cycle:wght@700",
-    title: " // IMPERIAL SECURITY BUREAU", caps: ["IMPERIAL SECURITY BUREAU // SECTOR: UNITED KINGDOM", "A long time ago in a galaxy far, far away…"],
+  alien: { name: "Amber Terminal", base: "dark", font: "family=VT323", title: " // SHIP COMPUTER",
+    caps: ["SHIP COMPUTER // INTERFACE READY", "DEEP-SPACE FREIGHTER // CREW OF 7"], fx: ["scan", "roll", "vig"],
+    boot: ["SHIP COMPUTER", "INTERFACE READY FOR INQUIRY", "> WHAT IS THE SITUATION?", "SCANNING SECTOR: UNITED KINGDOM", "DISPLAYING ALL DATA"] },
+  tron: { name: "Neon Grid", base: "dark", font: "family=Orbitron:wght@500;700&family=Exo+2:wght@400;600", title: " // NEON GRID",
+    caps: ["NEON GRID OS // SECTOR: UNITED KINGDOM"], fx: ["grid", "vig"],
+    boot: ["NEON GRID OS", "CONNECTING TO THE GRID ...", "PROGRAM: SITREP // USER AUTHORISED", "SESSION READY."] },
+  expanse: { name: "Fleet Tactical", base: "dark", font: "family=Oxanium:wght@400;600", title: " // FLEET TACTICAL",
+    caps: ["FLEET TACTICAL NETWORK // EARTH // UK SECTOR"], fx: ["grid", "scan", "vig"],
+    boot: ["FLEET TACTICAL NETWORK", "LIDAR SWEEP: UK SECTOR ... COMPLETE", "TRANSPONDER CODES ... RECEIVED", "POINT DEFENCE: STANDBY", "TACTICAL DISPLAY ONLINE"] },
+  minority: { name: "Glass Foresight", base: "dark", font: "family=Exo+2:wght@300;400;600", title: " // FORESIGHT",
+    caps: ["FORESIGHT DIVISION // UK"], fx: ["grid", "vig"],
+    boot: ["FORESIGHT DIVISION", "ORACLE FEED ... SYNCHRONISED", "PREDICTION ENGINE ONLINE", "NOTHING TO REPORT. ALL QUIET."] },
+  lcars: { name: "Starship Console", base: "dark", font: "family=Antonio:wght@400;600", title: " // STARSHIP CONSOLE",
+    caps: ["STARSHIP CONSOLE // STELLAR CARTOGRAPHY // HOME SECTOR", () => `SHIPDATE ${stardate()}`], fx: ["vig"],
+    boot: ["STARSHIP CONSOLE // MAIN DISPLAY", "STELLAR CARTOGRAPHY ... ONLINE", "LONG-RANGE SENSORS: HOME SECTOR, EARTH",
+      "SCAN TARGET: UNITED KINGDOM", "SYSTEM: READY."] },
+  bladerunner: { name: "Neon Noir", base: "dark", font: "family=Chakra+Petch:wght@400;600&family=Rajdhani:wght@600;700", title: " // NEON NOIR",
+    caps: ["CITY WATCH // SPECIAL UNIT // SECTOR: UNITED KINGDOM", "RAIN EXPECTED. ALL NIGHT."], fx: ["neon", "rain", "rain2", "vig"],
+    boot: ["CITY WATCH // SPECIAL UNIT", "BASELINE TEST ... CALIBRATING", "UNREGISTERED SIGNATURES: NONE IN SECTOR", "ZOOM IN ... ZOOM IN.", "LOOK INTO THE MAP."] },
+  dune: { name: "Desert Survey", base: "satellite", font: "family=Cinzel:wght@500;700&family=Jost:wght@300;400;500", title: " // DESERT SURVEY",
+    caps: ["PLANETARY SURVEY // DESERT WORLD // SECTOR: UNITED KINGDOM", "WATER IS LIFE"], fx: ["sun", "dust", "vig"],
+    boot: ["PLANETARY SURVEY // LINK ESTABLISHED", "SETTLEMENT NETWORK ... CONNECTED", "WATER DISCIPLINE: ACTIVE", "SANDSTORM FRONT: NONE DETECTED", "THE SURVEY CONTINUES."] },
+  fifth: { name: "Sky Lanes", base: "dark", font: "family=Audiowide&family=Exo+2:wght@400;600", title: " // FLIGHT CONTROL",
+    caps: ["SKY LANES // AIR TRAFFIC // LEVEL 2,000"], fx: ["lanes", "cars", "cars2", "vig"],
+    boot: ["PASS ... ACCEPTED", "AIR TRAFFIC CONTROL // ALL LANES OPEN", "WEATHER, TRAFFIC, TIDES, POWER", "ALL SYSTEMS: PRESENT", "PLEASE ENJOY YOUR FLIGHT."] },
+  metropolis: { name: "Art Deco (1920s)", base: "dark", font: "family=Poiret+One&family=Josefin+Sans:wght@300;400;600", title: " // CENTRAL RECORDS",
+    caps: ["THE GREAT TOWER // CENTRAL RECORDS // UNITED KINGDOM", "A CITY OF MANY HANDS"], fx: ["frame", "grain", "vig"],
+    boot: ["CENTRAL RECORDS", "THE MINDS THAT PLAN ...", "... AND THE HANDS THAT BUILD", "THE MAP IS OPEN."] },
+  odyssey: { name: "Red Eye", base: "dark", font: "family=Jost:wght@300;400;500", title: " // RED EYE",
+    caps: ["RED EYE // SHIP INTELLIGENCE", "ALL SYSTEMS FUNCTIONING NORMALLY"], fx: ["hal", "vig"],
+    boot: ["RED EYE // ONLINE", "ALL SYSTEMS FUNCTIONING NORMALLY.", "GOOD EVENING.", "THE MAP IS READY."] },
+  matrix: { name: "Digital Rain", base: "dark", font: "family=Share+Tech+Mono", title: " // DIGITAL RAIN",
+    caps: ["OPERATOR CONSOLE // SECTOR: UNITED KINGDOM", "SIGNAL ACQUIRED"], fx: ["code", "scan", "vig"],
+    boot: ["WAKING THE TERMINAL...", "SIGNAL ACQUIRED...", "DECODING THE FEED.", "THE MAP IS LIVE."] },
+  overwatch: { name: "Radar Ops (Tactical)", base: "dark", font: "family=Share+Tech+Mono&family=Stardos+Stencil:wght@700", title: " // RADAR OPS",
+    caps: ["RADAR OPS // AO: UNITED KINGDOM"], hud: true, fx: ["grid", "rings", "bearing", "sweep", "blips", "brackets", "scan", "vig"],
+    boot: ["RADAR OPS // TACTICAL OPERATIONS CENTRE", "COMMS CHECK ... FIVE BY FIVE", "AREA OF OPERATIONS: UNITED KINGDOM", "SECTOR SWEEP ... CLEAR", "STAND BY."] },
+  wayfarer: { name: "Wayfarer's Map (Fantasy)", base: "topo", font: "family=IM+Fell+English&family=MedievalSharp", title: " // THE WAYFARER'S MAP",
+    caps: ["THE WAYFARER'S MAP // REALM: UNITED KINGDOM"], fx: ["compass", "embers", "frame", "vig"],
+    boot: ["UNROLLING THE MAP ...", "INKING THE ROADS ...", "MARKING THE INNS AND WELLS ...", "BEWARE: DRAGONS MAY BE ANYWHERE.", "YOUR JOURNEY BEGINS."] },
+  luminous: { name: "Luminous Forest", base: "dark", font: "family=Quicksand:wght@400;600;700", title: " // LUMINOUS FOREST",
+    caps: ["THE LUMINOUS FOREST // CANOPY WATCH // UNITED KINGDOM"], fx: ["aura", "seeds", "vig"],
+    boot: ["WAKING THE FOREST ...", "LISTENING TO THE CANOPY ...", "ALL THE LIGHTS ARE CONNECTED.", "THE MAP IS GLOWING."] },
+  steam: { name: "Brass & Steam", base: "street", font: "family=Special+Elite&family=Playfair+Display+SC:wght@700", title: " // BRASS & STEAM",
+    caps: ["OBSERVATORY OF CURIOSITIES // UK"], fx: ["gears", "gears2", "puffs", "frame", "vig"],
+    boot: ["STOKING THE BOILER ...", "PRESSURE: 120 PSI ... RISING", "ENGAGING THE GEARS ...", "SETTING THE CHRONOMETER ...", "ALL ABOARD."] },
+  meadow: { name: "Bedtime Meadow (Kids)", base: "street", font: "family=Baloo+2:wght@500;700", title: " // BEDTIME MEADOW",
+    caps: ["HELLO, LITTLE MAP!"], fx: ["rainbow", "twinkle", "vig"],
+    boot: ["HELLO, LITTLE MAP!", "THE SUN IS SAYING GOODNIGHT ...", "THE STARS ARE COMING OUT ...", "THE FIREFLIES ARE AWAKE ...", "LET'S LOOK AT THE WORLD!"] },
+  machina: { name: "Glass Lab", base: "dark", font: "family=Inter:wght@300;400;600", title: " // EVALUATION",
+    caps: ["RESEARCH LAB // EVALUATION SESSION", "SUBJECT: UNITED KINGDOM"], fx: ["dots", "breath", "vig"],
+    boot: ["RESEARCH LAB // LINK ESTABLISHED", "EVALUATION SESSION ... STARTED", "SUBJECT: UNITED KINGDOM", "HOW DOES THE MAP LOOK TO YOU?"] },
+  imperial: { name: "Space Opera", base: "dark", font: "family=Michroma&family=Titillium+Web:wght@400;600&family=News+Cycle:wght@700",
+    title: " // SECURITY BUREAU", caps: ["GALACTIC SECURITY BUREAU // SECTOR: UNITED KINGDOM", "ALL STATIONS, REPORT"],
     fx: ["reticle", "scan", "vig"],
-    crawl: { intro: "A long time ago in a galaxy far,<br>far away....", logo: "SITREP", episode: "Episode IV", title: "A NEW SITREP",
-      text: ["It is a period of unsettled weather. Rebel low-pressure systems, striking from a hidden base in the Atlantic, have won their first victory against the evil Azores High.",
-        "During the battle, Met Office spies managed to steal secret plans to the Empire's ultimate weapon, the AMBER WARNING, a rain band with enough power to flood an entire county.",
-        "Pursued by the Empire's sinister agents, the SITREP races home aboard its map, custodian of the live data that can save its people and restore freedom to the galaxy...."] } },
+    crawl: { intro: "Many cloudy days from now,<br>on a map not so far away....", logo: "SITREP", episode: "Chapter One", title: "THE UNSETTLED SKIES",
+      text: ["It is a period of unsettled weather. Low-pressure systems, striking from a hidden base in the Atlantic, have won their first victory against the stubborn Azores High.",
+        "During the battle, forecasters managed to steal the secret plans to the most powerful rain band ever seen, an AMBER WARNING with enough water to flood an entire county.",
+        "Pursued by deadlines and drizzle, the SITREP races home aboard its map, keeper of the live data that can keep its people safe...."] } },
 };
-THEMES.overwatch_night = { ...THEMES.overwatch, name: "Overwatch (Night, red)", title: " // OVERWATCH NIGHT",
-  boot: ["OVERWATCH // NIGHT OPS", "WHITE LIGHT DISCIPLINE ... ACTIVE", "NIGHT VISION PRESERVED", "STAND BY."] };
+THEMES.overwatch_night = { ...THEMES.overwatch, name: "Radar Ops (Night, red)", title: " // RADAR OPS NIGHT",
+  boot: ["RADAR OPS // NIGHT OPS", "WHITE LIGHT DISCIPLINE ... ACTIVE", "NIGHT VISION PRESERVED", "STAND BY."] };
 const H1_HTML = document.querySelector("#top h1").innerHTML;
 const fx = L.DomUtil.create("div", "", map.createPane("fxPane"));  // inside the map so it sits under markers and popups
 fx.id = "fx";
@@ -3490,6 +3565,69 @@ function startRain() {
   };
   st.raf = requestAnimationFrame(frame);
 }
+// Drifting particles for the Wayfarer (embers), Luminous Forest (seeds), Brass & Steam (puffs) and Bedtime Meadow (stars and fireflies) styles.
+// One canvas in the effects layer, ~30 frames a second, paused in a hidden tab, absent with reduced motion.
+let moteState = null;
+function stopMotes() { if (moteState) { cancelAnimationFrame(moteState.raf); moteState.ro.disconnect(); moteState = null; } }
+function startMotes(kind) {
+  stopMotes();
+  const host = fx.querySelector("." + kind);
+  if (!host || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const cv = document.createElement("canvas"); cv.className = "motecv"; host.append(cv);
+  const ctx = cv.getContext("2d"), rnd = (a, b) => a + Math.random() * (b - a);
+  const N = { embers: 44, seeds: 36, puffs: 12, twinkle: 90 }[kind];
+  const mk = (i, fresh) => {
+    const p = { x: Math.random(), y: fresh ? 1.05 : Math.random(), ph: rnd(0, 6.28), a: 1 };
+    if (kind === "embers") Object.assign(p, { r: rnd(.8, 2.4), vy: rnd(.03, .1), sw: rnd(.01, .035), sp: rnd(.8, 2) });
+    else if (kind === "seeds") Object.assign(p, { r: rnd(1.6, 4.4), vy: rnd(.008, .04), sw: rnd(.01, .04), sp: rnd(.3, .9), c: i % 3 ? "62,240,224" : "176,130,255" });
+    else if (kind === "puffs") Object.assign(p, { r: rnd(10, 22), vy: rnd(.04, .08), sw: rnd(.01, .03), sp: rnd(.3, .6), g: rnd(14, 26) });
+    else if (i < 10) Object.assign(p, { fly: true, y: rnd(.35, 1), r: rnd(2, 3.4), vy: 0, sw: rnd(.02, .06), sp: rnd(.2, .5) });   // fireflies wander
+    else Object.assign(p, { y: Math.random() * .75, r: rnd(.6, 2), vy: 0, sw: 0, sp: rnd(.6, 2.2) });                              // stars twinkle in place
+    return p;
+  };
+  const ps = Array.from({ length: N }, (_, i) => mk(i, false));
+  const size = () => { cv.width = fx.clientWidth || 1; cv.height = fx.clientHeight || 1; };
+  const st = moteState = { raf: 0, ro: new ResizeObserver(size), last: 0 };
+  st.ro.observe(fx); size();
+  const frame = (t) => {
+    if (moteState !== st) return;
+    st.raf = requestAnimationFrame(frame);
+    if (document.hidden || t - st.last < 33) return;
+    const dt = Math.min(.1, (t - (st.last || t)) / 1000); st.last = t;
+    const W = cv.width, H = cv.height, s = t / 1000;
+    ctx.clearRect(0, 0, W, H);
+    ps.forEach((p, i) => {
+      p.y -= p.vy * dt;
+      const x = (p.x + Math.sin(s * p.sp + p.ph) * p.sw) * W, y = p.y * H;
+      if (kind === "embers") {
+        if (p.y < -.05) Object.assign(p, mk(i, true));
+        const a = (.35 + .65 * Math.abs(Math.sin(s * 3 * p.sp + p.ph))) * Math.min(1, p.y * 1.4 + .2);
+        ctx.fillStyle = `rgba(255,${150 + (i % 4) * 20},60,${a})`; ctx.shadowColor = "#ff8a30"; ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.arc(x, y, p.r, 0, 6.2832); ctx.fill();
+      } else if (kind === "seeds") {
+        if (p.y < -.05) Object.assign(p, mk(i, true));
+        const a = .25 + .6 * Math.abs(Math.sin(s * p.sp + p.ph)), g = ctx.createRadialGradient(x, y, 0, x, y, p.r * 5);
+        g.addColorStop(0, `rgba(${p.c},${a})`); g.addColorStop(1, `rgba(${p.c},0)`);
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, p.r * 5, 0, 6.2832); ctx.fill();
+      } else if (kind === "puffs") {
+        if (p.y < .15) Object.assign(p, mk(i, true));
+        const life = Math.max(0, Math.min(1, (p.y - .15) / .9)), r = p.r + (1 - life) * p.g * 3;
+        ctx.fillStyle = `rgba(255,240,220,${.2 * life})`; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
+      } else if (p.fly) {
+        const fx2 = (p.x + Math.sin(s * p.sp + p.ph) * .06) * W, fy2 = (p.y + Math.cos(s * p.sp * 1.3 + p.ph) * .04) * H, a = .3 + .7 * Math.abs(Math.sin(s * 1.1 + p.ph));
+        const g = ctx.createRadialGradient(fx2, fy2, 0, fx2, fy2, p.r * 5);
+        g.addColorStop(0, `rgba(255,240,150,${a})`); g.addColorStop(1, "rgba(255,240,150,0)");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(fx2, fy2, p.r * 5, 0, 6.2832); ctx.fill();
+      } else {
+        ctx.fillStyle = `rgba(255,248,225,${.25 + .75 * Math.abs(Math.sin(s * p.sp + p.ph))})`;
+        ctx.beginPath(); ctx.arc(p.x * W, y, p.r, 0, 6.2832); ctx.fill();
+      }
+    });
+    ctx.shadowBlur = 0;
+  };
+  st.raf = requestAnimationFrame(frame);
+}
+
 // Radar blips (Overwatch): when the sweep's leading line passes an aircraft or ship, it lights up and fades over the next few seconds.
 // The sweep angle is read from the CSS animation, so the two can't drift apart.
 let blipState = null;
@@ -3633,6 +3771,7 @@ function setTheme(key, picked = false) {
   placeFx();
   stopRain(); if (th.fx?.includes("code")) startRain();
   stopBlips(); if (th.fx?.includes("blips")) startBlips();
+  stopMotes(); { const k = ["embers", "seeds", "puffs", "twinkle"].find(k => th.fx?.includes(k)); if (k) startMotes(k); }
   stopHud(); if (th.hud) startHud();
   if (picked && th.base && BASEMAPS[th.base]) { S.basemap = setBasemap(th.base); if ($("fBase")) $("fBase").value = S.basemap; }
   if (picked || !params.has("kiosk")) bootSequence(th);

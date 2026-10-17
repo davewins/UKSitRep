@@ -80,7 +80,7 @@ Front end (`index.html`):
 
 Docs: README layer table, `NOTICE.md` (source, use, licence), version in `__init__.py`.
 
-## Film styles (themes)
+## Styles (themes)
 
 Styles are pure presentation: `THEMES` in `index.html` (name, default basemap, Google Fonts query,
 title suffix, banner captions (strings or functions), `fx` overlay layers, `boot` lines or a
@@ -90,6 +90,8 @@ title suffix, banner captions (strings or functions), `fx` overlay layers, `boot
 - Marker colours must keep their meaning; don't recolour layers.
 - The `#fx` overlay lives in the map's `fxPane` (under markers) and must stay `pointer-events: none`.
 - Respect `prefers-reduced-motion`; boot sequences are skippable and don't play in `?kiosk`.
+- Naming: use original, generic names and wording. No film, show, game, character or product names, no quoted dialogue or
+  taglines, no logos; keep the old short key only for URL compatibility. Fonts must be open-licensed (Google Fonts OFL/Apache).
 - Add the key to the README list and `?theme=` examples, with a screenshot in `docs/styles/`.
 
 ## Porting to another country

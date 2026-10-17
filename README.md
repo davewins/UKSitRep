@@ -83,32 +83,39 @@ Add `?view=<name>` to the URL to open in a view (`favourites`, `energy`, `milita
 `weather`, `coast`, `space`, `everything`), e.g. for a wall display:
 `https://<host>/k/<ACCESS_TOKEN>/?kiosk&view=military`.
 
-## Film styles
+## Styles
 
-For fun, **Layers → Filters → Style** restyles the whole screen without changing any data:
+For fun, **Layers → Filters → Style** restyles the whole screen without changing any data. The styles are original
+homages to familiar screen-sci-fi and fantasy looks; they use generic names, original wording and open-licensed
+fonts only, and are not affiliated with or endorsed by any film, show or game (see `NOTICE.md`).
 
 | Style | Look |
 |---|---|
 | **Spy HQ** | Satellite map in cold teal, grid, range rings and a radar sweep, typewriter font, "TOP SECRET // UK EYES ONLY" banners, target brackets on emergency squawks |
-| **Nostromo (Alien)** | Amber CRT: scanlines, a rolling refresh bar, VT323 terminal font, MU-TH-UR boot-up |
-| **The Grid (Tron)** | Black and neon cyan, glowing panels and grid |
-| **Tactical (The Expanse)** | Navy and blue with amber highlights, cut-corner panels, hex grid |
-| **PreCrime (Minority Report)** | Frosted-glass panels in white and pale blue |
-| **LCARS (Star Trek)** | Black with orange, lilac and blue pill buttons, elbow-framed panels, stardate banner, "Computer: working" |
-| **Imperial (Star Wars)** | Steel grey and Imperial red, a targeting reticle, and the opening crawl as the boot sequence |
+| **Amber Terminal** | Amber CRT: scanlines, a rolling refresh bar, VT323 terminal font, ship-computer boot-up |
+| **Neon Grid** | Black and neon cyan, glowing panels and grid |
+| **Fleet Tactical** | Navy and blue with amber highlights, cut-corner panels, hex grid |
+| **Glass Foresight** | Frosted-glass panels in white and pale blue |
+| **Starship Console** | Black with orange, lilac and blue pill buttons, elbow-framed panels, ship-date banner |
+| **Space Opera** | Steel grey and red, a targeting reticle, and a receding-text crawl as the boot sequence |
 
 <table>
-<tr><td align="center" width="50%"><img src="docs/styles/style-spy.webp" alt="Spy HQ style"><br>Spy HQ</td><td align="center" width="50%"><img src="docs/styles/style-alien.webp" alt="Nostromo (Alien) style"><br>Nostromo (Alien)</td></tr>
-<tr><td align="center" width="50%"><img src="docs/styles/style-tron.webp" alt="The Grid (Tron) style"><br>The Grid (Tron)</td><td align="center" width="50%"><img src="docs/styles/style-expanse.webp" alt="Tactical (The Expanse) style"><br>Tactical (The Expanse)</td></tr>
-<tr><td align="center" width="50%"><img src="docs/styles/style-minority.webp" alt="PreCrime (Minority Report) style"><br>PreCrime (Minority Report)</td><td align="center" width="50%"><img src="docs/styles/style-lcars.webp" alt="LCARS (Star Trek) style"><br>LCARS (Star Trek)</td></tr>
-<tr><td align="center" width="50%"><img src="docs/styles/style-imperial.webp" alt="Imperial (Star Wars) style"><br>Imperial (Star Wars)</td></tr>
+<tr><td align="center" width="50%"><img src="docs/styles/style-spy.webp" alt="Spy HQ style"><br>Spy HQ</td><td align="center" width="50%"><img src="docs/styles/style-alien.webp" alt="Amber Terminal style"><br>Amber Terminal</td></tr>
+<tr><td align="center" width="50%"><img src="docs/styles/style-tron.webp" alt="Neon Grid style"><br>Neon Grid</td><td align="center" width="50%"><img src="docs/styles/style-expanse.webp" alt="Fleet Tactical style"><br>Fleet Tactical</td></tr>
+<tr><td align="center" width="50%"><img src="docs/styles/style-minority.webp" alt="Glass Foresight style"><br>Glass Foresight</td><td align="center" width="50%"><img src="docs/styles/style-lcars.webp" alt="Starship Console style"><br>Starship Console</td></tr>
+<tr><td align="center" width="50%"><img src="docs/styles/style-imperial.webp" alt="Space Opera style"><br>Space Opera</td></tr>
 </table>
 
-The later styles are Blade Runner (rain and neon), Arrakis (Dune), The Fifth Element (flying-car lanes), Metropolis (1927 silent-film look),
-2001: A Space Odyssey (HAL's eye), The Matrix (falling code, drawn on a canvas that pauses in a hidden tab), Overwatch (green phosphor tactical ops room: range rings, bearing ticks, radar sweep, aircraft and ship blips; plus a red night version) and Ex Machina.
+The later styles are Neon Noir (rain and neon), Desert Survey, Sky Lanes (flying-car lanes), Art Deco (1920s silent-film look),
+Red Eye (a glowing red computer eye), Digital Rain (falling code, drawn on a canvas that pauses in a hidden tab), Radar Ops
+(green phosphor tactical ops room: range rings, bearing ticks, radar sweep, aircraft and ship blips, and a status line with a Zulu
+date-time group, grid reference and warning condition; plus a red night version), Glass Lab, **Wayfarer's Map** (fantasy parchment,
+a slow compass rose and drifting embers), **Luminous Forest** (night-jungle glow with drifting light seeds), **Brass & Steam**
+(copper, riveted frames, turning gears and rising steam) and **Bedtime Meadow** (a gentle twilight for children: soft indigo,
+pastel accents, round corners, a rainbow, stars and fireflies).
 Each plays a short boot sequence (click to skip). Marker colours keep their meaning in every
 style, and radar and satellite imagery keep their real colours. Add `?theme=spy` (or `alien`,
-`tron`, `expanse`, `minority`, `lcars`, `imperial`, `bladerunner`, `dune`, `fifth`, `metropolis`, `odyssey`, `matrix`, `overwatch`, `overwatch_night`, `machina`) to the URL for a wall display. Fonts load from Google Fonts.
+`tron`, `expanse`, `minority`, `lcars`, `imperial`, `bladerunner`, `dune`, `fifth`, `metropolis`, `odyssey`, `matrix`, `overwatch`, `overwatch_night`, `machina`, `wayfarer`, `luminous`, `steam`, `meadow`) to the URL for a wall display. The keys are the original short names and are kept so existing links keep working. Fonts load from Google Fonts.
 
 ## Finding a place
 
