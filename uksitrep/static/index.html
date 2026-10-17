@@ -485,7 +485,7 @@
     background: repeating-conic-gradient(from -0.5deg, rgba(var(--ow),.8) 0 1deg, transparent 1deg 10deg);
     -webkit-mask: radial-gradient(circle, transparent 0 calc(50% - 7px), #000 calc(50% - 6px) 50%, transparent 50%); mask: radial-gradient(circle, transparent 0 calc(50% - 7px), #000 calc(50% - 6px) 50%, transparent 50%); }
   body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #fx .sweep { inset: auto; left: 50%; bottom: 50%; width: 75vmax; height: 75vmax; transform-origin: 0 100%;
-    background: conic-gradient(from 0deg at 0 100%, transparent 0 40deg, rgba(var(--ow),0) 40deg, rgba(var(--ow),.32) 89.5deg, rgba(var(--ow),.9) 89.5deg 90deg, transparent 90deg); animation: spin 7s linear infinite; }
+    background: conic-gradient(from 0deg at 0 100%, transparent 0 40deg, rgba(var(--ow),0) 40deg, rgba(var(--ow),.32) 89.3deg, rgba(var(--ow),1) 89.3deg 90deg, transparent 90deg); animation: spin 7s linear infinite; ; filter: drop-shadow(0 0 3px rgba(var(--ow),.9))}
   body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #fx .brackets { inset: 10px; --b: rgba(var(--ow),.75);
     background: linear-gradient(var(--b), var(--b)) 0 0 / 26px 2px, linear-gradient(var(--b), var(--b)) 0 0 / 2px 26px,
       linear-gradient(var(--b), var(--b)) 100% 0 / 26px 2px, linear-gradient(var(--b), var(--b)) 100% 0 / 2px 26px,
@@ -566,7 +566,10 @@
   /* ---------- phone layout: panels become bottom sheets ---------- */
   @media (max-width: 760px) {
     :root { --sat: 0px; --sab: 0px; --top: calc(44px + var(--sat)); --bot: calc(26px + var(--sab)); }
-    body.standalone { --sat: env(safe-area-inset-top); --sab: env(safe-area-inset-bottom); }
+    /* --top / --bot are resolved where they are declared, so they must be redeclared here to pick up the safe-area insets
+       (on :root they saw 0 and the ticker's padding squeezed its text out of view on iPhones) */
+    body.standalone { --sat: env(safe-area-inset-top); --sab: env(safe-area-inset-bottom);
+      --top: calc(44px + env(safe-area-inset-top)); --bot: calc(26px + env(safe-area-inset-bottom)); }
     html, body { height: 100dvh; }
     #top { height: var(--top); padding: var(--sat) 8px 0; gap: 6px; }
     #top h1 { font-size: 13px; letter-spacing: .04em; }
@@ -3558,7 +3561,7 @@ function mgrs(lat, lon) {
   return `${zone}${band} ${colL}${rowL} ${d(E)} ${d(N)}`;
 }
 let hudState = null;
-function stopHud() { if (hudState) { clearInterval(hudState.iv); map.off("moveend", hudState.upd); hudState = null; } }
+function stopHud() { if (hudState) { clearInterval(hudState.iv); map.off("moveend", hudState.upd); map.off("click", hudState.click); hudState = null; } }
 function startHud() {
   stopHud();
   const el = document.createElement("div"); el.className = "cap hud"; fx.append(el);
@@ -3566,11 +3569,13 @@ function startHud() {
   const upd = () => {
     const n = new Date(), p = (v) => String(v).padStart(2, "0"), mon = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][n.getUTCMonth()];
     const dtg = `${p(n.getUTCDate())}${p(n.getUTCHours())}${p(n.getUTCMinutes())}Z${mon}${String(n.getUTCFullYear()).slice(2)}`;
-    const c = map.getCenter(), top = ["red", "amber", "yellow"].find(l => lastWarnings.some(w => w.level === l));
+    const tap = hudState.tap && Date.now() - hudState.tap.t < 15000 ? hudState.tap : null;
+    const c = tap ? tap.ll : map.getCenter(), top = ["red", "amber", "yellow"].find(l => lastWarnings.some(w => w.level === l));
     const [name, col] = top ? LVL[top] : ["GREEN", "var(--accent)"];
-    el.innerHTML = `DTG ${dtg} // GRID ${mgrs(c.lat, c.lng)} // COND <span style="color:${col}">${name}</span>`;
+    el.innerHTML = `DTG ${dtg} // ${tap ? "TGT" : "GRID"} ${mgrs(c.lat, c.lng)} // COND <span style="color:${col}">${name}</span>`;
   };
-  hudState = { iv: setInterval(upd, 1000), upd }; map.on("moveend", upd); upd();
+  hudState = { iv: setInterval(upd, 1000), upd, tap: null, click: (e) => { hudState.tap = { ll: e.latlng, t: Date.now() }; upd(); } };
+  map.on("moveend", upd); map.on("click", hudState.click); upd();
 }
 let bootTimer = null;
 function bootSequence(t) {
