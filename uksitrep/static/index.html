@@ -107,14 +107,12 @@
     border-top: 1px solid var(--line); overflow: hidden; z-index: 1000; display: flex; align-items: center; }
   #ticker .lbl { background: #b91c1c; color: #fff; font-weight: 700; padding: 0 10px; height: 100%;
     display: flex; align-items: center; letter-spacing: .08em; flex: none; z-index: 1; }
-  #ticker .track { white-space: nowrap; animation: scroll linear infinite; padding-left: 100%; }
+  #ticker .track { white-space: nowrap; flex: none; will-change: transform; }
   #ticker .track a { margin-right: 48px; color: var(--text); text-decoration: none; }
   #ticker .track a:hover { color: #fff; text-decoration: underline; }
-  #ticker:hover .track, #ticker:active .track { animation-play-state: paused; }
   .news a { color: var(--text); text-decoration: none; }
   .news a:hover { color: #fff; text-decoration: underline; }
   .news .pin { cursor: pointer; color: #7dd3fc; }
-  @keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-100%); } }
   /* map icons */
   .ac, .vs { background: none; border: none; }
   .ac svg, .vs svg { overflow: visible; }
@@ -631,8 +629,8 @@
     :root { --sat: 0px; --sab: 0px; --top: calc(44px + var(--sat)); --bot: calc(26px + var(--sab)); }
     /* --top / --bot are resolved where they are declared, so they must be redeclared here to pick up the safe-area insets
        (on :root they saw 0 and the ticker's padding squeezed its text out of view on iPhones) */
-    body.standalone { --sat: env(safe-area-inset-top); --sab: env(safe-area-inset-bottom);
-      --top: calc(44px + env(safe-area-inset-top)); --bot: calc(26px + env(safe-area-inset-bottom)); }
+    body.standalone { --sat: env(safe-area-inset-top); --sab: env(safe-area-inset-bottom); --botpad: max(0px, calc(env(safe-area-inset-bottom) - 20px));
+      --top: calc(44px + env(safe-area-inset-top)); --bot: calc(26px + max(0px, calc(env(safe-area-inset-bottom) - 20px))); }
     html, body { height: 100dvh; }
     #top { height: var(--top); padding: var(--sat) 8px 0; gap: 6px; }
     #top h1 { font-size: 13px; letter-spacing: .04em; }
@@ -648,7 +646,7 @@
     #searchQ { font-size: 16px; }  /* iOS zooms the page into inputs under 16px */
     #clock { font-size: 11px; margin-right: auto; }
     #map { top: var(--top); bottom: var(--bot); }
-    #ticker { height: var(--bot); padding-bottom: var(--sab); font-size: 12px; }
+    #ticker { height: var(--bot); padding-bottom: var(--botpad, 0px); font-size: 12px; }
     #ticker .lbl { padding: 0 7px; font-size: 11px; }
     /* sheets drop down from under the top bar so they are always on screen,
        even when the page is embedded in a taller-than-screen iframe */
@@ -2366,6 +2364,28 @@ function renderMeteors(d) {
 /* ------------------------------------------------------------ news */
 let lastNews = [];
 const TICKER_PX_PER_SEC = 110;
+// News ticker: scrolled from script rather than a CSS animation, so a refresh of the headlines doesn't make it jump or blank,
+// a long-idle tab doesn't lose it, and a stuck touch "hover" can't leave it paused. It holds still only while pressed or under a mouse.
+{
+  const el = $("ticker"), tr = $("tickerTrack"), lbl = el.querySelector(".lbl");
+  let x = null, last = 0, held = false;
+  el.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") held = true; });
+  el.addEventListener("pointerleave", () => { held = false; });
+  el.addEventListener("pointerdown", () => { held = true; });
+  for (const ev of ["pointerup", "pointercancel"]) el.addEventListener(ev, (e) => { held = e.pointerType === "mouse" && el.matches(":hover"); });
+  const frame = (t) => {
+    requestAnimationFrame(frame);
+    const dt = Math.min(.1, Math.max(0, t - last) / 1000); last = t;
+    if (document.hidden || !tr.firstChild) return;
+    const w = tr.offsetWidth, vis = el.clientWidth - lbl.offsetWidth;
+    if (!w || vis <= 0) return;
+    if (x === null || x > vis) x = vis;
+    if (!held) x -= TICKER_PX_PER_SEC * dt;
+    if (x < -w) x = vis;
+    tr.style.transform = `translateX(${x.toFixed(1)}px)`;
+  };
+  requestAnimationFrame(frame);
+}
 const isWelsh = (i) => /\/cymrufyw\//.test(i.link || "");
 const SEV_COL = { 3: "#ef4444", 2: "#f59e0b", 1: "#64748b" };
 function renderNews(d) {
@@ -2392,9 +2412,7 @@ function renderNews(d) {
   const tick = items.slice(0, 20).map(i => `<a href="${esc(i.link)}" target="_blank" rel="noopener">${i.severity === 3 ? "🔴 " : ""}${esc(i.title)}</a>`).join("");
   const track = $("tickerTrack");
   if (track.dataset.sig !== tick) {
-    track.innerHTML = tick; track.dataset.sig = tick;
-    // constant reading speed regardless of how many headlines there are
-    track.style.animationDuration = Math.max(20, (track.scrollWidth + innerWidth) / TICKER_PX_PER_SEC) + "s";
+    track.innerHTML = tick; track.dataset.sig = tick;   // the scroller below keeps its position across a refresh
   }
   counts.news = items.length; renderCounts();
 }
@@ -3265,7 +3283,7 @@ function buildLeft() {
     <div class="row"><span>Quakes</span><select id="fQuake"><option value="1">24 h</option><option value="7">7 days</option><option value="30">30 days</option><option value="365">All</option></select></div>
     <div class="row"><span>Icon size</span><select id="fIcons"><option value="auto">Auto</option><option value="1">Normal</option><option value="1.3">Large</option><option value="1.6">Extra large</option><option value="2">Huge</option></select></div>
     <div class="row"><span>Meteors</span><select id="fMeteor"><option value="12">12 h</option><option value="36">36 h</option><option value="72">3 nights</option></select></div>
-    <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>/</b> search · <b>P</b> panels · <b>F</b> full screen · <b>H</b> home · <b>L</b> my location · <b>U</b> whole UK<br>Add <code>?kiosk</code> to the URL for an always-on display, <code>?uk</code> to open on the whole country, and <code>?view=military</code> (or favourites, emergency, transport, weather, coast, space, everything) to open in a view, and <code>?theme=spy</code> (or alien, tron, expanse, minority) for a film style.</p>`;
+    <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>/</b> search · <b>P</b> panels · <b>F</b> full screen · <b>H</b> home · <b>L</b> my location · <b>U</b> whole UK<br>Add <code>?kiosk</code> to the URL for an always-on display, <code>?uk</code> to open on the whole country, and <code>?view=military</code> (or favourites, emergency, transport, weather, coast, space, everything) to open in a view, and <code>?theme=spy</code> for a style (any of: ${Object.keys(THEMES).filter(k => k !== "standard").sort().join(", ")}).</p>`;
   $("left").innerHTML = h + '<p class="muted" id="verLine" style="font-size:11px"></p><div class="sheet-close" data-close>Close</div>';
   showVersion();
   $("fTheme").value = S.theme || "standard"; $("fBase").value = S.basemap; $("fLabels").value = S.labels; $("fAlt").value = S.minAltFt; $("fNewsH").value = S.newsHours; $("fNewsSev").value = S.newsMinSev; $("fQuake").value = S.quakeDays; $("fMeteor").value = S.meteorHours; $("fIcons").value = S.iconScale || "auto";
