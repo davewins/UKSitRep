@@ -3283,7 +3283,7 @@ function buildLeft() {
     <div class="row"><span>Quakes</span><select id="fQuake"><option value="1">24 h</option><option value="7">7 days</option><option value="30">30 days</option><option value="365">All</option></select></div>
     <div class="row"><span>Icon size</span><select id="fIcons"><option value="auto">Auto</option><option value="1">Normal</option><option value="1.3">Large</option><option value="1.6">Extra large</option><option value="2">Huge</option></select></div>
     <div class="row"><span>Meteors</span><select id="fMeteor"><option value="12">12 h</option><option value="36">36 h</option><option value="72">3 nights</option></select></div>
-    <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>/</b> search · <b>P</b> panels · <b>F</b> full screen · <b>H</b> home · <b>L</b> my location · <b>U</b> whole UK<br>Add <code>?kiosk</code> to the URL for an always-on display, <code>?uk</code> to open on the whole country, and <code>?view=military</code> (or favourites, emergency, transport, weather, coast, space, everything) to open in a view, and <code>?theme=spy</code> for a style (any of: ${Object.keys(THEMES).filter(k => k !== "standard").sort().join(", ")}).</p>`;
+    <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>/</b> search · <b>P</b> panels · <b>F</b> full screen · <b>H</b> home · <b>L</b> my location · <b>U</b> whole UK<br>Add <code>?kiosk</code> to the URL for an always-on display, <code>?uk</code> to open on the whole country, and <code>?view=military</code> (or favourites, emergency, transport, weather, coast, space, everything) to open in a view, and <code>?theme=spy</code> for a style (any of: ${Object.keys(THEMES).filter(k => k !== "standard").map(themeSlug).sort().join(", ")}).</p>`;
   $("left").innerHTML = h + '<p class="muted" id="verLine" style="font-size:11px"></p><div class="sheet-close" data-close>Close</div>';
   showVersion();
   $("fTheme").value = S.theme || "standard"; $("fBase").value = S.basemap; $("fLabels").value = S.labels; $("fAlt").value = S.minAltFt; $("fNewsH").value = S.newsHours; $("fNewsSev").value = S.newsMinSev; $("fQuake").value = S.quakeDays; $("fMeteor").value = S.meteorHours; $("fIcons").value = S.iconScale || "auto";
@@ -3439,7 +3439,7 @@ const INTERVAL = { aircraft: 10, vessels: 30, weather_warnings: 600, floods: 600
 function start() {
   drawBases(); buildLeft();
   if (params.get("home")) S.home = params.get("home");  // ?home=tewkesbury picks a home
-  const pt = params.get("theme");  // ?theme=spy etc. for a wall display
+  const pt = themeFromParam(params.get("theme"));  // ?theme=spy etc. for a wall display
   setTheme(pt && THEMES[pt] ? pt : S.theme, !!pt);
   const pv = params.get("view");
   if (pv && (pv === "everything" || VIEWS[pv])) applyView(pv);
@@ -3540,6 +3540,12 @@ const THEMES = {
 };
 THEMES.overwatch_night = { ...THEMES.overwatch, name: "Radar Ops (Night, red)", title: " // RADAR OPS NIGHT",
   boot: ["RADAR OPS // NIGHT OPS", "WHITE LIGHT DISCIPLINE ... ACTIVE", "NIGHT VISION PRESERVED", "STAND BY."] };
+// Friendly URL keys (?theme=radarops). The original short keys keep working, and are what is saved in the browser and used in the CSS.
+const THEME_SLUGS = { alien: "retro", tron: "neongrid", expanse: "fleet", minority: "foresight", lcars: "starship", imperial: "spaceopera",
+  bladerunner: "noir", dune: "desert", fifth: "skylanes", metropolis: "deco", odyssey: "redeye", matrix: "digitalrain",
+  overwatch: "radarops", overwatch_night: "radarops_night", machina: "lab" };
+const themeSlug = (k) => THEME_SLUGS[k] || k;
+const themeFromParam = (v) => THEMES[v] ? v : Object.keys(THEMES).find(k => themeSlug(k) === v);
 const H1_HTML = document.querySelector("#top h1").innerHTML;
 const fx = L.DomUtil.create("div", "", map.createPane("fxPane"));  // inside the map so it sits under markers and popups
 fx.id = "fx";

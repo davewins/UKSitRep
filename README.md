@@ -122,8 +122,7 @@ Glass Lab, minimalist AI-lab thrillers; Epic Fantasy, quest-map high fantasy; Lu
 Steampunk and Bedtime Meadow are genres and need no credit.
 
 Each plays a short boot sequence (click to skip). Marker colours keep their meaning in every
-style, and radar and satellite imagery keep their real colours. Add `?theme=spy` (or `alien`,
-`tron`, `expanse`, `minority`, `lcars`, `imperial`, `bladerunner`, `dune`, `fifth`, `metropolis`, `odyssey`, `matrix`, `overwatch`, `overwatch_night`, `machina`, `wayfarer`, `luminous`, `steam`, `meadow`) to the URL for a wall display. The keys are the original short names and are kept so existing links keep working. Fonts load from Google Fonts.
+style, and radar and satellite imagery keep their real colours. Add `?theme=spy` (or `retro`, `neongrid`, `fleet`, `foresight`, `starship`, `spaceopera`, `noir`, `desert`, `skylanes`, `deco`, `redeye`, `digitalrain`, `radarops`, `radarops_night`, `lab`, `wayfarer`, `luminous`, `steam`, `meadow`) to the URL for a wall display. The earlier short keys (`alien`, `matrix`, `overwatch` and so on) still work so existing links keep working. Fonts load from Google Fonts.
 
 ## Finding a place
 
