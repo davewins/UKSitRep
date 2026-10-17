@@ -467,6 +467,34 @@
   body[data-theme="matrix"] #fx .scan { background: repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 1px, transparent 1px 3px); }
   body[data-theme="matrix"] #fx .vig { background: radial-gradient(ellipse at center, transparent 50%, rgba(0,20,0,.7) 100%); }
 
+  /* --- Overwatch: tactical ops room. Matrix green phosphor, but with range rings, bearing ticks, a radar sweep and corner brackets --- */
+  body[data-theme="overwatch"] {
+    --bg: #000; --panel: rgba(2,12,3,.84); --line: #1d6b2a; --text: #c4f5cc; --muted: #5fa56b; --accent: #39ff5a; --accent-hi: #e4ffe9;
+    --glow: rgba(57,255,90,.35); --popup: rgba(2,14,4,.95); --btn: #04200a; --ticker-bg: #2f8f3c; --ticker-fg: #000; --cap: #39ff5a;
+    --font: "Share Tech Mono", ui-monospace, Menlo, Consolas, monospace; --font-head: "Stardos Stencil", var(--font);
+    --tile-filter: grayscale(1) sepia(1) hue-rotate(62deg) saturate(4) brightness(.55) contrast(1.35);
+    --label-filter: grayscale(1) sepia(1) hue-rotate(65deg) saturate(4) brightness(1.15); }
+  body[data-theme="overwatch"] .panel, body[data-theme="overwatch"] #top, body[data-theme="overwatch"] #ticker, body[data-theme="overwatch"] #searchBox { border-radius: 0; }
+  body[data-theme="overwatch"] .panel, body[data-theme="overwatch"] #top, body[data-theme="overwatch"] .leaflet-popup-content { text-shadow: 0 0 5px rgba(57,255,90,.35); }
+  body[data-theme="overwatch"] .panel h2, body[data-theme="overwatch"] #top h1 { letter-spacing: .22em; text-transform: uppercase; }
+  body[data-theme="overwatch"] #fx .grid { background-image: linear-gradient(rgba(57,255,90,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(57,255,90,.07) 1px, transparent 1px);
+    background-size: 64px 64px; }
+  body[data-theme="overwatch"] #fx .rings { background: repeating-radial-gradient(circle at 50% 50%, transparent 0 119px, rgba(57,255,90,.16) 120px, transparent 121px),
+    linear-gradient(rgba(57,255,90,.2), rgba(57,255,90,.2)) 50% 0 / 1px 100% no-repeat, linear-gradient(90deg, rgba(57,255,90,.2), rgba(57,255,90,.2)) 0 50% / 100% 1px no-repeat; }
+  body[data-theme="overwatch"] #fx .bearing { inset: 50% auto auto 50%; width: 76vmin; height: 76vmin; margin: -38vmin 0 0 -38vmin; border-radius: 50%; opacity: .55;
+    background: repeating-conic-gradient(from -0.5deg, rgba(57,255,90,.8) 0 1deg, transparent 1deg 10deg);
+    -webkit-mask: radial-gradient(circle, transparent 0 calc(50% - 7px), #000 calc(50% - 6px) 50%, transparent 50%); mask: radial-gradient(circle, transparent 0 calc(50% - 7px), #000 calc(50% - 6px) 50%, transparent 50%); }
+  body[data-theme="overwatch"] #fx .sweep { inset: auto; left: 50%; bottom: 50%; width: 75vmax; height: 75vmax; transform-origin: 0 100%;
+    background: conic-gradient(from 0deg at 0 100%, rgba(57,255,90,.3), rgba(57,255,90,0) 45deg, transparent 90deg); animation: spin 7s linear infinite; }
+  body[data-theme="overwatch"] #fx .brackets { inset: 10px; --b: rgba(57,255,90,.75);
+    background: linear-gradient(var(--b), var(--b)) 0 0 / 26px 2px, linear-gradient(var(--b), var(--b)) 0 0 / 2px 26px,
+      linear-gradient(var(--b), var(--b)) 100% 0 / 26px 2px, linear-gradient(var(--b), var(--b)) 100% 0 / 2px 26px,
+      linear-gradient(var(--b), var(--b)) 0 100% / 26px 2px, linear-gradient(var(--b), var(--b)) 0 100% / 2px 26px,
+      linear-gradient(var(--b), var(--b)) 100% 100% / 26px 2px, linear-gradient(var(--b), var(--b)) 100% 100% / 2px 26px; background-repeat: no-repeat; }
+  body[data-theme="overwatch"] #fx .scan { background: repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 1px, transparent 1px 3px); }
+  body[data-theme="overwatch"] #fx .vig { background: radial-gradient(ellipse at center, transparent 50%, rgba(0,18,2,.72) 100%); }
+  @media (prefers-reduced-motion: reduce) { body[data-theme="overwatch"] #fx .sweep { animation: none; } }
+
   /* --- Ex Machina: graphite glass, a warm amber glow like Ava's cell --- */
   body[data-theme="machina"] {
     --bg: #080b0a; --panel: rgba(18,24,22,.72); --line: rgba(255,255,255,.14); --text: #eef3f1; --muted: #8fa39c; --accent: #ff7a3d; --accent-hi: #ffd0b8;
@@ -3392,6 +3420,9 @@ const THEMES = {
   matrix: { name: "The Matrix", base: "dark", font: "family=Share+Tech+Mono", title: " // THE MATRIX",
     caps: ["NEBUCHADNEZZAR // OPERATOR CONSOLE // SECTOR: UNITED KINGDOM", "FOLLOW THE WHITE RABBIT"], fx: ["code", "scan", "vig"],
     boot: ["WAKE UP, NEO...", "THE MATRIX HAS YOU...", "FOLLOW THE WHITE RABBIT.", "KNOCK, KNOCK."] },
+  overwatch: { name: "Overwatch (Tactical)", base: "dark", font: "family=Share+Tech+Mono&family=Stardos+Stencil:wght@700", title: " // OVERWATCH",
+    caps: ["OVERWATCH // TACTICAL OPERATIONS CENTRE // AO: UNITED KINGDOM", "ALL STATIONS, RADIO CHECK"], fx: ["grid", "rings", "bearing", "sweep", "brackets", "scan", "vig"],
+    boot: ["OVERWATCH // TACTICAL OPERATIONS CENTRE", "COMMS CHECK ... FIVE BY FIVE", "AREA OF OPERATIONS: UNITED KINGDOM", "SECTOR SWEEP ... CLEAR", "STAND BY."] },
   machina: { name: "Ex Machina", base: "dark", font: "family=Inter:wght@300;400;600", title: " // EVALUATION",
     caps: ["AVA // TURING EVALUATION // SESSION 3", "SUBJECT: UNITED KINGDOM"], fx: ["dots", "breath", "vig"],
     boot: ["BLUEBOOK SEARCH LINK ESTABLISHED", "EVALUATION SESSION 3 ... STARTED", "SUBJECT: UNITED KINGDOM", "DO YOU THINK I AM A GOOD MAP?"] },

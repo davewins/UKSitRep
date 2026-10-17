@@ -105,10 +105,10 @@ For fun, **Layers → Filters → Style** restyles the whole screen without chan
 </table>
 
 The later styles are Blade Runner (rain and neon), Arrakis (Dune), The Fifth Element (flying-car lanes), Metropolis (1927 silent-film look),
-2001: A Space Odyssey (HAL's eye), The Matrix (falling code, drawn on a canvas that pauses in a hidden tab) and Ex Machina.
+2001: A Space Odyssey (HAL's eye), The Matrix (falling code, drawn on a canvas that pauses in a hidden tab), Overwatch (green phosphor tactical ops room: range rings, bearing ticks, radar sweep) and Ex Machina.
 Each plays a short boot sequence (click to skip). Marker colours keep their meaning in every
 style, and radar and satellite imagery keep their real colours. Add `?theme=spy` (or `alien`,
-`tron`, `expanse`, `minority`, `lcars`, `imperial`, `bladerunner`, `dune`, `fifth`, `metropolis`, `odyssey`, `matrix`, `machina`) to the URL for a wall display. Fonts load from Google Fonts.
+`tron`, `expanse`, `minority`, `lcars`, `imperial`, `bladerunner`, `dune`, `fifth`, `metropolis`, `odyssey`, `matrix`, `overwatch`, `machina`) to the URL for a wall display. Fonts load from Google Fonts.
 
 ## Finding a place
 
