@@ -493,6 +493,7 @@
       linear-gradient(var(--b), var(--b)) 100% 100% / 26px 2px, linear-gradient(var(--b), var(--b)) 100% 100% / 2px 26px; background-repeat: no-repeat; }
   body[data-theme="overwatch"] #fx .scan { background: repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 1px, transparent 1px 3px); }
   body[data-theme="overwatch"] #fx .vig { background: radial-gradient(ellipse at center, transparent 50%, rgba(0,18,2,.72) 100%); }
+  #fx .blips canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   @media (prefers-reduced-motion: reduce) { body[data-theme="overwatch"] #fx .sweep { animation: none; } }
 
   /* --- Ex Machina: graphite glass, a warm amber glow like Ava's cell --- */
@@ -3421,7 +3422,7 @@ const THEMES = {
     caps: ["NEBUCHADNEZZAR // OPERATOR CONSOLE // SECTOR: UNITED KINGDOM", "FOLLOW THE WHITE RABBIT"], fx: ["code", "scan", "vig"],
     boot: ["WAKE UP, NEO...", "THE MATRIX HAS YOU...", "FOLLOW THE WHITE RABBIT.", "KNOCK, KNOCK."] },
   overwatch: { name: "Overwatch (Tactical)", base: "dark", font: "family=Share+Tech+Mono&family=Stardos+Stencil:wght@700", title: " // OVERWATCH",
-    caps: ["OVERWATCH // TACTICAL OPERATIONS CENTRE // AO: UNITED KINGDOM", "ALL STATIONS, RADIO CHECK"], fx: ["grid", "rings", "bearing", "sweep", "brackets", "scan", "vig"],
+    caps: ["OVERWATCH // TACTICAL OPERATIONS CENTRE // AO: UNITED KINGDOM", "ALL STATIONS, RADIO CHECK"], hud: true, fx: ["grid", "rings", "bearing", "sweep", "blips", "brackets", "scan", "vig"],
     boot: ["OVERWATCH // TACTICAL OPERATIONS CENTRE", "COMMS CHECK ... FIVE BY FIVE", "AREA OF OPERATIONS: UNITED KINGDOM", "SECTOR SWEEP ... CLEAR", "STAND BY."] },
   machina: { name: "Ex Machina", base: "dark", font: "family=Inter:wght@300;400;600", title: " // EVALUATION",
     caps: ["AVA // TURING EVALUATION // SESSION 3", "SUBJECT: UNITED KINGDOM"], fx: ["dots", "breath", "vig"],
@@ -3476,6 +3477,91 @@ function startRain() {
     }
   };
   st.raf = requestAnimationFrame(frame);
+}
+// Radar blips (Overwatch): when the sweep's leading line passes an aircraft or ship, it lights up and fades over the next few seconds.
+// The sweep angle is read from the CSS animation, so the two can't drift apart.
+let blipState = null;
+function stopBlips() { if (blipState) { cancelAnimationFrame(blipState.raf); blipState.ro.disconnect(); blipState = null; } }
+function startBlips() {
+  stopBlips();
+  const host = fx.querySelector(".blips"), sweep = fx.querySelector(".sweep");
+  if (!host || !sweep || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const cv = document.createElement("canvas"); host.append(cv);
+  const ctx = cv.getContext("2d"), FADE = 6000;
+  const size = () => { cv.width = fx.clientWidth || 1; cv.height = fx.clientHeight || 1; };
+  const st = blipState = { raf: 0, ro: new ResizeObserver(size), prev: null, hits: [] };
+  st.ro.observe(fx); size();
+  const head = () => {   // compass bearing of the bright leading line, clockwise from up (it starts on the 90 degree edge)
+    const a = sweep.getAnimations()[0], t = a && Number(a.currentTime), per = a && a.effect.getComputedTiming().duration;
+    return t == null || !per ? null : (90 + 360 * ((t % per) / per)) % 360;
+  };
+  const targets = () => {
+    const b = map.getBounds(), out = [];
+    for (const e of acMarkers.values()) { const ll = e.m.getLatLng(); if (b.contains(ll)) out.push({ ll, kind: "ac", emerg: !!e.a.emergency }); }
+    for (const v of lastVessels) if (b.contains([v.lat, v.lon])) out.push({ ll: L.latLng(v.lat, v.lon), kind: "vs", emerg: v.cls === "distress" });
+    return out;
+  };
+  const frame = (t) => {
+    if (blipState !== st) return;
+    st.raf = requestAnimationFrame(frame);
+    if (document.hidden) { st.prev = null; return; }
+    const h = head(), cx = cv.width / 2, cy = cv.height / 2;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (h != null && st.prev != null) {
+      let span = (h - st.prev + 360) % 360;
+      if (span > 0 && span < 40) {   // a long gap (tab was hidden, or the animation restarted) is skipped rather than lighting everything
+        for (const g of targets()) {
+          const p = map.latLngToContainerPoint(g.ll), brg = (Math.atan2(p.x - cx, cy - p.y) * 180 / Math.PI + 360) % 360;
+          if ((brg - st.prev + 360) % 360 <= span && (brg - st.prev + 360) % 360 > 0) st.hits.push({ ll: g.ll, kind: g.kind, emerg: g.emerg, t });
+        }
+      }
+    }
+    if (h != null) st.prev = h;
+    const col = css("--accent") || "#39ff5a";
+    st.hits = st.hits.filter(b => t - b.t < FADE);
+    for (const b of st.hits) {
+      const p = map.latLngToContainerPoint(b.ll), k = 1 - (t - b.t) / FADE;
+      ctx.globalAlpha = Math.max(0, k); ctx.fillStyle = b.emerg ? "#ef4444" : col; ctx.strokeStyle = ctx.fillStyle; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 8 * k;
+      if (b.kind === "ac") { ctx.beginPath(); ctx.arc(p.x, p.y, 3.2, 0, 6.2832); ctx.fill(); }
+      else ctx.fillRect(p.x - 2.5, p.y - 2.5, 5, 5);
+      ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p.x, p.y, 4 + (1 - k) * 12, 0, 6.2832); ctx.stroke();
+    }
+    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+  };
+  st.raf = requestAnimationFrame(frame);
+}
+
+// Overwatch status line: date-time group in Zulu, MGRS grid of the map centre, and a condition level from the Met Office warnings
+function mgrs(lat, lon) {
+  const a = 6378137, f = 1 / 298.257223563, n = f / (2 - f), k0 = 0.9996, rad = Math.PI / 180;
+  const zone = Math.floor((lon + 180) / 6) + 1, lon0 = ((zone - 1) * 6 - 180 + 3) * rad, phi = lat * rad, lam = lon * rad - lon0;
+  const A = a / (1 + n) * (1 + n * n / 4 + n ** 4 / 64);
+  const al = [n / 2 - 2 * n * n / 3 + 5 * n ** 3 / 16, 13 * n * n / 48 - 3 * n ** 3 / 5, 61 * n ** 3 / 240];
+  const t = Math.sinh(Math.atanh(Math.sin(phi)) - 2 * Math.sqrt(n) / (1 + n) * Math.atanh(2 * Math.sqrt(n) / (1 + n) * Math.sin(phi)));
+  const xi = Math.atan2(t, Math.cos(lam)), eta = Math.atanh(Math.sin(lam) / Math.sqrt(1 + t * t));
+  let E = eta, N = xi;
+  al.forEach((c, i) => { const j = 2 * (i + 1); E += c * Math.cos(j * xi) * Math.sinh(j * eta); N += c * Math.sin(j * xi) * Math.cosh(j * eta); });
+  E = 500000 + k0 * A * E; N = k0 * A * N; if (N < 0) N += 10000000;
+  const band = "CDEFGHJKLMNPQRSTUVWX"[Math.max(0, Math.min(19, Math.floor((lat + 80) / 8)))];
+  const colL = ["ABCDEFGH", "JKLMNPQR", "STUVWXYZ"][(zone - 1) % 3][Math.floor(E / 1e5) - 1];
+  const rowL = "ABCDEFGHJKLMNPQRSTUV"[(Math.floor(N / 1e5) + (zone % 2 ? 0 : 5)) % 20];
+  const d = (v) => String(Math.floor((v % 1e5) / 100)).padStart(3, "0");
+  return `${zone}${band} ${colL}${rowL} ${d(E)} ${d(N)}`;
+}
+let hudState = null;
+function stopHud() { if (hudState) { clearInterval(hudState.iv); map.off("moveend", hudState.upd); hudState = null; } }
+function startHud() {
+  stopHud();
+  const el = fx.querySelector(".cap.b"); if (!el) return;
+  const LVL = { red: ["RED", "#ef4444"], amber: ["AMBER", "#f59e0b"], yellow: ["YELLOW", "#facc15"] };
+  const upd = () => {
+    const n = new Date(), p = (v) => String(v).padStart(2, "0"), mon = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][n.getUTCMonth()];
+    const dtg = `${p(n.getUTCDate())}${p(n.getUTCHours())}${p(n.getUTCMinutes())}Z${mon}${String(n.getUTCFullYear()).slice(2)}`;
+    const c = map.getCenter(), top = ["red", "amber", "yellow"].find(l => lastWarnings.some(w => w.level === l));
+    const [name, col] = top ? LVL[top] : ["GREEN", "#39ff5a"];
+    el.innerHTML = `DTG ${dtg} // GRID ${mgrs(c.lat, c.lng)} // CONDITION <span style="color:${col}">${name}</span>`;
+  };
+  hudState = { iv: setInterval(upd, 1000), upd }; map.on("moveend", upd); upd();
 }
 let bootTimer = null;
 function bootSequence(t) {
@@ -3532,6 +3618,8 @@ function setTheme(key, picked = false) {
     + (th.caps || []).map((c, i) => `<div class="cap${i ? " b" : ""}">${esc(typeof c === "function" ? c() : c)}</div>`).join("");
   placeFx();
   stopRain(); if (th.fx?.includes("code")) startRain();
+  stopBlips(); if (th.fx?.includes("blips")) startBlips();
+  stopHud(); if (th.hud) startHud();
   if (picked && th.base && BASEMAPS[th.base]) { S.basemap = setBasemap(th.base); if ($("fBase")) $("fBase").value = S.basemap; }
   if (picked || !params.has("kiosk")) bootSequence(th);
   save();
