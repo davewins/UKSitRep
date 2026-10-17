@@ -468,33 +468,40 @@
   body[data-theme="matrix"] #fx .vig { background: radial-gradient(ellipse at center, transparent 50%, rgba(0,20,0,.7) 100%); }
 
   /* --- Overwatch: tactical ops room. Matrix green phosphor, but with range rings, bearing ticks, a radar sweep and corner brackets --- */
-  body[data-theme="overwatch"] {
+  body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) {
     --bg: #000; --panel: rgba(2,12,3,.84); --line: #1d6b2a; --text: #c4f5cc; --muted: #5fa56b; --accent: #39ff5a; --accent-hi: #e4ffe9;
-    --glow: rgba(57,255,90,.35); --popup: rgba(2,14,4,.95); --btn: #04200a; --ticker-bg: #2f8f3c; --ticker-fg: #000; --cap: #39ff5a;
+    --ow: 57,255,90; --glow: rgba(var(--ow),.35); --popup: rgba(2,14,4,.95); --btn: #04200a; --ticker-bg: #2f8f3c; --ticker-fg: #000; --cap: #39ff5a;
     --font: "Share Tech Mono", ui-monospace, Menlo, Consolas, monospace; --font-head: "Stardos Stencil", var(--font);
     --tile-filter: grayscale(1) sepia(1) hue-rotate(62deg) saturate(4) brightness(.55) contrast(1.35);
     --label-filter: grayscale(1) sepia(1) hue-rotate(65deg) saturate(4) brightness(1.15); }
-  body[data-theme="overwatch"] .panel, body[data-theme="overwatch"] #top, body[data-theme="overwatch"] #ticker, body[data-theme="overwatch"] #searchBox { border-radius: 0; }
-  body[data-theme="overwatch"] .panel, body[data-theme="overwatch"] #top, body[data-theme="overwatch"] .leaflet-popup-content { text-shadow: 0 0 5px rgba(57,255,90,.35); }
-  body[data-theme="overwatch"] .panel h2, body[data-theme="overwatch"] #top h1 { letter-spacing: .22em; text-transform: uppercase; }
-  body[data-theme="overwatch"] #fx .grid { background-image: linear-gradient(rgba(57,255,90,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(57,255,90,.07) 1px, transparent 1px);
+  body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) .panel, body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #top, body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #ticker, body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #searchBox { border-radius: 0; }
+  body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) .panel, body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #top, body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) .leaflet-popup-content { text-shadow: 0 0 5px rgba(var(--ow),.35); }
+  body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) .panel h2, body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #top h1 { letter-spacing: .22em; text-transform: uppercase; }
+  body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #fx .grid { background-image: linear-gradient(rgba(var(--ow),.07) 1px, transparent 1px), linear-gradient(90deg, rgba(var(--ow),.07) 1px, transparent 1px);
     background-size: 64px 64px; }
-  body[data-theme="overwatch"] #fx .rings { background: repeating-radial-gradient(circle at 50% 50%, transparent 0 119px, rgba(57,255,90,.16) 120px, transparent 121px),
-    linear-gradient(rgba(57,255,90,.2), rgba(57,255,90,.2)) 50% 0 / 1px 100% no-repeat, linear-gradient(90deg, rgba(57,255,90,.2), rgba(57,255,90,.2)) 0 50% / 100% 1px no-repeat; }
-  body[data-theme="overwatch"] #fx .bearing { inset: 50% auto auto 50%; width: 76vmin; height: 76vmin; margin: -38vmin 0 0 -38vmin; border-radius: 50%; opacity: .55;
-    background: repeating-conic-gradient(from -0.5deg, rgba(57,255,90,.8) 0 1deg, transparent 1deg 10deg);
+  body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #fx .rings { background: repeating-radial-gradient(circle at 50% 50%, transparent 0 119px, rgba(var(--ow),.16) 120px, transparent 121px),
+    linear-gradient(rgba(var(--ow),.2), rgba(var(--ow),.2)) 50% 0 / 1px 100% no-repeat, linear-gradient(90deg, rgba(var(--ow),.2), rgba(var(--ow),.2)) 0 50% / 100% 1px no-repeat; }
+  body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #fx .bearing { inset: 50% auto auto 50%; width: 76vmin; height: 76vmin; margin: -38vmin 0 0 -38vmin; border-radius: 50%; opacity: .55;
+    background: repeating-conic-gradient(from -0.5deg, rgba(var(--ow),.8) 0 1deg, transparent 1deg 10deg);
     -webkit-mask: radial-gradient(circle, transparent 0 calc(50% - 7px), #000 calc(50% - 6px) 50%, transparent 50%); mask: radial-gradient(circle, transparent 0 calc(50% - 7px), #000 calc(50% - 6px) 50%, transparent 50%); }
-  body[data-theme="overwatch"] #fx .sweep { inset: auto; left: 50%; bottom: 50%; width: 75vmax; height: 75vmax; transform-origin: 0 100%;
-    background: conic-gradient(from 0deg at 0 100%, transparent 0 40deg, rgba(57,255,90,0) 40deg, rgba(57,255,90,.32) 89.5deg, rgba(57,255,90,.9) 89.5deg 90deg, transparent 90deg); animation: spin 7s linear infinite; }
-  body[data-theme="overwatch"] #fx .brackets { inset: 10px; --b: rgba(57,255,90,.75);
+  body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #fx .sweep { inset: auto; left: 50%; bottom: 50%; width: 75vmax; height: 75vmax; transform-origin: 0 100%;
+    background: conic-gradient(from 0deg at 0 100%, transparent 0 40deg, rgba(var(--ow),0) 40deg, rgba(var(--ow),.32) 89.5deg, rgba(var(--ow),.9) 89.5deg 90deg, transparent 90deg); animation: spin 7s linear infinite; }
+  body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #fx .brackets { inset: 10px; --b: rgba(var(--ow),.75);
     background: linear-gradient(var(--b), var(--b)) 0 0 / 26px 2px, linear-gradient(var(--b), var(--b)) 0 0 / 2px 26px,
       linear-gradient(var(--b), var(--b)) 100% 0 / 26px 2px, linear-gradient(var(--b), var(--b)) 100% 0 / 2px 26px,
       linear-gradient(var(--b), var(--b)) 0 100% / 26px 2px, linear-gradient(var(--b), var(--b)) 0 100% / 2px 26px,
       linear-gradient(var(--b), var(--b)) 100% 100% / 26px 2px, linear-gradient(var(--b), var(--b)) 100% 100% / 2px 26px; background-repeat: no-repeat; }
-  body[data-theme="overwatch"] #fx .scan { background: repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 1px, transparent 1px 3px); }
-  body[data-theme="overwatch"] #fx .vig { background: radial-gradient(ellipse at center, transparent 50%, rgba(0,18,2,.72) 100%); }
+  body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #fx .scan { background: repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 1px, transparent 1px 3px); }
+  body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #fx .vig { background: radial-gradient(ellipse at center, transparent 50%, rgba(0,18,2,.72) 100%); }
+  body[data-theme="overwatch_night"] {
+    --ow: 255,59,59; --panel: rgba(14,2,2,.86); --line: #6b1d1d; --text: #ffc4c4; --muted: #a55f5f; --accent: #ff3b3b; --accent-hi: #ffe4e4;
+    --glow: rgba(255,59,59,.35); --popup: rgba(16,2,2,.95); --btn: #200404; --ticker-bg: #8f2f2f; --ticker-fg: #000; --cap: #ff3b3b;
+    --tile-filter: grayscale(1) sepia(1) hue-rotate(-52deg) saturate(4) brightness(.45) contrast(1.35);
+    --label-filter: grayscale(1) sepia(1) hue-rotate(-50deg) saturate(4) brightness(1); }
+  #fx .cap.hud { top: 30px; bottom: auto; white-space: nowrap; font-size: 10px; letter-spacing: .16em; font-weight: 400; }
+  @media (max-width: 760px) { #fx .cap.hud { font-size: 8.5px; letter-spacing: .06em; } }
   #fx .blips canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-  @media (prefers-reduced-motion: reduce) { body[data-theme="overwatch"] #fx .sweep { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { body:is([data-theme="overwatch"], [data-theme="overwatch_night"]) #fx .sweep { animation: none; } }
 
   /* --- Ex Machina: graphite glass, a warm amber glow like Ava's cell --- */
   body[data-theme="machina"] {
@@ -3422,7 +3429,7 @@ const THEMES = {
     caps: ["NEBUCHADNEZZAR // OPERATOR CONSOLE // SECTOR: UNITED KINGDOM", "FOLLOW THE WHITE RABBIT"], fx: ["code", "scan", "vig"],
     boot: ["WAKE UP, NEO...", "THE MATRIX HAS YOU...", "FOLLOW THE WHITE RABBIT.", "KNOCK, KNOCK."] },
   overwatch: { name: "Overwatch (Tactical)", base: "dark", font: "family=Share+Tech+Mono&family=Stardos+Stencil:wght@700", title: " // OVERWATCH",
-    caps: ["OVERWATCH // TACTICAL OPERATIONS CENTRE // AO: UNITED KINGDOM", "ALL STATIONS, RADIO CHECK"], hud: true, fx: ["grid", "rings", "bearing", "sweep", "blips", "brackets", "scan", "vig"],
+    caps: ["OVERWATCH // AO: UNITED KINGDOM"], hud: true, fx: ["grid", "rings", "bearing", "sweep", "blips", "brackets", "scan", "vig"],
     boot: ["OVERWATCH // TACTICAL OPERATIONS CENTRE", "COMMS CHECK ... FIVE BY FIVE", "AREA OF OPERATIONS: UNITED KINGDOM", "SECTOR SWEEP ... CLEAR", "STAND BY."] },
   machina: { name: "Ex Machina", base: "dark", font: "family=Inter:wght@300;400;600", title: " // EVALUATION",
     caps: ["AVA // TURING EVALUATION // SESSION 3", "SUBJECT: UNITED KINGDOM"], fx: ["dots", "breath", "vig"],
@@ -3435,6 +3442,8 @@ const THEMES = {
         "During the battle, Met Office spies managed to steal secret plans to the Empire's ultimate weapon, the AMBER WARNING, a rain band with enough power to flood an entire county.",
         "Pursued by the Empire's sinister agents, the SITREP races home aboard its map, custodian of the live data that can save its people and restore freedom to the galaxy...."] } },
 };
+THEMES.overwatch_night = { ...THEMES.overwatch, name: "Overwatch (Night, red)", title: " // OVERWATCH NIGHT",
+  boot: ["OVERWATCH // NIGHT OPS", "WHITE LIGHT DISCIPLINE ... ACTIVE", "NIGHT VISION PRESERVED", "STAND BY."] };
 const H1_HTML = document.querySelector("#top h1").innerHTML;
 const fx = L.DomUtil.create("div", "", map.createPane("fxPane"));  // inside the map so it sits under markers and popups
 fx.id = "fx";
@@ -3517,7 +3526,7 @@ function startBlips() {
       }
     }
     if (h != null) st.prev = h;
-    const col = css("--accent") || "#39ff5a";
+    const col = getComputedStyle(document.body).getPropertyValue("--accent").trim() || "#39ff5a";
     st.hits = st.hits.filter(b => t - b.t < FADE);
     for (const b of st.hits) {
       const p = map.latLngToContainerPoint(b.ll), k = 1 - (t - b.t) / FADE;
@@ -3552,14 +3561,14 @@ let hudState = null;
 function stopHud() { if (hudState) { clearInterval(hudState.iv); map.off("moveend", hudState.upd); hudState = null; } }
 function startHud() {
   stopHud();
-  const el = fx.querySelector(".cap.b"); if (!el) return;
+  const el = document.createElement("div"); el.className = "cap hud"; fx.append(el);
   const LVL = { red: ["RED", "#ef4444"], amber: ["AMBER", "#f59e0b"], yellow: ["YELLOW", "#facc15"] };
   const upd = () => {
     const n = new Date(), p = (v) => String(v).padStart(2, "0"), mon = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][n.getUTCMonth()];
     const dtg = `${p(n.getUTCDate())}${p(n.getUTCHours())}${p(n.getUTCMinutes())}Z${mon}${String(n.getUTCFullYear()).slice(2)}`;
     const c = map.getCenter(), top = ["red", "amber", "yellow"].find(l => lastWarnings.some(w => w.level === l));
-    const [name, col] = top ? LVL[top] : ["GREEN", "#39ff5a"];
-    el.innerHTML = `DTG ${dtg} // GRID ${mgrs(c.lat, c.lng)} // CONDITION <span style="color:${col}">${name}</span>`;
+    const [name, col] = top ? LVL[top] : ["GREEN", "var(--accent)"];
+    el.innerHTML = `DTG ${dtg} // GRID ${mgrs(c.lat, c.lng)} // COND <span style="color:${col}">${name}</span>`;
   };
   hudState = { iv: setInterval(upd, 1000), upd }; map.on("moveend", upd); upd();
 }
