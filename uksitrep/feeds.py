@@ -697,14 +697,14 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
     async def _refine_tides(self, store: Path, snaps: dict, todo: list[dict]) -> None:
         """Ask Overpass for harbour features around each station, in chunks, and save as we go."""
         done = 0
-        for i in range(0, len(todo), 30):
-            chunk = todo[i:i + 30]
+        for i in range(0, len(todo), 8):  # Overpass spends ~6 s per station, so small chunks stay inside the timeout
+            chunk = todo[i:i + 8]
             query = "[out:json][timeout:90];(" + "".join(
                 TIDE_SNAP_QUERY.format(r=int(TIDE_SNAP_KM * 1000), lat=st["lat"], lon=st["lon"]) for st in chunk) + ");out center tags;"
             els = None
             for mirror in OVERPASS_MIRRORS:
                 try:
-                    async with self.session.post(mirror, data={"data": query}, headers=UA, timeout=aiohttp.ClientTimeout(total=120)) as r:
+                    async with self.session.post(mirror, data={"data": query}, headers=UA, timeout=aiohttp.ClientTimeout(total=150)) as r:
                         r.raise_for_status()
                         els = (await r.json(content_type=None)).get("elements", [])
                     break
@@ -719,9 +719,9 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
                 snaps[st["id"]] = {"from": [st["lat"], st["lon"]], "to": list(to) if to else [st["lat"], st["lon"]]}
             done += len(chunk)
             await asyncio.to_thread(lambda: store.write_text(json.dumps(snaps)))
+            self.cache._data.pop("tide_stations", None)  # next request picks up the positions refined so far
             await asyncio.sleep(5)  # be gentle with the shared Overpass servers
         if done:
-            self.cache._data.pop("tide_stations", None)  # next request picks up the refined positions
             _LOGGER.info("tide stations refined against OSM: %d", done)
 
     async def tides(self, station: str) -> dict:
