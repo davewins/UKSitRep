@@ -697,8 +697,13 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
     async def _refine_tides(self, store: Path, snaps: dict, todo: list[dict]) -> None:
         """Ask Overpass for harbour features around each station, in chunks, and save as we go."""
         done = 0
-        for i in range(0, len(todo), 8):  # Overpass spends ~6 s per station, so small chunks stay inside the timeout
+        homes = getattr(self.cfg, "homes", None) or []
+        if homes:  # stations nearest the configured homes first, so the places people look at are fixed soonest
+            todo = sorted(todo, key=lambda st: min(_km(h.lat, h.lon, st["lat"], st["lon"]) for h in homes))
+        i = 0
+        while i < len(todo):  # Overpass spends ~6 s per station, so small chunks stay inside the timeout
             chunk = todo[i:i + 8]
+            i += 8
             query = "[out:json][timeout:90];(" + "".join(
                 TIDE_SNAP_QUERY.format(r=int(TIDE_SNAP_KM * 1000), lat=st["lat"], lon=st["lon"]) for st in chunk) + ");out center tags;"
             els = None
@@ -711,9 +716,10 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
                 except Exception as err:  # noqa: BLE001
                     _LOGGER.info("overpass %s failed: %s", mirror, err)
             if els is None:
-                self.tide_snap_retry_at = time.time() + 1800
-                _LOGGER.warning("tide positions: Overpass unavailable, retrying in 30 min")
-                break
+                _LOGGER.warning("tide positions: Overpass unavailable, retrying in 10 min")
+                await asyncio.sleep(600)
+                i -= 8
+                continue
             for st in chunk:
                 to = snap_tide_station(st, els)
                 snaps[st["id"]] = {"from": [st["lat"], st["lon"]], "to": list(to) if to else [st["lat"], st["lon"]]}
