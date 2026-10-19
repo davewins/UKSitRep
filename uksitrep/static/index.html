@@ -3476,7 +3476,7 @@ function start() {
 const THEMES = {
   standard: { name: "Standard" },
   spy: { name: "Spy HQ", base: "satellite", font: "family=Share+Tech+Mono", title: " SITREP // TOP SECRET",
-    caps: ["TOP SECRET // UK EYES ONLY", "TOP SECRET // UK EYES ONLY"], fx: ["grid", "rings", "sweep", "scan", "vig"],
+    caps: ["TOP SECRET // UK EYES ONLY", "TOP SECRET // UK EYES ONLY"], fx: ["grid", "rings", "sweep", "blips", "scan", "vig"],
     boot: ["SECURE TERMINAL // ESTABLISHING LINK", "ENCRYPTION AES-256 ... HANDSHAKE OK", "RETINAL SCAN ... MATCH", "CLEARANCE LEVEL: TOP SECRET", "ACCESS GRANTED. GOOD EVENING."] },
   alien: { name: "Retro Terminal (Amber CRT)", base: "dark", font: "family=VT323", title: " // SHIP COMPUTER",
     caps: ["SHIP COMPUTER // INTERFACE READY", "DEEP-SPACE FREIGHTER // CREW OF 7"], fx: ["scan", "roll", "vig"],
@@ -3652,7 +3652,7 @@ function startMotes(kind) {
   st.raf = requestAnimationFrame(frame);
 }
 
-// Radar blips (Overwatch): when the sweep's leading line passes an aircraft or ship, it lights up and fades over the next few seconds.
+// Radar blips (Overwatch, Spy HQ): when the sweep's leading line passes an aircraft or ship, it lights up and fades over the next few seconds.
 // The sweep angle is read from the CSS animation, so the two can't drift apart.
 let blipState = null;
 function stopBlips() { if (blipState) { cancelAnimationFrame(blipState.raf); blipState.ro.disconnect(); blipState = null; } }
