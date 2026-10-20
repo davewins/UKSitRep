@@ -363,6 +363,10 @@
   /* Falling/drifting effects are oversized layers moved with transform only (compositor, no repaint); each layer's pattern repeats
      at the distance it travels, so the loop is seamless at any screen size. */
   @media (prefers-reduced-motion: reduce) { body[data-theme] #fx *, body[data-theme] #fx { animation: none !important; } }
+  /* power saving: no live blur behind panels, decorative overlay animations held still (the radar sweep keeps turning) */
+  body.lowpower * { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  body.lowpower #fx *:not(.sweep) { animation-play-state: paused !important; }
+  body.lowpower #fx .sweep { filter: none !important; }
   @keyframes fall200 { from { transform: skewX(-9deg) translateY(0); } to { transform: skewX(-9deg) translateY(200px); } }
   @keyframes fall300 { from { transform: skewX(-9deg) translateY(0); } to { transform: skewX(-9deg) translateY(300px); } }
   @keyframes slide200 { from { transform: translateX(0); } to { transform: translateX(200px); } }
@@ -719,13 +723,19 @@ const DEFAULTS = {
     ac_trails: true, mil_dest: true, airfields: true, army: true,
     vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
     cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, grid_regions: false, windfarms: true, plants: true, chargers: true, atms: true, postboxes: true, defibs: true, watersafety: true, toilets: true, hospitals: true, seaglass: true, home: true, favs: true, quakes: true, meteors: true, allsky: true, observatories: true, rail_stations: true, rail_disruptions: true, buses: true, bus_stops: true, bus_disruptions: true, news: true },
-  regionMode: "carbon", basemap: "dark", theme: "standard", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36, iconScale: "auto",
+  regionMode: "carbon", basemap: "dark", theme: "standard", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36, iconScale: "auto", power: "auto",
 };
 let S;
 try { S = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem("ukSit") || "{}"));
       S.layers = Object.assign({}, DEFAULTS.layers, S.layers || {}); }
 catch (e) { S = structuredClone(DEFAULTS); }
 const save = () => { try { localStorage.setItem("ukSit", JSON.stringify(S)); } catch (e) {} };
+// Power saving: "auto" goes easy on the CPU/GPU while the device runs on battery (Chrome only: Safari has no Battery API, so use "Always" there)
+let onBattery = false;
+const lowPower = () => S.power === "on" || (S.power !== "off" && onBattery);
+const applyPower = () => document.body.classList.toggle("lowpower", lowPower());
+applyPower();
+try { navigator.getBattery?.().then((b) => { const u = () => { onBattery = !b.charging; applyPower(); }; b.addEventListener("chargingchange", u); u(); }).catch(() => {}); } catch (e) {}
 
 /* ------------------------------------------------------------ map */
 const phone = matchMedia("(max-width: 760px)");
@@ -2368,16 +2378,20 @@ const TICKER_PX_PER_SEC = 110;
 // a long-idle tab doesn't lose it, and a stuck touch "hover" can't leave it paused. It holds still only while pressed or under a mouse.
 {
   const el = $("ticker"), tr = $("tickerTrack"), lbl = el.querySelector(".lbl");
-  let x = null, last = 0, held = false;
+  let x = null, last = 0, held = false, w = 0, vis = 0;
+  const measure = () => { w = tr.offsetWidth; vis = el.clientWidth - lbl.offsetWidth; };   // measured on resize, not every frame (reading sizes forces a layout)
+  const ro = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
+  if (ro) { ro.observe(tr); ro.observe(el); ro.observe(lbl); } measure();
   el.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") held = true; });
   el.addEventListener("pointerleave", () => { held = false; });
   el.addEventListener("pointerdown", () => { held = true; });
   for (const ev of ["pointerup", "pointercancel"]) el.addEventListener(ev, (e) => { held = e.pointerType === "mouse" && el.matches(":hover"); });
   const frame = (t) => {
     requestAnimationFrame(frame);
+    if (document.hidden || !tr.firstChild) { last = t; return; }
+    if (lowPower() && t - last < 33) return;   // 30 fps on battery
     const dt = Math.min(.1, Math.max(0, t - last) / 1000); last = t;
-    if (document.hidden || !tr.firstChild) return;
-    const w = tr.offsetWidth, vis = el.clientWidth - lbl.offsetWidth;
+    if (!ro) measure();
     if (!w || vis <= 0) return;
     if (x === null || x > vis) x = vis;
     if (!held) x -= TICKER_PX_PER_SEC * dt;
@@ -3276,6 +3290,7 @@ function buildLeft() {
   h += `<h2>Filters</h2>
     <div class="row"><span>Style</span><select id="fTheme">${Object.entries(THEMES).sort(([a, x], [b, y]) => (a === "standard" ? -1 : b === "standard" ? 1 : x.name.localeCompare(y.name))).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join("")}</select></div>
     <div class="row"><span>Map</span><select id="fBase">${Object.entries(BASEMAPS).map(([k, b]) => `<option value="${k}">${b[0]}</option>`).join("")}</select></div>
+    <div class="row"><span>Power saving</span><select id="fPower"><option value="auto">Auto (on battery)</option><option value="on">Always</option><option value="off">Off</option></select></div>
     <div class="row"><span>Labels</span><select id="fLabels"><option value="off">Off</option><option value="special">Special only</option><option value="all">All</option></select></div>
     <div class="row"><span>Hide civil below</span><select id="fAlt"><option value="0">—</option><option value="5000">5,000 ft</option><option value="10000">10,000 ft</option><option value="20000">20,000 ft</option></select></div>
     <div class="row"><span>Incident age</span><select id="fNewsH"><option value="1">1 h</option><option value="3">3 h</option><option value="6">6 h</option><option value="12">12 h</option><option value="24">24 h</option></select></div>
@@ -3286,7 +3301,7 @@ function buildLeft() {
     <p class="muted" style="font-size:11px;margin-top:12px">Keys: <b>/</b> search · <b>P</b> panels · <b>F</b> full screen · <b>H</b> home · <b>L</b> my location · <b>U</b> whole UK<br>Add <code>?kiosk</code> to the URL for an always-on display, <code>?uk</code> to open on the whole country, and <code>?view=military</code> (or favourites, emergency, transport, weather, coast, space, everything) to open in a view, and <code>?theme=spy</code> for a style (any of: ${Object.keys(THEMES).filter(k => k !== "standard").map(themeSlug).sort().join(", ")}).</p>`;
   $("left").innerHTML = h + '<p class="muted" id="verLine" style="font-size:11px"></p><div class="sheet-close" data-close>Close</div>';
   showVersion();
-  $("fTheme").value = S.theme || "standard"; $("fBase").value = S.basemap; $("fLabels").value = S.labels; $("fAlt").value = S.minAltFt; $("fNewsH").value = S.newsHours; $("fNewsSev").value = S.newsMinSev; $("fQuake").value = S.quakeDays; $("fMeteor").value = S.meteorHours; $("fIcons").value = S.iconScale || "auto";
+  $("fTheme").value = S.theme || "standard"; $("fBase").value = S.basemap; $("fLabels").value = S.labels; $("fAlt").value = S.minAltFt; $("fNewsH").value = S.newsHours; $("fNewsSev").value = S.newsMinSev; $("fQuake").value = S.quakeDays; $("fMeteor").value = S.meteorHours; $("fIcons").value = S.iconScale || "auto"; $("fPower").value = S.power || "auto";
   syncGroupBoxes();
   $("left").addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-bulk]");
@@ -3310,6 +3325,7 @@ function buildLeft() {
     }
     if (t.id === "fBase") { S.basemap = setBasemap(t.value); }
     if (t.id === "fTheme") { setTheme(t.value, true); }
+    if (t.id === "fPower") { S.power = t.value; applyPower(); }
     if (t.id === "fLabels") { S.labels = t.value; renderAircraft(lastAircraft); refresh.vessels(); }
     if (t.id === "fAlt") { S.minAltFt = +t.value; renderAircraft(lastAircraft); }
     if (t.id === "fNewsH") { S.newsHours = +t.value; renderNews(); }
@@ -3424,15 +3440,19 @@ function guardView(name, sig, pad) {
   guardView("renderRivers", () => `${on("rivers")}|${z() >= RIVER_MIN_ZOOM}`, () => z() >= RIVER_MIN_ZOOM ? 0.2 : null);
   guardView("renderVessels", () => `${z()}|${S.labels}`, () => z() >= VS_ARROW_ZOOM ? 0.2 : null);
 }
-// Open-Meteo has a free daily quota: fetch its feeds only while their layer is on and the tab is visible
+// Every feed pauses while the tab is hidden (a phone in a pocket, a minimised window), and the Open-Meteo ones (free daily quota)
+// only run while their layer is on. On return, anything older than its interval is fetched straight away.
 const OM_GATE = { city_weather: () => S.layers.cityweather, sea: () => S.layers.sea, wind_grid: () => S.layers.wind || S.layers.temps,
   air_quality: () => S.layers.air };
-for (const [k, on] of Object.entries(OM_GATE)) { const fn = refresh[k]; refresh[k] = async () => { if (on() && !document.hidden) await fn(); }; }
-document.addEventListener("visibilitychange", () => { if (!document.hidden) for (const k of Object.keys(OM_GATE)) refresh[k](); });
-// ...and pause the busiest live feeds while the tab is hidden (a phone in a pocket, a minimised window), catching up on return
-const HIDDEN_PAUSE = ["aircraft", "vessels", "radar", "lightning"];
-for (const k of HIDDEN_PAUSE) { const fn = refresh[k]; refresh[k] = async () => { if (!document.hidden) await fn(); }; }
-document.addEventListener("visibilitychange", () => { if (!document.hidden) for (const k of HIDDEN_PAUSE) refresh[k](); });
+const lastRun = {};
+for (const [k, fn] of Object.entries(refresh)) {
+  const gate = OM_GATE[k];
+  refresh[k] = async () => { if (document.hidden || (gate && !gate())) return; lastRun[k] = Date.now(); await fn(); };
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  for (const k of Object.keys(refresh)) if (!lastRun[k] || Date.now() - lastRun[k] >= INTERVAL[k] * 1000) refresh[k]();
+});
 const INTERVAL = { aircraft: 10, vessels: 30, weather_warnings: 600, floods: 600,
   grid: 300, power_cuts: 300, space: 600, quakes: 900, news: 300, roads: 180, meteors: 1800, sea: 3600, seaglass: 3 * 3600, rnli: 180, fire: 900, webcams: 6 * 3600, allsky: 600, observatories: 6 * 3600, rail_stations: 86400, rail_disruptions: 300, bus_disruptions: 300, tide_stations: 86400, sewage: 600, home: 120, bathing: 3 * 3600, rivers: 600, lightning: 30, air_quality: 3 * 3600, fires: 1800, tfl: 300, iss: 30, wind_grid: 3 * 3600, radar: 300, city_weather: 3600, energy_regions: 86400, energy_live: 300, generators: 300 };
 
@@ -3454,8 +3474,9 @@ function start() {
     wantHome = false;
   });
   loadFavs().then(() => { if (pv === "favourites" && !startUK) fitFavs(); });
-  for (const [k, fn] of Object.entries(refresh)) { fn(); setInterval(fn, INTERVAL[k] * 1000); }
-  setInterval(() => renderNews(), 60000);
+  // self-scheduling, so the power-saving setting can stretch every feed's interval (x2) without a reload
+  for (const [k, fn] of Object.entries(refresh)) { fn(); const tick = () => setTimeout(() => { fn(); tick(); }, INTERVAL[k] * 1000 * (lowPower() ? 2 : 1)); tick(); }
+  setInterval(() => { if (!document.hidden) renderNews(); }, 60000);
   checkVersion(); setInterval(checkVersion, 3600 * 1000);  // age out expired incidents
   map.on("zoomend", () => { renderAircraft(lastAircraft); renderVessels(); if (lastGrid) renderInterconnectors(lastGrid); });
   const moved = () => { if (map.getZoom() >= VS_ARROW_ZOOM) renderVessels(); renderCams(); renderAllsky(); renderObs(); renderRailStations(); renderBusDis(); refreshBuses(); refreshBusStops(); renderTides(); renderSewage(); renderBathing(); renderRivers(); refreshCrime(); refreshFuel(); refreshChargers(); refreshAtms(); refreshPostboxes(); refreshOsmAll(); renderSeaGlass(); };
@@ -3464,10 +3485,10 @@ function start() {
   map.on("popupopen", (e) => { openPop = e.popup; });
   map.on("popupclose", (e) => { if (openPop === e.popup) openPop = null; if (movedUnder && !openPop) { movedUnder = false; setTimeout(moved, 0); } });
   map.on("moveend", () => { if (openPop) movedUnder = true; else moved(); });
-  setInterval(() => { fuelKey = null; refreshFuel(); }, 30 * 60000);
+  setInterval(() => { if (!document.hidden) { fuelKey = null; refreshFuel(); } }, 30 * 60000);
   setInterval(() => { if (!document.hidden) refreshBuses(true); }, 20000);
   renderSatImg();
-  setInterval(() => { const n = new Date();
+  setInterval(() => { if (document.hidden) return; const n = new Date();
     $("clock").innerHTML = n.toLocaleTimeString("en-GB") + `<span class="z"> · ${n.toISOString().slice(11, 16)}Z</span>`; }, 1000);
   setTimeout(() => location.reload(), 6 * 3600 * 1000);  // keep a 24/7 display fresh
 }
@@ -3576,7 +3597,7 @@ function startRain() {
   const frame = (t) => {
     if (rainState !== st) return;
     st.raf = requestAnimationFrame(frame);
-    if (document.hidden || t - last < 70) return;
+    if (document.hidden || t - last < (lowPower() ? 140 : 70)) return;
     last = t;
     ctx.globalCompositeOperation = "destination-out"; ctx.fillStyle = "rgba(0,0,0,.14)"; ctx.fillRect(0, 0, cv.width, cv.height);
     ctx.globalCompositeOperation = "source-over"; ctx.font = SZ + "px monospace";
@@ -3616,7 +3637,7 @@ function startMotes(kind) {
   const frame = (t) => {
     if (moteState !== st) return;
     st.raf = requestAnimationFrame(frame);
-    if (document.hidden || t - st.last < 33) return;
+    if (document.hidden || t - st.last < (lowPower() ? 66 : 33)) return;
     const dt = Math.min(.1, (t - (st.last || t)) / 1000); st.last = t;
     const W = cv.width, H = cv.height, s = t / 1000;
     ctx.clearRect(0, 0, W, H);
@@ -3626,7 +3647,9 @@ function startMotes(kind) {
       if (kind === "embers") {
         if (p.y < -.05) Object.assign(p, mk(i, true));
         const a = (.35 + .65 * Math.abs(Math.sin(s * 3 * p.sp + p.ph))) * Math.min(1, p.y * 1.4 + .2);
-        ctx.fillStyle = `rgba(255,${150 + (i % 4) * 20},60,${a})`; ctx.shadowColor = "#ff8a30"; ctx.shadowBlur = 8;
+        ctx.fillStyle = `rgba(255,${150 + (i % 4) * 20},60,${a * .22})`;   // a soft halo disc: canvas shadowBlur is very costly
+        ctx.beginPath(); ctx.arc(x, y, p.r * 3.2, 0, 6.2832); ctx.fill();
+        ctx.fillStyle = `rgba(255,${150 + (i % 4) * 20},60,${a})`;
         ctx.beginPath(); ctx.arc(x, y, p.r, 0, 6.2832); ctx.fill();
       } else if (kind === "seeds") {
         if (p.y < -.05) Object.assign(p, mk(i, true));
@@ -3663,7 +3686,7 @@ function startBlips() {
   const cv = document.createElement("canvas"); host.append(cv);
   const ctx = cv.getContext("2d"), FADE = 4500;   // well inside one 7 s turn of the sweep, so blips never pile up
   const size = () => { cv.width = fx.clientWidth || 1; cv.height = fx.clientHeight || 1; };
-  const st = blipState = { raf: 0, ro: new ResizeObserver(size), prev: null, hits: [] };
+  const st = blipState = { raf: 0, ro: new ResizeObserver(size), prev: null, hits: [], last: 0, col: "", colT: -1e9 };
   st.ro.observe(fx); size();
   const head = () => {   // compass bearing of the bright leading line, clockwise from up (it starts on the 90 degree edge)
     const a = sweep.getAnimations()[0], t = a && Number(a.currentTime), per = a && a.effect.getComputedTiming().duration;
@@ -3679,6 +3702,8 @@ function startBlips() {
     if (blipState !== st) return;
     st.raf = requestAnimationFrame(frame);
     if (document.hidden) { st.prev = null; return; }
+    if (t - st.last < (lowPower() ? 80 : 40)) return;   // 25 fps (12 on battery) is plenty for a sweep that takes 7 s a turn
+    st.last = t;
     const h = head(), cx = cv.width / 2, cy = cv.height / 2;
     ctx.clearRect(0, 0, cv.width, cv.height);
     if (h != null && st.prev != null) {
@@ -3691,12 +3716,14 @@ function startBlips() {
       }
     }
     if (h != null) st.prev = h;
-    const col = getComputedStyle(document.body).getPropertyValue("--accent").trim() || "#39ff5a";
+    if (t - st.colT > 2000) { st.col = getComputedStyle(document.body).getPropertyValue("--accent").trim() || "#39ff5a"; st.colT = t; }
+    const col = st.col;
     st.hits = st.hits.filter(b => t - b.t < FADE);
     for (const b of st.hits) {
       const p = map.latLngToContainerPoint(b.ll), k = 1 - (t - b.t) / FADE;
       const hot = Math.max(0, 1 - (t - b.t) / 1200);   // bright flash as the sweep passes, then a slower fade
-      ctx.globalAlpha = k; ctx.fillStyle = b.emerg ? "#ef4444" : col; ctx.strokeStyle = ctx.fillStyle; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 6 + 12 * k;
+      ctx.globalAlpha = k; ctx.fillStyle = b.emerg ? "#ef4444" : col; ctx.strokeStyle = ctx.fillStyle;
+      ctx.globalAlpha = k * .22; ctx.beginPath(); ctx.arc(p.x, p.y, 10 + 6 * k, 0, 6.2832); ctx.fill(); ctx.globalAlpha = k;   // halo disc instead of shadowBlur
       if (b.kind === "ac") { ctx.beginPath(); ctx.arc(p.x, p.y, 5 + 3 * hot, 0, 6.2832); ctx.fill(); }
       else ctx.fillRect(p.x - 4.5, p.y - 4.5, 9, 9);
       if (hot > 0) { ctx.fillStyle = "#fff"; ctx.globalAlpha = hot; ctx.beginPath(); ctx.arc(p.x, p.y, 2.5, 0, 6.2832); ctx.fill(); }
@@ -3738,7 +3765,7 @@ function startHud() {
     const [name, col] = top ? LVL[top] : ["GREEN", "var(--accent)"];
     el.innerHTML = `DTG ${dtg} // ${tap ? "TGT" : "GRID"} ${mgrs(c.lat, c.lng)} // COND <span style="color:${col}">${name}</span>`;
   };
-  hudState = { iv: setInterval(upd, 1000), upd, tap: null, click: (e) => { hudState.tap = { ll: e.latlng, t: Date.now() }; upd(); } };
+  hudState = { iv: setInterval(() => { if (!document.hidden) upd(); }, 1000), upd, tap: null, click: (e) => { hudState.tap = { ll: e.latlng, t: Date.now() }; upd(); } };
   map.on("moveend", upd); map.on("click", hudState.click); upd();
 }
 let bootTimer = null;
