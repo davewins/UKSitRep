@@ -723,7 +723,7 @@ const DEFAULTS = {
     ac_trails: true, mil_dest: true, airfields: true, army: true,
     vs_civil: false, vs_special: true, warnings: true, floods: true, cityweather: true, sea: true, radar: true, wind: true, temps: false,
     cuts: true, roads_incidents: true, roads_closures: true, roads_works: false, rnli: true, hems_scene: true, fire: true, fire_dsfrs: true, fire_avon: true, fire_bucks: true, fire_cheshire: true, fire_cleveland: true, fire_hants: true, fire_rbfrs: true, fire_shropshire: true, webcams: true, tides: true, sewage: true, sewage_recent: true, bathing: true, rivers: true, lightning: true, air: false, satimg: false, fires: true, iss: true, tfl: true, crime: true, fuel: true, interconnectors: true, grid_regions: false, windfarms: true, plants: true, chargers: true, atms: true, postboxes: true, defibs: true, watersafety: true, toilets: true, hospitals: true, seaglass: true, home: true, favs: true, quakes: true, meteors: true, allsky: true, observatories: true, rail_stations: true, rail_disruptions: true, buses: true, bus_stops: true, bus_disruptions: true, news: true },
-  regionMode: "carbon", basemap: "dark", theme: "standard", labels: "special", minAltFt: 0, newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36, iconScale: "auto", power: "auto",
+  regionMode: "carbon", basemap: "dark", theme: "standard", labels: "special", minAltFt: 0, acSrc: "all", newsHours: 12, newsMinSev: 1, quakeDays: 30, meteorHours: 36, iconScale: "auto", power: "auto",
 };
 let S;
 try { S = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem("ukSit") || "{}"));
@@ -1055,6 +1055,7 @@ function acPopup(a) {
     Alt ${a.alt ?? "?"} ft · ${a.gs != null ? Math.round(a.gs) + " kt" : "?"} · hdg ${a.track != null ? Math.round(a.track) + "°" : "?"}
     ${a.vrate ? ` · ${a.vrate > 0 ? "▲" : "▼"}${Math.abs(a.vrate)} fpm` : ""}<br>
     Squawk ${esc(a.squawk || "—")} · hex ${esc(a.hex)}<br>
+    ${a.srcs ? `<span class="muted">Heard by: ${a.srcs.map(k => esc(SRC_NAME(k))).join(", ")}</span><br>` : ""}
     <div class="ac-extra" data-hex="${esc(a.hex)}">${acInfo[a.hex] ? acExtra(acInfo[a.hex], a) : ""}</div>
     <a href="https://globe.adsb.lol/?icao=${esc(a.hex)}" target="_blank" rel="noopener">Track on adsb.lol ↗</a>`;
 }
@@ -1107,6 +1108,21 @@ function predictDest(a) {
 }
 const CONF_COL = { high: "#22c55e", medium: "#f59e0b", low: "#94a3b8" };
 
+// Aircraft source: "all" (merged), "wide" (public UK-wide feed) or one of our own receivers by name
+const srcOk = (a) => !S.acSrc || S.acSrc === "all" || (a.srcs || []).includes(S.acSrc);
+const SRC_NAME = (k) => k === "wide" ? "Wide UK (public)" : k.charAt(0).toUpperCase() + k.slice(1);
+function syncSrcOptions(sources) {
+  const sel = $("fSrc"); if (!sel || !sources) return;
+  const keys = ["all", ...Object.keys(sources).filter(k => k !== "wide"), "wide"];
+  if (sel.dataset.keys !== keys.join()) {
+    sel.dataset.keys = keys.join();
+    sel.innerHTML = keys.map(k => `<option value="${esc(k)}">${k === "all" ? "All (merged)" : esc(SRC_NAME(k))}</option>`).join("");
+    if (!keys.includes(S.acSrc)) S.acSrc = "all";
+    sel.value = S.acSrc || "all";
+  }
+  // say so when a source is down, rather than quietly showing a thinner picture
+  sel.title = Object.entries(sources).map(([k, v]) => `${SRC_NAME(k)}: ${v.ok ? v.count + " aircraft" : "DOWN (" + (v.error || "no data") + ")"}`).join("\n");
+}
 function renderAircraft(list) {
   lastAircraft = list;
   const seen = new Set();
@@ -1115,6 +1131,7 @@ function renderAircraft(list) {
   for (const a of list) {
     const layerOn = S.layers["ac_" + a.cls] || a.emergency;
     if (!layerOn) continue;
+    if (!srcOk(a)) continue;
     if (S.minAltFt && typeof a.alt === "number" && a.alt < S.minAltFt && a.cls === "civil" && !a.emergency) continue;
     seen.add(a.hex);
     const col = colOf[a.cls] ??= css(AC_COL[a.cls]);
@@ -1160,7 +1177,7 @@ function renderAircraft(list) {
     e.m.remove(); e.trail && e.trail.remove(); e.dest && e.dest.remove();
     acMarkers.delete(hex);
   }
-  counts.aircraft = list.reduce((o, a) => (o[a.cls] = (o[a.cls] || 0) + 1, o), {});
+  counts.aircraft = list.filter(srcOk).reduce((o, a) => (o[a.cls] = (o[a.cls] || 0) + 1, o), {});
   renderMilWatch(list.filter(a => a.cls === "military"));
   renderAlerts();
   renderCounts();
@@ -3292,6 +3309,7 @@ function buildLeft() {
     <div class="row"><span>Map</span><select id="fBase">${Object.entries(BASEMAPS).map(([k, b]) => `<option value="${k}">${b[0]}</option>`).join("")}</select></div>
     <div class="row"><span>Power saving</span><select id="fPower"><option value="auto">Auto (on battery)</option><option value="on">Always</option><option value="off">Off</option></select></div>
     <div class="row"><span>Labels</span><select id="fLabels"><option value="off">Off</option><option value="special">Special only</option><option value="all">All</option></select></div>
+    <div class="row"><span>Aircraft source</span><select id="fSrc"><option value="all">All (merged)</option></select></div>
     <div class="row"><span>Hide civil below</span><select id="fAlt"><option value="0">—</option><option value="5000">5,000 ft</option><option value="10000">10,000 ft</option><option value="20000">20,000 ft</option></select></div>
     <div class="row"><span>Incident age</span><select id="fNewsH"><option value="1">1 h</option><option value="3">3 h</option><option value="6">6 h</option><option value="12">12 h</option><option value="24">24 h</option></select></div>
     <div class="row"><span>Incident severity</span><select id="fNewsSev"><option value="1">All</option><option value="2">Medium +</option><option value="3">High only</option></select></div>
@@ -3327,6 +3345,7 @@ function buildLeft() {
     if (t.id === "fTheme") { setTheme(t.value, true); }
     if (t.id === "fPower") { S.power = t.value; applyPower(); }
     if (t.id === "fLabels") { S.labels = t.value; renderAircraft(lastAircraft); refresh.vessels(); }
+    if (t.id === "fSrc") { S.acSrc = t.value; renderAircraft(lastAircraft); }
     if (t.id === "fAlt") { S.minAltFt = +t.value; renderAircraft(lastAircraft); }
     if (t.id === "fNewsH") { S.newsHours = +t.value; renderNews(); }
     if (t.id === "fNewsSev") { S.newsMinSev = +t.value; renderNews(); }
@@ -3361,7 +3380,7 @@ document.addEventListener("click", (ev) => {
 
 /* ------------------------------------------------------------ refresh loop */
 const refresh = {
-  aircraft: async () => { const d = await getFeed("aircraft"); if (d && d.aircraft) { renderHems(d.hems_events); renderAircraft(d.aircraft); } },
+  aircraft: async () => { const d = await getFeed("aircraft"); if (d && d.aircraft) { syncSrcOptions(d.sources); renderHems(d.hems_events); renderAircraft(d.aircraft); } },
   rnli: async () => renderRnli(await getFeed("rnli")),
   fire: async () => renderFire(await getFeed("fire")),
   webcams: async () => {

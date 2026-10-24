@@ -30,6 +30,19 @@ def _list(name: str, default: str = "") -> list[str]:
     return [x.strip() for x in os.environ.get(name, default).split(",") if x.strip()]
 
 
+def _adsb_local_feeds() -> dict[str, str]:
+    """ADSB_LOCAL_FEEDS: `name=http://host:port/data/aircraft.json,name2=...` (your own readsb / tar1090 receivers)."""
+    out: dict[str, str] = {}
+    for item in _list("ADSB_LOCAL_FEEDS"):
+        name, _, url = item.partition("=")
+        name, url = name.strip().lower(), url.strip()
+        if name and url.startswith(("http://", "https://")) and name != "wide":
+            out[name] = url
+        else:
+            _LOGGER.warning("ADSB_LOCAL_FEEDS: ignoring %r (use name=http://host/data/aircraft.json)", item)
+    return out
+
+
 DEFAULT_NOTIFY = "warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss,rail,bus,agile"
 MAX_HOMES = 9
 BUS_REGIONS = ("north_east", "north_west", "yorkshire", "east_midlands", "west_midlands", "east_anglia",
@@ -99,6 +112,7 @@ class Config:
     nh_keys: list[str] = field(default_factory=list)
     enable_worldcam: bool = False
     enable_background_adsb: bool = True
+    adsb_local_feeds: dict[str, str] = field(default_factory=dict)  # name -> readsb/tar1090 aircraft.json URL
     dsfrs_stations: dict[str, str] = field(default_factory=dict)
     dsfrs_areas: set[str] = field(default_factory=set)
     bbc_local_feeds: dict[str, str] = field(default_factory=dict)
@@ -148,6 +162,7 @@ class Config:
                                  os.environ.get("NATIONAL_HIGHWAYS_KEY_SECONDARY")) if k],
             enable_worldcam=_bool("ENABLE_WORLDCAM", False),
             enable_background_adsb=_bool("ENABLE_BACKGROUND_ADSB", True),
+            adsb_local_feeds=_adsb_local_feeds(),
             dsfrs_stations=dsfrs,
             dsfrs_areas=set(_list("DSFRS_AREAS", "Teignbridge,Torbay")),
             bbc_local_feeds=bbc,

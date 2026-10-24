@@ -41,6 +41,7 @@ services:
       NOTIFY: ${NOTIFY:-warning,flood,river,sewage,fire,road,power,rnli,aircraft,hems,lightning,iss,rail,bus}
       BBC_LOCAL_REGIONS: ${BBC_LOCAL_REGIONS:-}
       ENABLE_BACKGROUND_ADSB: ${ENABLE_BACKGROUND_ADSB:-true}
+      ADSB_LOCAL_FEEDS: ${ADSB_LOCAL_FEEDS:-}
       ENABLE_WORLDCAM: ${ENABLE_WORLDCAM:-false}
       ENABLE_DSFRS: ${ENABLE_DSFRS:-false}
       FIRE_SERVICES: ${FIRE_SERVICES:-avon,bucks,cheshire,cleveland,hants,rbfrs,shropshire}

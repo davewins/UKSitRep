@@ -105,7 +105,7 @@ Work through these in order. Keep the generic machinery; replace the data.
 - `feeds.py`: `CITY_WEATHER`, `SEA_POINTS` (offshore points, one per sea area).
 
 **2. Global feeds that work anywhere (keep these)**
-adsb.lol (aircraft), aisstream.io (ships, free key), Open-Meteo (weather, marine, air quality),
+airplanes.live (aircraft; adsb.lol caps each IP at 500 requests/day, too few for a live map), aisstream.io (ships, free key), Open-Meteo (weather, marine, air quality),
 RainViewer (radar tiles), allsky camera maps (worldwide; filter by `SKY_BOX` in `sky.py`), NASA FIRMS (fires, free key) and GIBS (imagery), CelesTrak + sgp4 (ISS),
 Blitzortung (lightning; coverage varies by region), NOAA SWPC (space weather), OpenStreetMap
 Overpass (webcams and other tagged features), tar1090 lookups. Re-check each one's terms and
@@ -186,7 +186,7 @@ python3 -c "s=open('uksitrep/static/index.html').read(); open('page.js','w').wri
 cd tools/smoke && npm install && node smoke.js http://localhost:8080/ 50.55,-3.5,11
 ```
 
-- **Switch background polling off for local runs.** A forgotten dev server polling adsb.lol
+- **Switch background polling off for local runs.** A forgotten dev server polling airplanes.live
   every few seconds gets your whole IP rate-limited.
 - `smoke.js` loads the real page in jsdom, waits for the feeds, optionally zooms to a point,
   and prints each feed's status, marker counts per layer, and any page errors (exit 1 on failure).

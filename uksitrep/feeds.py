@@ -45,7 +45,13 @@ TIMEOUT = aiohttp.ClientTimeout(total=20)
 # UK + surrounding waters
 BBOX = (48.5, -12.0, 61.5, 4.0)  # S, W, N, E
 
-# adsb.lol radius queries (max 250 nm) that between them cover the UK
+# Public aggregator for the wide UK picture. (adsb.lol was used first, but it caps each IP at 500 requests
+# a day, a quarter of an hour's polling for a live map, and then answers 429 until the window resets.)
+ADSB_API = "https://api.airplanes.live/v2"
+ADSB_WIDE_TTL = 30.0       # seconds between wide-feed refreshes (4 requests each); local receivers are polled every refresh
+ADSB_WIDE_MAX_AGE = 120.0  # a wide picture older than this is dropped rather than shown as if current
+ADSB_LOCAL_TIMEOUT = aiohttp.ClientTimeout(total=4)
+# radius queries (max 250 nm) that between them cover the UK
 ADSB_POINTS = [(51.4, -1.8), (54.4, -3.6), (57.9, -4.0)]
 
 # Callsign prefix / registration heuristics for special aircraft
@@ -302,6 +308,11 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
         self.adsb_backoff = 0.0
         self.adsb_retry_at = 0.0
         self.last_aircraft: dict | None = None
+        self.last_aircraft_at = 0.0
+        self.wide_ac: dict[str, dict] = {}
+        self.wide_ok_at = 0.0
+        self.wide_try_at = 0.0
+        self.wide_error: str | None = None
         self.rnli_stations: dict[str, list[float]] = {}
         self.place_cache: dict[str, dict | None] = {}
         self.worldcam_task: asyncio.Task | None = None
@@ -357,54 +368,114 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
             return await r.text()
 
     # --------------------------------------------------------------- aviation
+    async def _adsb_wide_fetch(self) -> dict[str, dict]:
+        """UK-wide public picture: three radius queries plus the military list, one at a time (limited per IP)."""
+        urls = [f"{ADSB_API}/point/{la}/{lo}/250" for la, lo in ADSB_POINTS] + [f"{ADSB_API}/mil"]
+        if time.monotonic() < self.adsb_retry_at:
+            raise RuntimeError("airplanes.live rate limit, backing off")
+        results: list[Any] = []
+        for u in urls:
+            try:
+                results.append(await self._json(u))
+            except Exception as err:  # noqa: BLE001
+                results.append(err)
+                if getattr(err, "status", None) == 429:
+                    retry = getattr(err, "headers", None) or {}
+                    try:
+                        wait = float(retry.get("Retry-After", 0))
+                    except (TypeError, ValueError):
+                        wait = 0
+                    self.adsb_backoff = min(300.0, max(30.0, self.adsb_backoff * 2, wait))
+                    self.adsb_retry_at = time.monotonic() + self.adsb_backoff
+                    _LOGGER.warning("airplanes.live rate limit (429); pausing %.0f s", self.adsb_backoff)
+                    break
+        merged: dict[str, dict] = {}
+        ok = 0
+        for res in results:
+            if isinstance(res, Exception):
+                _LOGGER.debug("adsb fetch failed: %s", res)
+                continue
+            ok += 1
+            for ac in res.get("ac", []):
+                if _in_bbox(ac.get("lat"), ac.get("lon")):
+                    merged.setdefault(ac["hex"], ac)
+        if not ok:
+            err = next(r for r in results if isinstance(r, Exception))
+            raise RuntimeError(f"all wide ADS-B requests failed ({type(err).__name__}: {err})")
+        self.adsb_complete = ok == len(urls)
+        if self.adsb_complete:
+            self.adsb_backoff = 0.0
+        return merged
+
+    async def _adsb_wide(self) -> tuple[dict[str, dict], str | None]:
+        """The wide picture, refreshed every ADSB_WIDE_TTL and dropped (with the reason) once it is too old."""
+        now = time.monotonic()
+        if now - self.wide_try_at >= ADSB_WIDE_TTL:
+            self.wide_try_at = now
+            try:
+                self.wide_ac = await self._adsb_wide_fetch()
+                self.wide_ok_at, self.wide_error = now, None
+            except Exception as err:  # noqa: BLE001
+                self.wide_error = str(err) or type(err).__name__
+                self.adsb_complete = False
+                _LOGGER.warning("uk_situation wide ADS-B failed: %s", self.wide_error)
+        if self.wide_ok_at and now - self.wide_ok_at <= ADSB_WIDE_MAX_AGE:
+            return self.wide_ac, None
+        return {}, self.wide_error or "no data yet"
+
+    async def _adsb_local(self, url: str) -> dict[str, dict]:
+        """One of our own receivers (readsb / tar1090 aircraft.json): real-time and includes MLAT."""
+        d = await self._json(url, timeout=ADSB_LOCAL_TIMEOUT)
+        out: dict[str, dict] = {}
+        for ac in d.get("aircraft", []):
+            hexid = ac.get("hex") or ""
+            if hexid.startswith("~") or ac.get("seen_pos", 99) > 30 or not _in_bbox(ac.get("lat"), ac.get("lon")):
+                continue  # non-ICAO TIS-B ids, positions older than 30 s, and anything outside the map
+            out[hexid] = ac
+        return out
+
     async def aircraft(self) -> dict:
         async def fetch() -> dict:
-            urls = [f"https://api.adsb.lol/v2/point/{la}/{lo}/250" for la, lo in ADSB_POINTS]
-            urls.append("https://api.adsb.lol/v2/mil")
-            if time.monotonic() < self.adsb_retry_at:  # rate-limited: keep showing the last picture
-                if self.last_aircraft:
-                    return {**self.last_aircraft, "stale": True}
-                return {"error": "adsb.lol rate limit, backing off", "aircraft": [], "hems_events": self.hems_events}
-            # one at a time: adsb.lol limits bursts per IP
-            results: list[Any] = []
-            for u in urls:
-                try:
-                    results.append(await self._json(u))
-                except Exception as err:  # noqa: BLE001
-                    results.append(err)
-                    if getattr(err, "status", None) == 429:
-                        retry = getattr(err, "headers", None) or {}
-                        try:
-                            wait = float(retry.get("Retry-After", 0))
-                        except (TypeError, ValueError):
-                            wait = 0
-                        self.adsb_backoff = min(300.0, max(30.0, self.adsb_backoff * 2, wait))
-                        self.adsb_retry_at = time.monotonic() + self.adsb_backoff
-                        _LOGGER.warning("adsb.lol rate limit (429); pausing %.0f s", self.adsb_backoff)
-                        break
+            names = list(self.cfg.adsb_local_feeds)
+            res = await asyncio.gather(self._adsb_wide(), *(self._adsb_local(self.cfg.adsb_local_feeds[n]) for n in names),
+                                       return_exceptions=True)
+            wide, wide_err = res[0] if not isinstance(res[0], Exception) else ({}, str(res[0]))
+            feeds: dict[str, dict[str, dict]] = {}
+            sources: dict[str, dict] = {}
+            for n, r in zip(names, res[1:]):
+                if isinstance(r, Exception):
+                    sources[n] = {"ok": False, "count": 0, "error": str(r) or type(r).__name__}
+                    _LOGGER.warning("uk_situation local ADS-B %s failed: %s", n, sources[n]["error"])
+                else:
+                    feeds[n] = r
+                    sources[n] = {"ok": True, "count": len(r)}
+            sources["wide"] = {"ok": wide_err is None, "count": len(wide)}
+            if wide_err:
+                sources["wide"]["error"] = wide_err
+            feeds["wide"] = wide
+            # merge: our own receivers win (freshest; the one with the newest position if several hear it),
+            # the wide picture fills in the rest. `srcs` lists everything that currently hears the aircraft.
             merged: dict[str, dict] = {}
-            ok = 0
-            for res in results:
-                if isinstance(res, Exception):
-                    _LOGGER.debug("adsb fetch failed: %s", res)
-                    continue
-                ok += 1
-                for ac in res.get("ac", []):
-                    if not _in_bbox(ac.get("lat"), ac.get("lon")):
-                        continue
-                    merged.setdefault(ac["hex"], ac)
-            if not ok:
-                err = next(r for r in results if isinstance(r, Exception))
-                raise RuntimeError(f"all adsb.lol requests failed ({type(err).__name__}: {err})")
-            self.adsb_complete = ok == len(urls)
-            if self.adsb_complete:
-                self.adsb_backoff = 0.0
-            self.last_aircraft = self._normalise_aircraft(merged)
+            srcs: dict[str, list[str]] = {}
+            for n in names + ["wide"]:
+                for hexid, ac in feeds.get(n, {}).items():
+                    srcs.setdefault(hexid, []).append(n)
+                    cur = merged.get(hexid)
+                    if cur is None or (n != "wide" and ac.get("seen_pos", 99) < cur.get("seen_pos", 99)):
+                        merged[hexid] = {**ac, "_src": n}
+            if not any(s["ok"] for s in sources.values()):
+                if self.last_aircraft and time.monotonic() - self.last_aircraft_at <= ADSB_WIDE_MAX_AGE:
+                    return {**self.last_aircraft, "stale": True, "sources": sources}
+                return {"error": "all ADS-B sources failed", "aircraft": [], "sources": sources,
+                        "hems_events": self.hems_events}
+            self.last_aircraft = self._normalise_aircraft(merged, srcs)
+            self.last_aircraft["sources"] = sources
+            self.last_aircraft_at = time.monotonic()
             return self.last_aircraft
 
-        return await self.cache.get("aircraft", 12, fetch)
+        return await self.cache.get("aircraft", 8, fetch)
 
-    def _normalise_aircraft(self, merged: dict[str, dict]) -> dict:
+    def _normalise_aircraft(self, merged: dict[str, dict], srcs: dict[str, list[str]]) -> dict:
         now = time.monotonic()
         out = []
         for hexid, ac in merged.items():
@@ -445,6 +516,8 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
                 "cat": ac.get("category"),
                 "cls": cls,
                 "emergency": emerg,
+                "src": ac["_src"],
+                "srcs": srcs.get(hexid, [ac["_src"]]),
                 "trail": list(trail),
             })
         self._detect_hems_scenes(out)

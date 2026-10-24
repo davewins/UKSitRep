@@ -167,6 +167,7 @@ Without Docker (Python 3.11+): `pip install -r requirements.txt && DATA_DIR=./da
 | `NATIONAL_HIGHWAYS_KEY`, `NATIONAL_HIGHWAYS_KEY_SECONDARY` | — | Road closures and incidents ([developer portal](https://developer.data.nationalhighways.co.uk)) |
 | `BBC_LOCAL_REGIONS` | — | Extra BBC England local feeds, e.g. `gloucestershire,devon` |
 | `ENABLE_BACKGROUND_ADSB` | `true` | Poll ADS-B continuously so on-scene detection works with no viewer |
+| `ADSB_LOCAL_FEEDS` | *(none)* | Your own ADS-B receivers, `name=http://host:port/data/aircraft.json` comma-separated (readsb / tar1090 / ultrafeeder), e.g. `tewkesbury=http://192.168.1.14:8080/data/aircraft.json,teignmouth=http://192.168.2.2:8082/data/aircraft.json`. Merged with the public UK-wide feed (airplanes.live); each aircraft records which sources hear it, and *Aircraft source* in settings filters by one |
 | `FIRMS_MAP_KEY` | *(none)* | NASA FIRMS key for satellite fire hotspots ([free](https://firms.modaps.eosdis.nasa.gov/api/map_key/)) |
 | `FUEL_FINDER_CLIENT_ID`, `FUEL_FINDER_CLIENT_SECRET` | *(none)* | GOV.UK Fuel Finder API credentials for live forecourt prices ([register](https://www.developer.fuel-finder.service.gov.uk/access-latest-fuelprices)) |
 | `RAIL_LDB_KEY` | *(none)* | Live departure boards: consumer key of the free **Live Departure Board** product on the [Rail Data Marketplace](https://raildata.org.uk) (Specification tab) |
