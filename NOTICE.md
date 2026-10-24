@@ -5,7 +5,8 @@ Each is subject to its own terms.
 
 | Source | Used for | Terms |
 |---|---|---|
-| [adsb.lol](https://adsb.lol) | Aircraft positions | ODbL 1.0 |
+| [airplanes.live](https://airplanes.live/api-guide/) (default; `ADSB_WIDE_API` can point elsewhere) | UK-wide aircraft positions | airplanes.live API terms: non-commercial use, 1 request/s, no uptime guarantee. TODO: confirm the full terms and any attribution wording at the link |
+| Your own receivers (`ADSB_LOCAL_FEEDS`) | Real-time aircraft positions | Your data |
 | [aisstream.io](https://aisstream.io) | Ship positions (needs your key) | aisstream.io terms |
 | [Met Office](https://www.metoffice.gov.uk) RSS | Weather warnings | Crown copyright |
 | [Environment Agency](https://environment.data.gov.uk/flood-monitoring/doc/reference) | Flood warnings | OGL v3 |

@@ -13,7 +13,7 @@ It runs as a ~70 MB distroless container with no shell, as a non-root user.
 
 | Group | What's shown |
 |---|---|
-| Aviation | Live ADS-B aircraft with trails, labels, full type names, a photo and the scheduled route in the popup. Military aircraft get country flags, and police (NPAS), air ambulance and coastguard aircraft are picked out. Emergency squawks (7500/7600/7700) are flagged. Also: military airfields and army bases, and a guess at where military aircraft are heading |
+| Aviation | Live ADS-B aircraft (the public UK-wide picture, plus your own receivers if you run them, see [Your own ADS-B receiver](#your-own-ads-b-receiver)) with trails, labels, full type names, a photo and the scheduled route in the popup. Military aircraft get country flags, and police (NPAS), air ambulance and coastguard aircraft are picked out. Emergency squawks (7500/7600/7700) are flagged. Also: military airfields and army bases, and a guess at where military aircraft are heading |
 | Emergency & safety | Air ambulance / coastguard helicopter "on scene" (inferred from landings away from bases and hospitals), RNLI lifeboat launches, and fire & rescue incidents from Avon, Buckinghamshire, Cheshire, Cleveland, Hampshire & IoW, Royal Berkshire and Shropshire, plus Devon & Somerset (optional), each with its own toggle. Hospitals (zoom 9+, red for those with an emergency department) with phone and website where mapped. Defibrillators (zoom 14+) with location, access and availability, and life rings and lifeguard posts (zoom 13+), from OpenStreetMap: volunteer-mapped, so treat them as a guide and call 999 in an emergency |
 | Maritime | Live AIS ships (Royal Navy, RNLI, coastguard, police and government vessels and distress beacons highlighted; a ship's popup shows its size, IMO number and a photo from Wikimedia Commons where one exists), tide times, and sea state for the Shipping Forecast areas |
 | Weather | Met Office warnings, rain radar (animated), wind arrows, temperature grid, city weather, lightning |
@@ -167,7 +167,8 @@ Without Docker (Python 3.11+): `pip install -r requirements.txt && DATA_DIR=./da
 | `NATIONAL_HIGHWAYS_KEY`, `NATIONAL_HIGHWAYS_KEY_SECONDARY` | — | Road closures and incidents ([developer portal](https://developer.data.nationalhighways.co.uk)) |
 | `BBC_LOCAL_REGIONS` | — | Extra BBC England local feeds, e.g. `gloucestershire,devon` |
 | `ENABLE_BACKGROUND_ADSB` | `true` | Poll ADS-B continuously so on-scene detection works with no viewer |
-| `ADSB_LOCAL_FEEDS` | *(none)* | Your own ADS-B receivers, `name=http://host:port/data/aircraft.json` comma-separated (readsb / tar1090 / ultrafeeder), e.g. `tewkesbury=http://192.168.1.14:8080/data/aircraft.json,teignmouth=http://192.168.2.2:8082/data/aircraft.json`. Merged with the public UK-wide feed (airplanes.live); each aircraft records which sources hear it, and *Aircraft source* in settings filters by one |
+| `ADSB_LOCAL_FEEDS` | *(none)* | Your own ADS-B receivers as `name=URL` pairs, comma-separated. See [Your own ADS-B receiver](#your-own-ads-b-receiver) |
+| `ADSB_WIDE_API` | `https://api.airplanes.live/v2` | Base URL of the public UK-wide aircraft API (readsb-style `/point/{lat}/{lon}/{nm}` and `/mil`), or `off` for none |
 | `FIRMS_MAP_KEY` | *(none)* | NASA FIRMS key for satellite fire hotspots ([free](https://firms.modaps.eosdis.nasa.gov/api/map_key/)) |
 | `FUEL_FINDER_CLIENT_ID`, `FUEL_FINDER_CLIENT_SECRET` | *(none)* | GOV.UK Fuel Finder API credentials for live forecourt prices ([register](https://www.developer.fuel-finder.service.gov.uk/access-latest-fuelprices)) |
 | `RAIL_LDB_KEY` | *(none)* | Live departure boards: consumer key of the free **Live Departure Board** product on the [Rail Data Marketplace](https://raildata.org.uk) (Specification tab) |
@@ -190,6 +191,26 @@ Without Docker (Python 3.11+): `pip install -r requirements.txt && DATA_DIR=./da
 | `DSFRS_AREAS` | `Teignbridge,Torbay` | Only used with `ENABLE_DSFRS`: keep incidents in these districts (drops calls where those crews helped elsewhere) |
 | `CAMERAS_FILE` | bundled `config/cameras.json` | Your curated webcams |
 | `PORT`, `DATA_DIR`, `LOG_LEVEL` | `8080`, `/data`, `INFO` | |
+
+## Your own ADS-B receiver
+
+Aircraft come from two kinds of source, merged on the map:
+
+- **Wide UK picture:** a public aggregator, [airplanes.live](https://airplanes.live) by default, refreshed every 30 s (four requests, one at a time). Its API is free for non-commercial use with no uptime guarantee, and is limited to 1 request a second; if you run a receiver, feed them too. A picture older than 2 minutes is dropped rather than shown as current. Change the provider with `ADSB_WIDE_API` (it must offer `/point/{lat}/{lon}/{nm}` and `/mil` in the readsb JSON format), or set `off` to use only your receivers.
+- **Your receivers (optional):** any readsb, tar1090 or [ultrafeeder](https://github.com/sdr-enthusiasts/docker-adsb-ultrafeeder) instance. They are real-time and include MLAT positions, and take priority over the wide picture for any aircraft they hear.
+
+Set `ADSB_LOCAL_FEEDS` to a comma-separated list of `name=URL`, where the URL is the receiver's `aircraft.json`:
+
+```
+ADSB_LOCAL_FEEDS=home=http://192.168.1.20:8080/data/aircraft.json,holiday=http://10.0.0.5:8082/data/aircraft.json
+```
+
+- The URL is `http://<host>:<port>/data/aircraft.json`, the port being the receiver's web (tar1090) port. Open it in a browser from the machine running SitRep to check it works; the SitRep container must be able to reach it (LAN address or VPN, not `localhost`).
+- Names are lower-cased and become the options in **Settings → Aircraft source** (*All (merged)*, each receiver, *Wide UK (public)*) and appear in each aircraft's popup as "Heard by". `wide` is reserved.
+- Positions older than 30 s, non-ICAO (TIS-B) ids and anything outside the UK map are ignored. A receiver that is down is skipped after 4 s; hover the selector to see each source's status and aircraft count.
+- Only point this at receivers you trust: the server fetches these URLs.
+- With `ADSB_WIDE_API=off`, the air-ambulance "landed" inference stays disabled, because a few receivers cannot tell a landing from an aircraft leaving range.
+- Receiver data and the public API reach the page only through SitRep; viewers never contact them directly.
 
 ## Home Assistant notifications
 

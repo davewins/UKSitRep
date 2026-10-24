@@ -45,9 +45,8 @@ TIMEOUT = aiohttp.ClientTimeout(total=20)
 # UK + surrounding waters
 BBOX = (48.5, -12.0, 61.5, 4.0)  # S, W, N, E
 
-# Public aggregator for the wide UK picture. (adsb.lol was used first, but it caps each IP at 500 requests
+# Public aggregator for the wide UK picture, default airplanes.live; ADSB_WIDE_API swaps it. (adsb.lol was used first, but it caps each IP at 500 requests
 # a day, a quarter of an hour's polling for a live map, and then answers 429 until the window resets.)
-ADSB_API = "https://api.airplanes.live/v2"
 ADSB_WIDE_TTL = 30.0       # seconds between wide-feed refreshes (4 requests each); local receivers are polled every refresh
 ADSB_WIDE_MAX_AGE = 120.0  # a wide picture older than this is dropped rather than shown as if current
 ADSB_LOCAL_TIMEOUT = aiohttp.ClientTimeout(total=4)
@@ -370,9 +369,10 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
     # --------------------------------------------------------------- aviation
     async def _adsb_wide_fetch(self) -> dict[str, dict]:
         """UK-wide public picture: three radius queries plus the military list, one at a time (limited per IP)."""
-        urls = [f"{ADSB_API}/point/{la}/{lo}/250" for la, lo in ADSB_POINTS] + [f"{ADSB_API}/mil"]
+        api = self.cfg.adsb_wide_api
+        urls = [f"{api}/point/{la}/{lo}/250" for la, lo in ADSB_POINTS] + [f"{api}/mil"]
         if time.monotonic() < self.adsb_retry_at:
-            raise RuntimeError("airplanes.live rate limit, backing off")
+            raise RuntimeError("wide ADS-B API rate limit, backing off")
         results: list[Any] = []
         for u in urls:
             try:
@@ -387,7 +387,7 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
                         wait = 0
                     self.adsb_backoff = min(300.0, max(30.0, self.adsb_backoff * 2, wait))
                     self.adsb_retry_at = time.monotonic() + self.adsb_backoff
-                    _LOGGER.warning("airplanes.live rate limit (429); pausing %.0f s", self.adsb_backoff)
+                    _LOGGER.warning("wide ADS-B API rate limit (429); pausing %.0f s", self.adsb_backoff)
                     break
         merged: dict[str, dict] = {}
         ok = 0
@@ -437,7 +437,9 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
     async def aircraft(self) -> dict:
         async def fetch() -> dict:
             names = list(self.cfg.adsb_local_feeds)
-            res = await asyncio.gather(self._adsb_wide(), *(self._adsb_local(self.cfg.adsb_local_feeds[n]) for n in names),
+            use_wide = bool(self.cfg.adsb_wide_api)
+            res = await asyncio.gather(self._adsb_wide() if use_wide else asyncio.sleep(0, ({}, None)),
+                                       *(self._adsb_local(self.cfg.adsb_local_feeds[n]) for n in names),
                                        return_exceptions=True)
             wide, wide_err = res[0] if not isinstance(res[0], Exception) else ({}, str(res[0]))
             feeds: dict[str, dict[str, dict]] = {}
@@ -449,10 +451,11 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
                 else:
                     feeds[n] = r
                     sources[n] = {"ok": True, "count": len(r)}
-            sources["wide"] = {"ok": wide_err is None, "count": len(wide)}
-            if wide_err:
-                sources["wide"]["error"] = wide_err
-            feeds["wide"] = wide
+            if use_wide:
+                sources["wide"] = {"ok": wide_err is None, "count": len(wide)}
+                if wide_err:
+                    sources["wide"]["error"] = wide_err
+                feeds["wide"] = wide
             # merge: our own receivers win (freshest; the one with the newest position if several hear it),
             # the wide picture fills in the rest. `srcs` lists everything that currently hears the aircraft.
             merged: dict[str, dict] = {}

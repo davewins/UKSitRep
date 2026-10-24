@@ -99,7 +99,7 @@ title suffix, banner captions (strings or functions), `fx` overlay layers, `boot
 Work through these in order. Keep the generic machinery; replace the data.
 
 **1. Geography and defaults**
-- `feeds.py`: `BBOX` (S, W, N, E), `UK_TZ`, `ADSB_POINTS` (≤250 nm circles covering the country).
+- `feeds.py`: `BBOX` (S, W, N, E), `UK_TZ`, `ADSB_POINTS` (≤250 nm circles covering the country). Aircraft are merged from `ADSB_LOCAL_FEEDS` receivers (priority) and the `ADSB_WIDE_API` provider; pick another provider or turn the wide feed off with that variable.
 - `index.html`: `UK_VIEW()` (country centre and zoom), `HOME_ZOOM`, `BASEMAPS` if you want local styles.
 - `more_feeds.py`: `BLITZ_BOX`, `AIR_POINTS`, `FIRMS_BOX`; `sky.py`: `SKY_BOX`, `CURATED_SITES`.
 - `feeds.py`: `CITY_WEATHER`, `SEA_POINTS` (offshore points, one per sea area).
@@ -157,10 +157,10 @@ compose file, README/NOTICE.
 
 ## Rules this project follows
 
-- **No open proxy.** Upstream URLs are fixed in code. User input only selects among them or fills
+- **No open proxy.** Upstream URLs are fixed in code (the exceptions are operator-set environment variables such as `ADSB_LOCAL_FEEDS` and `ADSB_WIDE_API`, never request input). User input only selects among them or fills
   validated parameters (ids matched by regex, lat/lon range-checked, bbox parsed as floats).
 - **Be a polite client.** Cache every feed (minutes to days). Identify with a User-Agent.
-  Back off on 429 (see the adsb.lol handling) and honour documented limits (Fuel Finder: one
+  Back off on 429 (see `_adsb_wide_fetch`) and honour documented limits (Fuel Finder: one
   request at a time). Fetch large datasets once on the server and send viewers only their bbox. If even one
   fetch is huge (BODS for all England is 30 MB), ask upstream for the viewer's bbox instead,
   snapped to a grid so nearby views share a cache entry.

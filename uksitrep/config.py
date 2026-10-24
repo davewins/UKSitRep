@@ -30,6 +30,17 @@ def _list(name: str, default: str = "") -> list[str]:
     return [x.strip() for x in os.environ.get(name, default).split(",") if x.strip()]
 
 
+def _adsb_wide_api() -> str:
+    """ADSB_WIDE_API: base URL of a readsb-style API (GET /point/{lat}/{lon}/{nm} and /mil), or `off`."""
+    v = os.environ.get("ADSB_WIDE_API", "").strip().rstrip("/")
+    if v.lower() in ("off", "none", "false", "0"):
+        return ""
+    if v and not v.startswith(("http://", "https://")):
+        _LOGGER.warning("ADSB_WIDE_API: ignoring %r (use https://host/v2, or off)", v)
+        v = ""
+    return v or "https://api.airplanes.live/v2"
+
+
 def _adsb_local_feeds() -> dict[str, str]:
     """ADSB_LOCAL_FEEDS: `name=http://host:port/data/aircraft.json,name2=...` (your own readsb / tar1090 receivers)."""
     out: dict[str, str] = {}
@@ -112,6 +123,7 @@ class Config:
     nh_keys: list[str] = field(default_factory=list)
     enable_worldcam: bool = False
     enable_background_adsb: bool = True
+    adsb_wide_api: str = "https://api.airplanes.live/v2"  # readsb-style base URL; empty = no wide feed
     adsb_local_feeds: dict[str, str] = field(default_factory=dict)  # name -> readsb/tar1090 aircraft.json URL
     dsfrs_stations: dict[str, str] = field(default_factory=dict)
     dsfrs_areas: set[str] = field(default_factory=set)
@@ -162,6 +174,7 @@ class Config:
                                  os.environ.get("NATIONAL_HIGHWAYS_KEY_SECONDARY")) if k],
             enable_worldcam=_bool("ENABLE_WORLDCAM", False),
             enable_background_adsb=_bool("ENABLE_BACKGROUND_ADSB", True),
+            adsb_wide_api=_adsb_wide_api(),
             adsb_local_feeds=_adsb_local_feeds(),
             dsfrs_stations=dsfrs,
             dsfrs_areas=set(_list("DSFRS_AREAS", "Teignbridge,Torbay")),

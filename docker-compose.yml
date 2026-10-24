@@ -42,6 +42,7 @@ services:
       BBC_LOCAL_REGIONS: ${BBC_LOCAL_REGIONS:-}
       ENABLE_BACKGROUND_ADSB: ${ENABLE_BACKGROUND_ADSB:-true}
       ADSB_LOCAL_FEEDS: ${ADSB_LOCAL_FEEDS:-}
+      ADSB_WIDE_API: ${ADSB_WIDE_API:-}
       ENABLE_WORLDCAM: ${ENABLE_WORLDCAM:-false}
       ENABLE_DSFRS: ${ENABLE_DSFRS:-false}
       FIRE_SERVICES: ${FIRE_SERVICES:-avon,bucks,cheshire,cleveland,hants,rbfrs,shropshire}
