@@ -157,6 +157,8 @@
   .sea .lbl2 { font-size: 10px; color: #e2e8f0; text-shadow: 0 0 3px #000, 0 0 3px #000; white-space: nowrap; line-height: 1.1; }
   #btnLayers, #btnInfo, .sheet-close { display: none; }
   @media (min-width: 761px) { body:not(.hide-panels):not(.kiosk) .leaflet-bottom.leaflet-left { left: 286px; } }
+  /* the attribution wraps onto more lines as sources are added: lift the bottom-left controls (zoom readout etc.) clear of it */
+  .leaflet-bottom.leaflet-left { margin-bottom: var(--attr-lift, 0px); }
   .view-ctl a { font-weight: 700; font-size: 12px; }
   #sos { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; padding: 12px; }
   #sos.open { display: flex; }
@@ -870,7 +872,7 @@ new ViewCtl().addTo(map);
 const showZoom = () => { const z = map.getZoom(); document.querySelector("#zoomBadge b").textContent = Number.isInteger(z) ? z : z.toFixed(1); };
 map.on("zoom zoomend", showZoom); showZoom();
 // All keyless tile sources
-const DATA_ATTR = " | AIS: aisstream.io | Weather: <a href=\"https://open-meteo.com\" target=\"_blank\" rel=\"noopener\">Open-Meteo.com</a> | National Highways | UKMON | Met Office, EA, BGS, NOAA, Elexon, BBC | Rail: National Rail | Contains public sector information licensed under the <a href=\"https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/\" target=\"_blank\" rel=\"noopener\">Open Government Licence v3.0</a>";
+const DATA_ATTR = " | AIS: aisstream.io | Weather: <a href=\"https://open-meteo.com\" target=\"_blank\" rel=\"noopener\">Open-Meteo.com</a> | National Highways | UKMON | Met Office, EA, BGS, NOAA, Elexon, BBC | Flights: <a href=\"https://aerodatabox.com\" target=\"_blank\" rel=\"noopener\">AeroDataBox</a> | Rail: National Rail | Contains public sector information licensed under the <a href=\"https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/\" target=\"_blank\" rel=\"noopener\">Open Government Licence v3.0</a>";
 // the map layers built from OpenStreetMap data (ODbL) need crediting whatever the base map is
 const OSM_ATTR = " | Data &copy; <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\" rel=\"noopener\">OpenStreetMap contributors</a> (ODbL)";
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/";
@@ -902,6 +904,13 @@ S.basemap = setBasemap(S.basemap);
 
 const G = {};  // layer groups
 for (const k of Object.keys(DEFAULTS.layers)) if (!k.startsWith("fire_")) G[k] = L.layerGroup();  // fire_* are filters within G.fire
+// Keep the bottom-left controls above the attribution however many lines it wraps to
+(() => {
+  const el = map.attributionControl.getContainer();
+  const lift = () => document.documentElement.style.setProperty("--attr-lift", Math.max(0, el.offsetHeight - 20) + "px");
+  if (window.ResizeObserver) new ResizeObserver(lift).observe(el);
+  lift();
+})();
 const syncLayers = () => {
   for (const [k, g] of Object.entries(G)) S.layers[k] ? g.addTo(map) : g.remove();
   if (typeof radarCtl !== "undefined") S.layers.radar ? radarCtl.addTo(map) : radarCtl.remove();
