@@ -5,7 +5,7 @@ Each is subject to its own terms.
 
 | Source | Used for | Terms |
 |---|---|---|
-| [adsb.fi](https://adsb.fi) open data (default first choice), [airplanes.live](https://airplanes.live/api-docs/) (fallback), adsb.lol (optional); `ADSB_WIDE_API` sets the order | UK-wide aircraft positions | adsb.fi open data terms; [airplanes.live terms of use](https://airplanes.live/terms-of-use/) (API: non-commercial, 1 request/s, no uptime guarantee); adsb.lol: ODbL 1.0. TODO: add the exact adsb.fi and airplanes.live licence and attribution wording |
+| [adsb.fi](https://adsb.fi) open data (default first choice), [airplanes.live](https://airplanes.live/api-docs/) (fallback), adsb.lol (optional); `ADSB_WIDE_API` sets the order | UK-wide aircraft positions | [adsb.fi open data terms](https://github.com/adsbfi/opendata): personal, non-commercial use only; no licensing, selling, renting or leasing of the data or service; provided as-is; **you must cite adsb.fi and link to its home page** (the map's attribution line does this while adsb.fi is the active provider); access may be withdrawn at any time. [airplanes.live terms of use](https://airplanes.live/terms-of-use/) (API: non-commercial, 1 request/s, no uptime guarantee); adsb.lol: ODbL 1.0. TODO: add the airplanes.live licence and attribution wording |
 | Your own receivers (`ADSB_LOCAL_FEEDS`) | Real-time aircraft positions | Your data |
 | [aisstream.io](https://aisstream.io) | Ship positions (needs your key) | aisstream.io terms |
 | [Met Office](https://www.metoffice.gov.uk) RSS | Weather warnings | Crown copyright |

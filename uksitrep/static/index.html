@@ -870,7 +870,7 @@ new ViewCtl().addTo(map);
 const showZoom = () => { const z = map.getZoom(); document.querySelector("#zoomBadge b").textContent = Number.isInteger(z) ? z : z.toFixed(1); };
 map.on("zoom zoomend", showZoom); showZoom();
 // All keyless tile sources
-const DATA_ATTR = " | ADS-B: adsb.lol | AIS: aisstream.io | Weather: <a href=\"https://open-meteo.com\" target=\"_blank\" rel=\"noopener\">Open-Meteo.com</a> | National Highways | UKMON | Met Office, EA, BGS, NOAA, Elexon, BBC | Rail: National Rail | Contains public sector information licensed under the <a href=\"https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/\" target=\"_blank\" rel=\"noopener\">Open Government Licence v3.0</a>";
+const DATA_ATTR = " | AIS: aisstream.io | Weather: <a href=\"https://open-meteo.com\" target=\"_blank\" rel=\"noopener\">Open-Meteo.com</a> | National Highways | UKMON | Met Office, EA, BGS, NOAA, Elexon, BBC | Rail: National Rail | Contains public sector information licensed under the <a href=\"https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/\" target=\"_blank\" rel=\"noopener\">Open Government Licence v3.0</a>";
 // the map layers built from OpenStreetMap data (ODbL) need crediting whatever the base map is
 const OSM_ATTR = " | Data &copy; <a href=\"https://www.openstreetmap.org/copyright\" target=\"_blank\" rel=\"noopener\">OpenStreetMap contributors</a> (ODbL)";
 const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/";
@@ -1111,8 +1111,20 @@ const CONF_COL = { high: "#22c55e", medium: "#f59e0b", low: "#94a3b8" };
 // Aircraft source: "all" (merged), "wide" (public UK-wide feed) or one of our own receivers by name
 const srcOk = (a) => !S.acSrc || S.acSrc === "all" || (a.srcs || []).includes(S.acSrc);
 const SRC_NAME = (k) => k === "wide" ? "Wide UK (public)" : k.charAt(0).toUpperCase() + k.slice(1);
+// Cite the wide ADS-B provider that is actually in use, linked to its home page (adsb.fi's open data terms require it)
+const ADSB_HOME = { "adsb.fi": "https://adsb.fi", "airplanes.live": "https://airplanes.live", "adsb.lol": "https://adsb.lol" };
+let adsbAttr = "";
+function setAdsbAttribution(wide) {
+  const p = wide && wide.ok && wide.provider;
+  const next = p ? "ADS-B: " + (ADSB_HOME[p] ? `<a href="${ADSB_HOME[p]}" target="_blank" rel="noopener">${esc(p)}</a>` : esc(p)) : "";
+  if (next === adsbAttr) return;
+  if (adsbAttr) map.attributionControl.removeAttribution(adsbAttr);
+  if (next) map.attributionControl.addAttribution(next);
+  adsbAttr = next;
+}
 function syncSrcOptions(sources) {
   const sel = $("fSrc"); if (!sel || !sources) return;
+  setAdsbAttribution(sources.wide);
   const keys = ["all", ...Object.keys(sources).filter(k => k !== "wide"), "wide"];
   if (sel.dataset.keys !== keys.join()) {
     sel.dataset.keys = keys.join();
