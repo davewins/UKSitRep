@@ -196,7 +196,7 @@ Without Docker (Python 3.11+): `pip install -r requirements.txt && DATA_DIR=./da
 
 Aircraft come from two kinds of source, merged on the map:
 
-- **Wide UK picture:** a public aggregator, [airplanes.live](https://airplanes.live) by default, refreshed every 30 s (four requests, one at a time). Its API is free for non-commercial use with no uptime guarantee, and is limited to 1 request a second; if you run a receiver, feed them too. A picture older than 2 minutes is dropped rather than shown as current. Change the provider with `ADSB_WIDE_API` (it must offer `/point/{lat}/{lon}/{nm}` and `/mil` in the readsb JSON format), or set `off` to use only your receivers.
+- **Wide UK picture:** a public aggregator, [airplanes.live](https://airplanes.live) by default, refreshed every 30 s (four requests, one at a time). Its [API](https://airplanes.live/api-docs/) is free for non-commercial use with no uptime guarantee, is limited to 1 request a second, and is subject to its [terms of use](https://airplanes.live/terms-of-use/); if you run a receiver, feed them too. A picture older than 2 minutes is dropped rather than shown as current. Change the provider with `ADSB_WIDE_API` (it must offer `/point/{lat}/{lon}/{nm}` and `/mil` in the readsb JSON format), or set `off` to use only your receivers.
 - **Your receivers (optional):** any readsb, tar1090 or [ultrafeeder](https://github.com/sdr-enthusiasts/docker-adsb-ultrafeeder) instance. They are real-time and include MLAT positions, and take priority over the wide picture for any aircraft they hear.
 
 Set `ADSB_LOCAL_FEEDS` to a comma-separated list of `name=URL`, where the URL is the receiver's `aircraft.json`:

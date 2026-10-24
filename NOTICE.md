@@ -5,7 +5,7 @@ Each is subject to its own terms.
 
 | Source | Used for | Terms |
 |---|---|---|
-| [airplanes.live](https://airplanes.live/api-guide/) (default; `ADSB_WIDE_API` can point elsewhere) | UK-wide aircraft positions | airplanes.live API terms: non-commercial use, 1 request/s, no uptime guarantee. TODO: confirm the full terms and any attribution wording at the link |
+| [airplanes.live](https://airplanes.live/api-docs/) (default; `ADSB_WIDE_API` can point elsewhere) | UK-wide aircraft positions | [airplanes.live terms of use](https://airplanes.live/terms-of-use/); API: non-commercial use, 1 request/s, no uptime guarantee. TODO: add the licence and attribution wording from the terms |
 | Your own receivers (`ADSB_LOCAL_FEEDS`) | Real-time aircraft positions | Your data |
 | [aisstream.io](https://aisstream.io) | Ship positions (needs your key) | aisstream.io terms |
 | [Met Office](https://www.metoffice.gov.uk) RSS | Weather warnings | Crown copyright |
