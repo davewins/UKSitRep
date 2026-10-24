@@ -45,9 +45,10 @@ TIMEOUT = aiohttp.ClientTimeout(total=20)
 # UK + surrounding waters
 BBOX = (48.5, -12.0, 61.5, 4.0)  # S, W, N, E
 
-# Public aggregator for the wide UK picture, default airplanes.live; ADSB_WIDE_API swaps it. (adsb.lol was used first, but it caps each IP at 500 requests
+# Public aggregators for the wide UK picture (config.ADSB_PROVIDERS, tried in order, ADSB_WIDE_API sets them). (adsb.lol was used first, but it caps each IP at 500 requests
 # a day, a quarter of an hour's polling for a live map, and then answers 429 until the window resets.)
 ADSB_WIDE_TTL = 30.0       # seconds between wide-feed refreshes (4 requests each); local receivers are polled every refresh
+ADSB_WIDE_SPACING = 1.1     # seconds between requests to one provider
 ADSB_WIDE_MAX_AGE = 120.0  # a wide picture older than this is dropped rather than shown as if current
 ADSB_LOCAL_TIMEOUT = aiohttp.ClientTimeout(total=4)
 # radius queries (max 250 nm) that between them cover the UK
@@ -304,8 +305,8 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
         self.hems_last: dict[str, dict] = {}
         self.hems_events: list[dict] = []
         self.adsb_complete = False
-        self.adsb_backoff = 0.0
-        self.adsb_retry_at = 0.0
+        self.adsb_prov: dict[str, dict[str, float]] = {}  # per wide provider: backoff, retry_at
+        self.wide_provider: str | None = None
         self.last_aircraft: dict | None = None
         self.last_aircraft_at = 0.0
         self.wide_ac: dict[str, dict] = {}
@@ -367,27 +368,35 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
             return await r.text()
 
     # --------------------------------------------------------------- aviation
-    async def _adsb_wide_fetch(self) -> dict[str, dict]:
-        """UK-wide public picture: three radius queries plus the military list, one at a time (limited per IP)."""
-        api = self.cfg.adsb_wide_api
-        urls = [f"{api}/point/{la}/{lo}/250" for la, lo in ADSB_POINTS] + [f"{api}/mil"]
-        if time.monotonic() < self.adsb_retry_at:
-            raise RuntimeError("wide ADS-B API rate limit, backing off")
+    async def _adsb_wide_fetch(self, name: str, api: str, style: str) -> dict[str, dict]:
+        """UK-wide picture from one provider: three radius queries plus the military list, one at a time (limited per IP)."""
+        st = self.adsb_prov.setdefault(name, {"backoff": 0.0, "retry_at": 0.0})
+        if time.monotonic() < st["retry_at"]:
+            raise RuntimeError(f"{name} rate limit, backing off")
+        fmt = "{api}/lat/{la}/lon/{lo}/dist/250" if style == "fi" else "{api}/point/{la}/{lo}/250"
+        urls = [fmt.format(api=api, la=la, lo=lo) for la, lo in ADSB_POINTS] + [f"{api}/mil"]
         results: list[Any] = []
-        for u in urls:
+        for i, u in enumerate(urls):
+            if i:
+                await asyncio.sleep(ADSB_WIDE_SPACING)  # providers allow about 1 request a second
             try:
                 results.append(await self._json(u))
             except Exception as err:  # noqa: BLE001
                 results.append(err)
-                if getattr(err, "status", None) == 429:
+                status = getattr(err, "status", None)
+                if status == 429:
                     retry = getattr(err, "headers", None) or {}
                     try:
                         wait = float(retry.get("Retry-After", 0))
                     except (TypeError, ValueError):
                         wait = 0
-                    self.adsb_backoff = min(300.0, max(30.0, self.adsb_backoff * 2, wait))
-                    self.adsb_retry_at = time.monotonic() + self.adsb_backoff
-                    _LOGGER.warning("wide ADS-B API rate limit (429); pausing %.0f s", self.adsb_backoff)
+                    st["backoff"] = min(300.0, max(30.0, st["backoff"] * 2, wait))
+                    st["retry_at"] = time.monotonic() + st["backoff"]
+                    _LOGGER.warning("%s rate limit (429); pausing %.0f s", name, st["backoff"])
+                    break
+                if status == 403:  # blocked (e.g. contributor-only API): no point asking again for a while
+                    st["retry_at"] = time.monotonic() + 300
+                    _LOGGER.warning("%s refused us (403); trying the next provider, retry in 300 s", name)
                     break
         merged: dict[str, dict] = {}
         ok = 0
@@ -396,15 +405,15 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
                 _LOGGER.debug("adsb fetch failed: %s", res)
                 continue
             ok += 1
-            for ac in res.get("ac", []):
+            for ac in res.get("ac") or res.get("aircraft") or []:  # adsb.fi's point query says "aircraft"
                 if _in_bbox(ac.get("lat"), ac.get("lon")):
                     merged.setdefault(ac["hex"], ac)
         if not ok:
             err = next(r for r in results if isinstance(r, Exception))
-            raise RuntimeError(f"all wide ADS-B requests failed ({type(err).__name__}: {err})")
+            raise RuntimeError(f"{name}: all requests failed ({type(err).__name__}: {err})")
         self.adsb_complete = ok == len(urls)
         if self.adsb_complete:
-            self.adsb_backoff = 0.0
+            st["backoff"] = 0.0
         return merged
 
     async def _adsb_wide(self) -> tuple[dict[str, dict], str | None]:
@@ -412,11 +421,19 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
         now = time.monotonic()
         if now - self.wide_try_at >= ADSB_WIDE_TTL:
             self.wide_try_at = now
-            try:
-                self.wide_ac = await self._adsb_wide_fetch()
-                self.wide_ok_at, self.wide_error = now, None
-            except Exception as err:  # noqa: BLE001
-                self.wide_error = str(err) or type(err).__name__
+            errors: list[str] = []
+            for name, api, style in self.cfg.adsb_wide:  # in order: the first provider that answers wins
+                try:
+                    self.wide_ac = await self._adsb_wide_fetch(name, api, style)
+                    self.wide_ok_at, self.wide_error = now, None
+                    if self.wide_provider != name:
+                        _LOGGER.warning("wide ADS-B now from %s%s", name, f" (after: {'; '.join(errors)})" if errors else "")
+                    self.wide_provider = name
+                    break
+                except Exception as err:  # noqa: BLE001
+                    errors.append(str(err) or type(err).__name__)
+            else:
+                self.wide_error = "; ".join(errors)
                 self.adsb_complete = False
                 _LOGGER.warning("uk_situation wide ADS-B failed: %s", self.wide_error)
         if self.wide_ok_at and now - self.wide_ok_at <= ADSB_WIDE_MAX_AGE:
@@ -437,7 +454,7 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
     async def aircraft(self) -> dict:
         async def fetch() -> dict:
             names = list(self.cfg.adsb_local_feeds)
-            use_wide = bool(self.cfg.adsb_wide_api)
+            use_wide = bool(self.cfg.adsb_wide)
             res = await asyncio.gather(self._adsb_wide() if use_wide else asyncio.sleep(0, ({}, None)),
                                        *(self._adsb_local(self.cfg.adsb_local_feeds[n]) for n in names),
                                        return_exceptions=True)
@@ -452,7 +469,7 @@ class Situation(MoreFeeds, FireServices, HomeArea, SkyWatch, Rail, Bus, BusTimes
                     feeds[n] = r
                     sources[n] = {"ok": True, "count": len(r)}
             if use_wide:
-                sources["wide"] = {"ok": wide_err is None, "count": len(wide)}
+                sources["wide"] = {"ok": wide_err is None, "count": len(wide), "provider": self.wide_provider}
                 if wide_err:
                     sources["wide"]["error"] = wide_err
                 feeds["wide"] = wide

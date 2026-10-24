@@ -168,7 +168,7 @@ Without Docker (Python 3.11+): `pip install -r requirements.txt && DATA_DIR=./da
 | `BBC_LOCAL_REGIONS` | — | Extra BBC England local feeds, e.g. `gloucestershire,devon` |
 | `ENABLE_BACKGROUND_ADSB` | `true` | Poll ADS-B continuously so on-scene detection works with no viewer |
 | `ADSB_LOCAL_FEEDS` | *(none)* | Your own ADS-B receivers as `name=URL` pairs, comma-separated. See [Your own ADS-B receiver](#your-own-ads-b-receiver) |
-| `ADSB_WIDE_API` | `https://api.airplanes.live/v2` | Base URL of the public UK-wide aircraft API (readsb-style `/point/{lat}/{lon}/{nm}` and `/mil`), or `off` for none |
+| `ADSB_WIDE_API` | `adsb.fi,airplanes.live` | Public UK-wide aircraft providers, tried in order: `adsb.fi`, `airplanes.live`, `adsb.lol`, or your own readsb-style base URL; `off` for none. See [Your own ADS-B receiver](#your-own-ads-b-receiver) |
 | `FIRMS_MAP_KEY` | *(none)* | NASA FIRMS key for satellite fire hotspots ([free](https://firms.modaps.eosdis.nasa.gov/api/map_key/)) |
 | `FUEL_FINDER_CLIENT_ID`, `FUEL_FINDER_CLIENT_SECRET` | *(none)* | GOV.UK Fuel Finder API credentials for live forecourt prices ([register](https://www.developer.fuel-finder.service.gov.uk/access-latest-fuelprices)) |
 | `RAIL_LDB_KEY` | *(none)* | Live departure boards: consumer key of the free **Live Departure Board** product on the [Rail Data Marketplace](https://raildata.org.uk) (Specification tab) |
@@ -196,7 +196,9 @@ Without Docker (Python 3.11+): `pip install -r requirements.txt && DATA_DIR=./da
 
 Aircraft come from two kinds of source, merged on the map:
 
-- **Wide UK picture:** a public aggregator, [airplanes.live](https://airplanes.live) by default, refreshed every 30 s (four requests, one at a time). Its [API](https://airplanes.live/api-docs/) is free for non-commercial use with no uptime guarantee, is limited to 1 request a second, and is subject to its [terms of use](https://airplanes.live/terms-of-use/); if you run a receiver, feed them too. A picture older than 2 minutes is dropped rather than shown as current. Change the provider with `ADSB_WIDE_API` (it must offer `/point/{lat}/{lon}/{nm}` and `/mil` in the readsb JSON format), or set `off` to use only your receivers.
+- **Wide UK picture:** public aggregators, tried in order (default [adsb.fi](https://adsb.fi) open data, then [airplanes.live](https://airplanes.live)), refreshed every 30 s (four requests, one at a time, 1 request a second is the usual limit). If the first provider rate-limits (429) or refuses us (403), SitRep backs off from it and uses the next one; the selector tooltip says which is active. A picture older than 2 minutes is dropped rather than shown as current.
+  - Provider access rules change. airplanes.live's [API](https://airplanes.live/api-docs/) has been reported to be limited to IPs that feed it (see its [terms of use](https://airplanes.live/terms-of-use/)), and adsb.lol allows 500 requests a day per IP, too few for a live map. Feeding the aggregators from your own receiver (ultrafeeder does this) is the most reliable way to stay allowed, and costs nothing.
+  - Set `ADSB_WIDE_API` to reorder them, e.g. `airplanes.live,adsb.fi`, or to add your own readsb-style API (`/point/{lat}/{lon}/{nm}` and `/mil`) as a URL. `off` uses only your receivers.
 - **Your receivers (optional):** any readsb, tar1090 or [ultrafeeder](https://github.com/sdr-enthusiasts/docker-adsb-ultrafeeder) instance. They are real-time and include MLAT positions, and take priority over the wide picture for any aircraft they hear.
 
 Set `ADSB_LOCAL_FEEDS` to a comma-separated list of `name=URL`, where the URL is the receiver's `aircraft.json`:
@@ -209,7 +211,7 @@ ADSB_LOCAL_FEEDS=home=http://192.168.1.20:8080/data/aircraft.json,holiday=http:/
 - Names are lower-cased and become the options in **Settings → Aircraft source** (*All (merged)*, each receiver, *Wide UK (public)*) and appear in each aircraft's popup as "Heard by". `wide` is reserved.
 - Positions older than 30 s, non-ICAO (TIS-B) ids and anything outside the UK map are ignored. A receiver that is down is skipped after 4 s; hover the selector to see each source's status and aircraft count.
 - Only point this at receivers you trust: the server fetches these URLs.
-- With `ADSB_WIDE_API=off`, the air-ambulance "landed" inference stays disabled, because a few receivers cannot tell a landing from an aircraft leaving range.
+- With `ADSB_WIDE_API=off` (or while every provider is failing), the air-ambulance "landed" inference stays disabled, because a few receivers cannot tell a landing from an aircraft leaving range.
 - Receiver data and the public API reach the page only through SitRep; viewers never contact them directly.
 
 ## Home Assistant notifications

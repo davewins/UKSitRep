@@ -99,13 +99,13 @@ title suffix, banner captions (strings or functions), `fx` overlay layers, `boot
 Work through these in order. Keep the generic machinery; replace the data.
 
 **1. Geography and defaults**
-- `feeds.py`: `BBOX` (S, W, N, E), `UK_TZ`, `ADSB_POINTS` (≤250 nm circles covering the country). Aircraft are merged from `ADSB_LOCAL_FEEDS` receivers (priority) and the `ADSB_WIDE_API` provider; pick another provider or turn the wide feed off with that variable.
+- `feeds.py`: `BBOX` (S, W, N, E), `UK_TZ`, `ADSB_POINTS` (≤250 nm circles covering the country). Aircraft are merged from `ADSB_LOCAL_FEEDS` receivers (priority) and the first working provider in `ADSB_WIDE_API` (`config.ADSB_PROVIDERS`; failover on 403/429/errors, per-provider backoff); turn the wide feed off with `off`.
 - `index.html`: `UK_VIEW()` (country centre and zoom), `HOME_ZOOM`, `BASEMAPS` if you want local styles.
 - `more_feeds.py`: `BLITZ_BOX`, `AIR_POINTS`, `FIRMS_BOX`; `sky.py`: `SKY_BOX`, `CURATED_SITES`.
 - `feeds.py`: `CITY_WEATHER`, `SEA_POINTS` (offshore points, one per sea area).
 
 **2. Global feeds that work anywhere (keep these)**
-airplanes.live (aircraft; adsb.lol caps each IP at 500 requests/day, too few for a live map), aisstream.io (ships, free key), Open-Meteo (weather, marine, air quality),
+adsb.fi / airplanes.live (aircraft, with failover; adsb.lol caps each IP at 500 requests/day and airplanes.live is reported contributor-only), aisstream.io (ships, free key), Open-Meteo (weather, marine, air quality),
 RainViewer (radar tiles), allsky camera maps (worldwide; filter by `SKY_BOX` in `sky.py`), NASA FIRMS (fires, free key) and GIBS (imagery), CelesTrak + sgp4 (ISS),
 Blitzortung (lightning; coverage varies by region), NOAA SWPC (space weather), OpenStreetMap
 Overpass (webcams and other tagged features), tar1090 lookups. Re-check each one's terms and

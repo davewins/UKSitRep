@@ -30,15 +30,30 @@ def _list(name: str, default: str = "") -> list[str]:
     return [x.strip() for x in os.environ.get(name, default).split(",") if x.strip()]
 
 
-def _adsb_wide_api() -> str:
-    """ADSB_WIDE_API: base URL of a readsb-style API (GET /point/{lat}/{lon}/{nm} and /mil), or `off`."""
-    v = os.environ.get("ADSB_WIDE_API", "").strip().rstrip("/")
-    if v.lower() in ("off", "none", "false", "0"):
-        return ""
-    if v and not v.startswith(("http://", "https://")):
-        _LOGGER.warning("ADSB_WIDE_API: ignoring %r (use https://host/v2, or off)", v)
-        v = ""
-    return v or "https://api.airplanes.live/v2"
+# Public aggregators usable for the wide picture: name -> (base URL, query style).
+# "point" = readsb /point/{lat}/{lon}/{nm}; "fi" = adsb.fi /lat/{lat}/lon/{lon}/dist/{nm}. Both also serve /mil.
+ADSB_PROVIDERS = {
+    "adsb.fi": ("https://opendata.adsb.fi/api/v2", "fi"),
+    "airplanes.live": ("https://api.airplanes.live/v2", "point"),
+    "adsb.lol": ("https://api.adsb.lol/v2", "point"),
+}
+
+
+def _adsb_wide_apis() -> list[tuple[str, str, str]]:
+    """ADSB_WIDE_API: comma-separated providers tried in order (a name from ADSB_PROVIDERS, or a readsb-style
+    base URL), or `off`. Returns [(name, base_url, style)]."""
+    raw = [x.strip().rstrip("/") for x in os.environ.get("ADSB_WIDE_API", "").split(",") if x.strip()]
+    if len(raw) == 1 and raw[0].lower() in ("off", "none", "false", "0"):
+        return []
+    out: list[tuple[str, str, str]] = []
+    for item in raw:
+        if item.lower() in ADSB_PROVIDERS:
+            out.append((item.lower(), *ADSB_PROVIDERS[item.lower()]))
+        elif item.startswith(("http://", "https://")):
+            out.append((item.split("//", 1)[1].split("/", 1)[0], item, "point"))
+        else:
+            _LOGGER.warning("ADSB_WIDE_API: ignoring %r (use %s, a https://host/v2 URL, or off)", item, ", ".join(ADSB_PROVIDERS))
+    return out or [(n, *ADSB_PROVIDERS[n]) for n in ("adsb.fi", "airplanes.live")]
 
 
 def _adsb_local_feeds() -> dict[str, str]:
@@ -123,7 +138,7 @@ class Config:
     nh_keys: list[str] = field(default_factory=list)
     enable_worldcam: bool = False
     enable_background_adsb: bool = True
-    adsb_wide_api: str = "https://api.airplanes.live/v2"  # readsb-style base URL; empty = no wide feed
+    adsb_wide: list[tuple[str, str, str]] = field(default_factory=list)  # (name, base URL, style), tried in order; empty = none
     adsb_local_feeds: dict[str, str] = field(default_factory=dict)  # name -> readsb/tar1090 aircraft.json URL
     dsfrs_stations: dict[str, str] = field(default_factory=dict)
     dsfrs_areas: set[str] = field(default_factory=set)
@@ -174,7 +189,7 @@ class Config:
                                  os.environ.get("NATIONAL_HIGHWAYS_KEY_SECONDARY")) if k],
             enable_worldcam=_bool("ENABLE_WORLDCAM", False),
             enable_background_adsb=_bool("ENABLE_BACKGROUND_ADSB", True),
-            adsb_wide_api=_adsb_wide_api(),
+            adsb_wide=_adsb_wide_apis(),
             adsb_local_feeds=_adsb_local_feeds(),
             dsfrs_stations=dsfrs,
             dsfrs_areas=set(_list("DSFRS_AREAS", "Teignbridge,Torbay")),

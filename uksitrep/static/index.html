@@ -1121,7 +1121,7 @@ function syncSrcOptions(sources) {
     sel.value = S.acSrc || "all";
   }
   // say so when a source is down, rather than quietly showing a thinner picture
-  sel.title = Object.entries(sources).map(([k, v]) => `${SRC_NAME(k)}: ${v.ok ? v.count + " aircraft" : "DOWN (" + (v.error || "no data") + ")"}`).join("\n");
+  sel.title = Object.entries(sources).map(([k, v]) => `${SRC_NAME(k)}: ${v.ok ? v.count + " aircraft" + (v.provider ? " via " + v.provider : "") : "DOWN (" + (v.error || "no data") + ")"}`).join("\n");
 }
 function renderAircraft(list) {
   lastAircraft = list;
