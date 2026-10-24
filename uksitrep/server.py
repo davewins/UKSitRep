@@ -152,6 +152,8 @@ async def feed(request: web.Request) -> web.Response:
         return web.json_response(await sit.iss(lat, lon))
     if name == "bus_board":
         return web.json_response(await sit.bus_board(request.query.get("stop", "")))
+    if name == "airport_board":
+        return web.json_response(await sit.airport_board(request.query.get("icao", "")))
     if name == "rail_board":
         return web.json_response(await sit.rail_board(request.query.get("crs", "")))
     if name == "search":
@@ -255,6 +257,7 @@ async def healthz(request: web.Request) -> web.Response:
             "fuel_finder": bool(cfg.fuel_client_id and cfg.fuel_client_secret),
             "homes": [h.name for h in cfg.homes],
             "rail_departures": bool(cfg.rail_ldb_key),
+            "airport_boards": bool(cfg.aerodatabox_key),
             "buses": bool(cfg.bods_key),
             "bus_timetables": cfg.bus_timetable_regions,
             "ev_chargers": bool(cfg.ocm_key),

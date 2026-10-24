@@ -152,6 +152,9 @@ class Config:
     homes: list[Home] = field(default_factory=list)
     fuel_client_secret: str | None = None
     rail_ldb_key: str | None = None
+    aerodatabox_key: str | None = None
+    aerodatabox_daily_boards: int = 6
+    aerodatabox_monthly_units: int = 380
     rail_disruptions_key: str | None = None
     bods_key: str | None = None
     ocm_key: str | None = None
@@ -203,6 +206,9 @@ class Config:
             homes=_homes(),
             fuel_client_secret=os.environ.get("FUEL_FINDER_CLIENT_SECRET") or None,
             rail_ldb_key=os.environ.get("RAIL_LDB_KEY") or None,
+            aerodatabox_key=os.environ.get("AERODATABOX_KEY") or None,
+            aerodatabox_daily_boards=int(os.environ.get("AERODATABOX_DAILY_BOARDS", "6")),
+            aerodatabox_monthly_units=int(os.environ.get("AERODATABOX_MONTHLY_UNITS", "380")),
             rail_disruptions_key=os.environ.get("RAIL_DISRUPTIONS_KEY") or None,
             bods_key=os.environ.get("BODS_API_KEY") or None,
             ocm_key=os.environ.get("OCM_API_KEY") or None,
