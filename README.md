@@ -239,6 +239,8 @@ automation:
           message: "{{ trigger.json.message }}"
 ```
 
+Rail alerts follow each home's `RAIL_STATIONS` (3-letter codes, first 4): late/cancelled trains from those stations' boards, and disruptions that name them. With none set, the two nearest stations and the home radius are used.
+
 Storm overflows are the exception to "send everything nearby": only those within 3 km of a bathing water (after 1 hour) or running 6 hours or more notify, so short overflows in heavy rain stay on the map without a push.
 
 The service checks every 5 minutes and sends each thing once: a given sewage overflow, river

@@ -333,8 +333,11 @@ class HomeArea:
             boards = await asyncio.gather(*(safe(self.rail_board(c)) for c in codes))
             out["rail"] = {"boards": [{"crs": b["crs"], "name": b["name"], "services": b["services"][:5],
                                        "messages": b.get("messages", [])[:2]} for b in boards if b.get("services") is not None]}
+        # Pinned stations (RAIL_STATIONS) drive disruptions too; unpinned homes fall back to the radius
+        pinned = set(h.rail_stations[:4])
         dis = [d for d in rail_dis.get("disruptions", [])
-               if any(_km(lat, lon, s["lat"], s["lon"]) <= r for s in d.get("stations", []))]
+               if any((s.get("crs") in pinned) if pinned else _km(lat, lon, s["lat"], s["lon"]) <= r
+                      for s in d.get("stations", []))]
         if dis:
             out.setdefault("rail", {})["disruptions"] = [{k: d.get(k) for k in ("id", "kind", "text", "url")} for d in dis[:5]]
         if cfg.bods_key:
