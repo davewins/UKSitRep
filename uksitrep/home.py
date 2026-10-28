@@ -30,6 +30,11 @@ UK_TZ = ZoneInfo("Europe/London")
 NOTIFY_KINDS = ("warning", "flood", "river", "sewage", "fire", "road", "power", "rnli", "aircraft", "hems",
                 "lightning", "iss", "rail", "bus", "agile")
 SENT_KEEP_DAYS = 7
+# Storm overflow alerts: short in-town overflows after heavy rain are mostly noise, so only push when one
+# is near a bathing water (it matters for swimming) or has run long enough to be a capacity problem.
+SEWAGE_BATHING_KM = 3
+SEWAGE_BATHING_MIN = 60
+SEWAGE_LONG_MIN = 360
 SENT_FORMAT = "_keys:2"  # marks a sent store using the stable keys below
 POSTCODE_RE = re.compile(r"^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$")
 OUTCODE_RE = re.compile(r"^[A-Z]{1,2}\d[A-Z\d]?$")
@@ -253,9 +258,16 @@ class HomeArea:
         out["rivers"] = {"raised": [pick(g) for g in gauges if g["state"] in ("high", "record")],
                          "nearest": [pick(g) for g in gauges[:5]]}
         ov = near(sewage.get("overflows", []))
+        def bathing_near(o: dict) -> str | None:
+            """Nearest bathing water within SEWAGE_BATHING_KM of this overflow (Welsh Water names its own)."""
+            best = min(((_km(b["lat"], b["lon"], o["lat"], o["lon"]), b["name"]) for b in bathing.get("sites", [])
+                        if b.get("lat") is not None), default=(1e9, None))
+            return o.get("bathing") or (best[1] if best[0] < SEWAGE_BATHING_KM else None)
+
         out["sewage"] = {
             "active": [{"id": o["id"], "water": o.get("water"), "company": o.get("company"), "start": o.get("start"),
-                        "km": o["km"], "lat": o["lat"], "lon": o["lon"]} for o in ov if o.get("active")],
+                        "km": o["km"], "lat": o["lat"], "lon": o["lon"], "bathing": bathing_near(o)}
+                       for o in ov if o.get("active")],
             "recent": [{"id": o["id"], "water": o.get("water"), "end": o.get("end"), "km": o["km"]}
                        for o in ov if not o.get("active") and _age_min(o.get("end")) < 48 * 60],
         }
@@ -363,8 +375,18 @@ class HomeArea:
                        f"{g['name']}: {g['level']} m, above its normal range ({g['km']} km away)",
                        {"lat": g["lat"], "lon": g["lon"]}))
         for o in s.get("sewage", {}).get("active", []):
-            ev.append(("sewage", f"sewage:{o['id']}", "Sewage discharge nearby",
-                       f"{o['company']} storm overflow into {o['water']} ({o['km']} km)", {"lat": o["lat"], "lon": o["lon"]}))
+            mins = _age_min(o.get("start"))
+            if o.get("bathing"):
+                if mins < SEWAGE_BATHING_MIN:
+                    continue
+                title, where = f"Storm overflow near {o['bathing']}", f"{o['company']} untreated overflow into {o['water']}"
+            elif mins >= SEWAGE_LONG_MIN:
+                title, where = "Long storm overflow nearby", f"{o['company']} untreated overflow into {o['water']}"
+            else:
+                continue
+            run = f"{mins / 60:.0f} h" if mins < 1e8 and mins >= 120 else f"{mins:.0f} min"
+            ev.append(("sewage", f"sewage:{o['id']}", title, f"{where}, running {run} ({o['km']} km)",
+                       {"lat": o["lat"], "lon": o["lon"]}))
         for f in s.get("fire", []):
             if _age_min(f.get("time")) < 180:
                 ev.append(("fire", f"fire:{f.get('link') or f.get('title')}", f"Fire service: {f['title']}",

@@ -239,6 +239,8 @@ automation:
           message: "{{ trigger.json.message }}"
 ```
 
+Storm overflows are the exception to "send everything nearby": only those within 3 km of a bathing water (after 1 hour) or running 6 hours or more notify, so short overflows in heavy rain stay on the map without a push.
+
 The service checks every 5 minutes and sends each thing once: a given sewage overflow, river
 gauge, fire incident, road closure or power cut is not sent again for 7 days, however often it
 stops and restarts, unless it gets worse (a flood alert becoming a warning, a river going from

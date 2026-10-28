@@ -1756,13 +1756,25 @@ const SEWAGE_RECENT_MIN_ZOOM = 8;
 let lastSewage = [];
 const GLYPH_DROP = '<path d="M0,-6.5 C2.5,-2.5 5,0 5,2.5 A5,5 0 0 1 -5,2.5 C-5,0 -2.5,-2.5 0,-6.5 Z" fill="#fff"/><path d="M-3,1.5 h6 M-2.2,3.6 h4.4" stroke="#78350f" stroke-width="1.1"/>';
 const fmtDur = (min) => min < 60 ? `${Math.max(1, Math.round(min))} min` : min < 2880 ? `${(min / 60).toFixed(min < 600 ? 1 : 0)} h` : `${Math.round(min / 1440)} days`;
+const SEW_SHORT_MIN = 120, SEW_LONG_MIN = 720;
+const sewMins = (o) => o.start ? ((o.end ? Date.parse(o.end) : Date.now()) - Date.parse(o.start)) / 60000 : 0;
+const sewBathing = (o) => o.bathing || (lastBathing.find(b => distKm(b.lat, b.lon, o.lat, o.lon) < 3) || {}).name || null;
+/* Marker encodes how long the overflow ran: small and light = short, big and dark with a red ring = long.
+   A blue ring marks one near a bathing water. */
+function sewageIcon(o, active) {
+  const m = sewMins(o), long = m >= SEW_LONG_MIN, short = m < SEW_SHORT_MIN;
+  const px = long ? 26 : short ? 17 : 22, bg = active ? (long ? "#7c2d12" : short ? "#d97706" : "#92400e") : "#ca8a04";
+  const ring = sewBathing(o) ? "#38bdf8" : long && active ? "#ef4444" : "#000";
+  return L.divIcon({ className: "base" + (active && long ? " pulse" : ""), iconSize: [px, px], iconAnchor: [px / 2, px / 2],
+    html: `<svg width="${px}" height="${px}" viewBox="-11 -11 22 22"><circle r="9.5" fill="${bg}" stroke="${ring}" stroke-width="${ring === "#000" ? 1 : 2}"/>${GLYPH_DROP}</svg>` });
+}
 function sewagePopup(o) {
   const when = (iso) => iso ? `${ukDay(iso)} ${ukTime(iso)}` : "?";
-  const dur = o.start ? fmtDur(((o.end ? Date.parse(o.end) : Date.now()) - Date.parse(o.start)) / 60000) : "";
-  return `<b>${o.active ? "🟤 Discharging now" : "Discharged recently"}</b><br>${esc(o.name)}<br>
-    <span class="muted">${esc(o.company)}</span><br>Into: <b>${esc(o.water || "?")}</b>${o.bathing && o.bathing !== o.water ? `<br>Bathing water: ${esc(o.bathing)}` : ""}<br>
+  const dur = o.start ? fmtDur(sewMins(o)) : "", bw = sewBathing(o);
+  return `<b>${o.active ? "🟤 Storm overflow discharging now" : "Storm overflow discharged recently"}</b><br>${esc(o.name)}<br>
+    <span class="muted">${esc(o.company)}</span><br>Into: <b>${esc(o.water || "?")}</b>${bw ? `<br>Near bathing water: <b>${esc(bw)}</b>` : ""}<br>
     ${o.active ? `Since ${when(o.start)}${dur ? ` (${dur})` : ""}` : `${when(o.start)} to ${when(o.end)}${dur ? ` (${dur})` : ""}<br><span class="muted">stopped ${ago(o.end)}</span>`}
-    <br><span class="muted" style="font-size:11px">Water company storm overflow monitor. Avoid swimming downstream for 48 h after a discharge.</span>`;
+    <br><span class="muted" style="font-size:11px">Untreated sewage diluted by rainwater, released under permit when sewers are overwhelmed. Longer discharges are less diluted. Avoid swimming downstream for 48 h after a discharge.</span>`;
 }
 function renderSewage(d) {
   if (d) lastSewage = d.overflows || [];
@@ -1771,15 +1783,15 @@ function renderSewage(d) {
   counts.sewage = active.length; counts.sewage_recent = recent.length; renderCounts();
   if (S.layers.sewage)
     for (const o of active)
-      L.marker([o.lat, o.lon], { icon: emIcon("#92400e", GLYPH_DROP, true), zIndexOffset: 450 })
-        .bindPopup(sewagePopup(o)).bindTooltip(`Sewage discharging: ${esc(o.water || o.name)}`, { direction: "top", offset: [0, -10] }).addTo(G.sewage);
+      L.marker([o.lat, o.lon], { icon: sewageIcon(o, true), zIndexOffset: 450 + Math.min(40, Math.round(sewMins(o) / 60)) })
+        .bindPopup(sewagePopup(o)).bindTooltip(`Storm overflow discharging (${fmtDur(sewMins(o))}): ${esc(o.water || o.name)}`, { direction: "top", offset: [0, -10] }).addTo(G.sewage);
   if (S.layers.sewage_recent && map.getZoom() >= SEWAGE_RECENT_MIN_ZOOM) {
     const b = map.getBounds().pad(0.3);
     for (const o of recent) {
       if (!b.contains([o.lat, o.lon])) continue;
       const m = ageMin(o.end);
-      L.marker([o.lat, o.lon], { icon: emIcon("#ca8a04", GLYPH_DROP, false), opacity: m < 360 ? .95 : m < 1440 ? .7 : .45, zIndexOffset: 200 })
-        .bindPopup(sewagePopup(o)).bindTooltip(`Sewage stopped ${ago(o.end)}: ${esc(o.water || o.name)}`, { direction: "top", offset: [0, -10] }).addTo(G.sewage_recent);
+      L.marker([o.lat, o.lon], { icon: sewageIcon(o, false), opacity: m < 360 ? .95 : m < 1440 ? .7 : .45, zIndexOffset: 200 })
+        .bindPopup(sewagePopup(o)).bindTooltip(`Storm overflow stopped ${ago(o.end)}: ${esc(o.water || o.name)}`, { direction: "top", offset: [0, -10] }).addTo(G.sewage_recent);
     }
   }
   renderAlerts();
@@ -2002,7 +2014,7 @@ function renderHome(d) {
   if (rv.raised?.length) for (const g of rv.raised) r.push(row("📈", `<b style="color:#f97316">${esc(g.river || g.name)} high</b> ${g.level} m ${g.trend > 0 ? "↑" : g.trend < 0 ? "↓" : ""}`, [g.lat, g.lon], `${g.km} km`));
   else if (rv.nearest?.length) r.push(row("〰️", "Rivers normal: " + rv.nearest.slice(0, 2).map(g => `${esc(g.river || g.name)} ${g.level} m${g.trend > 0 ? "↑" : g.trend < 0 ? "↓" : ""}`).join(", "), [rv.nearest[0].lat, rv.nearest[0].lon]));
   const sw = d0.sewage || {};
-  for (const o of sw.active || []) r.push(row("🟤", `<b style="color:#d97706">Sewage discharging</b> into ${esc(o.water)}`, [o.lat, o.lon], `${o.km} km`));
+  for (const o of sw.active || []) r.push(row("🟤", `<b style="color:#d97706">Storm overflow discharging</b> into ${esc(o.water)}`, [o.lat, o.lon], `${o.km} km`));
   if (sw.recent?.length) r.push(row("🟤", `${sw.recent.length} overflow${sw.recent.length > 1 ? "s" : ""} stopped in 48 h · nearest ${esc(sw.recent[0].water)} (${ago(sw.recent[0].end)})`, null, `${sw.recent[0].km} km`));
   const bw = (d0.bathing || []).slice(0, 2);
   if (bw.length) r.push(row("🏖️", bw.map(b => `${esc(b.name)} <span style="color:${BW_COL[b.classification] || "inherit"}">${esc(b.classification || "?")}</span>${b.risk && b.risk !== "normal" ? ` <b style="color:#dc2626">risk ${esc(b.risk)}</b>` : ""}${b.sewage_near ? " 🟤" : ""}`).join(" · "), null));
@@ -2577,7 +2589,7 @@ function renderAlerts() {
   const sewNow = lastSewage.filter(o => o.active);
   if (sewNow.length) {
     const by = Object.entries(sewNow.reduce((m, o) => (m[o.company] = (m[o.company] || 0) + 1, m), {})).sort((x, y) => y[1] - x[1]);
-    out.push({ cls: "info", html: `🟤 ${sewNow.length} sewage overflow${sewNow.length > 1 ? "s" : ""} discharging now<small>${by.map(([c, n]) => `${esc(c)} ${n}`).join(" · ")}</small>` });
+    out.push({ cls: "info", html: `🟤 ${sewNow.length} storm overflow${sewNow.length > 1 ? "s" : ""} discharging now (${sewNow.filter(o => sewMins(o) >= SEW_LONG_MIN).length} over 12 h)<small>${by.map(([c, n]) => `${esc(c)} ${n}`).join(" · ")}</small>` });
   }
   const urgent = out.filter(o => o.cls === "" || o.cls === "amber").length;
   $("btnInfo").textContent = urgent ? `Info ⚠ ${urgent}` : "Info";
@@ -3246,7 +3258,7 @@ const LAYER_UI = [
     ["air", "Air quality & pollen", "#a3e635"], ["fires", "Satellite fire hotspots (NASA)", "#ef4444"],
     ["satimg", "Satellite image, yesterday (NASA)", "#e2e8f0"]]],
   ["Water", [["floods", "EA flood warnings", "#f97316"], ["rivers", "River levels (high: always; all: zoom 9+)", "#38bdf8"],
-    ["sewage", "Sewage discharging now", "#a16207"], ["sewage_recent", "Sewage, stopped in last 48 h (zoom 8+)", "#ca8a04"]]],
+    ["sewage", "Storm overflows discharging now", "#a16207"], ["sewage_recent", "Storm overflows, stopped in last 48 h (zoom 8+)", "#ca8a04"]]],
   ["Travel & transport", [["roads_incidents", "Road incidents (live)", "#ef4444"],
     ["roads_closures", "Road closures (planned)", "#f59e0b"], ["roads_works", "Lane restrictions", "#94a3b8"],
     ["rail_disruptions", "Rail disruptions (live)", "#e11d48"], ["rail_stations", "Rail stations & live departures (zoom 11+)", "#fda4af"],
